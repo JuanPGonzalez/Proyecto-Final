@@ -7,9 +7,9 @@ export default function CancelPurchase() {
 
   return (
     <div className="container animate-fade-in" style={{ marginTop: '50px', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-      <XCircle size={80} color="#d9534f" style={{ marginBottom: '20px' }} />
+      <XCircle size={80} color="var(--destructive)" style={{ marginBottom: '20px' }} />
       <h2 style={{ fontSize: '2.5rem', marginBottom: '15px' }}>Compra Anulada</h2>
-      <p style={{ color: 'var(--ml-light-text)', fontSize: '1.2rem', marginBottom: '30px', maxWidth: '600px' }}>
+      <p style={{ color: 'var(--muted-foreground)', fontSize: '1.2rem', marginBottom: '30px', maxWidth: '600px' }}>
         Has cancelado el proceso de checkout de forma segura. No se ha realizado ningún cobro 
         en tus tarjetas ni cuentas asociadas.
       </p>

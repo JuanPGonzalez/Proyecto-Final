@@ -28,7 +28,7 @@ export default function SoporteTickets() {
         
         <div className="card" style={{ padding: '30px' }}>
            <h3>Nuevo Reclamo</h3>
-           <p style={{ color: 'var(--ml-light-text)', fontSize: '0.9rem', marginBottom: '20px' }}>Detalla el conflicto o avería con tu compra para que un asesor inicie el RMA.</p>
+           <p style={{ color: 'var(--muted-foreground)', fontSize: '0.9rem', marginBottom: '20px' }}>Detalla el conflicto o avería con tu compra para que un asesor inicie el RMA.</p>
            <form onSubmit={createTicket} style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
              <input className="input-field" required placeholder="Producto / Asunto" value={form.subject} onChange={e=>setForm({...form, subject:e.target.value})}/>
              <textarea className="input-field" required placeholder="Descripción del defecto..." style={{ minHeight: '120px' }} value={form.desc} onChange={e=>setForm({...form, desc:e.target.value})}/>
@@ -40,10 +40,10 @@ export default function SoporteTickets() {
            <h3>Mis Tickets</h3>
            <div style={{ marginTop: '20px' }}>
              {tickets.map(t => (
-               <div key={t.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '15px', border: '1px solid #eee', borderRadius: '6px', marginBottom: '10px' }}>
+               <div key={t.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '15px', border: '1px solid var(--border)', borderRadius: '6px', marginBottom: '10px' }}>
                  <div>
-                   <strong style={{ color: 'var(--ml-blue)' }}>{t.id}</strong> - {t.subject}
-                   <div style={{ fontSize: '0.8rem', color: '#999', marginTop: '5px' }}>{t.date}</div>
+                   <strong style={{ color: 'var(--foreground)' }}>{t.id}</strong> - {t.subject}
+                   <div style={{ fontSize: '0.8rem', color: 'var(--muted-foreground)', marginTop: '5px' }}>{t.date}</div>
                  </div>
                  <div style={{ display: 'flex', alignItems: 'center' }}>
                    <span style={{ 

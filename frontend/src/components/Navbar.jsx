@@ -7,6 +7,16 @@ export default function Navbar() {
   const token = localStorage.getItem('token');
   const user = JSON.parse(localStorage.getItem('user') || '{}');
   const [cartCount, setCartCount] = useState(0);
+  const [searchTerm, setSearchTerm] = useState('');
+
+  const handleSearch = (e) => {
+    e.preventDefault();
+    if(searchTerm.trim()) {
+      navigate(`/?search=${encodeURIComponent(searchTerm.trim())}`);
+    } else {
+      navigate('/');
+    }
+  };
 
   // Escuchar cambios en el carrito en todo momento vía ventana local
   useEffect(() => {
@@ -23,40 +33,45 @@ export default function Navbar() {
 
   return (
     <>
-      <header style={{ backgroundColor: 'var(--primary)', padding: '15px 0', position: 'sticky', top: 0, zIndex: 50, borderBottom:'1px solid var(--accent)' }}>
+      <header style={{ backgroundColor: 'var(--card)', padding: '15px 0', position: 'sticky', top: 0, zIndex: 50, borderBottom:'1px solid var(--border)', boxShadow: '0 1px 3px rgba(0,0,0,0.02)' }}>
         <div className="container flex items-center justify-between">
           <Link to="/" style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <h1 style={{ color: 'var(--primary-foreground)', fontSize: '1.6rem', fontWeight: 800, margin: 0, letterSpacing:'-0.5px' }}>
-              Hardware<span style={{color: 'var(--accent)'}}>Haven</span>
+            <h1 style={{ color: 'var(--foreground)', fontSize: '1.6rem', fontWeight: 800, margin: 0, letterSpacing:'-0.5px' }}>
+              Hardware Haven<span style={{color: 'var(--accent)'}}>.</span>
             </h1>
           </Link>
           
-          <div style={{ flex: 1, margin: '0 40px', position: 'relative' }}>
+          <form onSubmit={handleSearch} style={{ flex: 1, margin: '0 40px', position: 'relative' }}>
             <input 
               type="text" 
-              placeholder="Buscar componentes..."
-              style={{ width: '100%', padding: '10px 15px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', backgroundColor: 'var(--background)', color: 'var(--foreground)', fontSize: '0.95rem', outline: 'none' }}
+              placeholder="Buscar productos, marcas y más..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="input-field"
+              style={{ paddingRight: '40px', borderRadius: 'var(--radius-lg)' }}
             />
-            <Search size={18} color="var(--muted-foreground)" style={{ position: 'absolute', right: '15px', top: '11px', cursor: 'pointer' }} />
-          </div>
+            <button type="submit" style={{ position: 'absolute', right: '15px', top: '12px', background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
+               <Search size={18} color="var(--muted-foreground)" />
+            </button>
+          </form>
 
           <div className="flex items-center gap-5">
             {user.tipoUsuario === 'admin' && (
-              <div style={{ display: 'flex', gap: '15px', marginRight: '10px', borderRight: '1px solid rgba(255,255,255,0.2)', paddingRight: '15px' }}>
-                <Link to="/admin" title="BI Dashboard" style={{ color:'var(--primary-foreground)' }}><Settings size={20} /></Link>
-                <Link to="/admin/productos" title="Inventario" style={{ color:'var(--primary-foreground)' }}><Database size={20} /></Link>
+              <div style={{ display: 'flex', gap: '15px', marginRight: '10px', borderRight: '1px solid var(--border)', paddingRight: '15px' }}>
+                <Link to="/admin" title="BI Dashboard" style={{ color:'var(--muted-foreground)' }}><Settings size={20} /></Link>
+                <Link to="/admin/productos" title="Inventario" style={{ color:'var(--muted-foreground)' }}><Database size={20} /></Link>
               </div>
             )}
 
-            <div style={{ display: 'flex', alignItems: 'center', gap: '5px', cursor: 'pointer', color: 'var(--primary-foreground)' }} onClick={() => navigate(token ? '/profile' : '/login')}>
-              <User size={20} />
+            <div style={{ display: 'flex', alignItems: 'center', gap: '5px', cursor: 'pointer', color: 'var(--foreground)' }} onClick={() => navigate(token ? '/profile' : '/login')}>
+              <User size={20} color="var(--foreground)" />
               <span style={{ fontSize: '0.9rem', fontWeight: 500 }}>{token ? user.name.split(' ')[0] : 'Ingresar'}</span>
             </div>
 
-            <Link to="/cart" title="Mi Carrito" style={{ color:'var(--primary-foreground)', position: 'relative' }}>
+            <Link to="/cart" title="Mi Carrito" style={{ color:'var(--foreground)', position: 'relative' }}>
               <ShoppingCart size={22} />
               {cartCount > 0 && (
-                <span style={{ position: 'absolute', top: '-8px', right: '-10px', background: 'var(--accent)', color: 'white', borderRadius: '50%', padding: '2px 6px', fontSize: '0.75rem', fontWeight: 'bold' }}>
+                <span style={{ position: 'absolute', top: '-8px', right: '-10px', background: 'var(--accent)', color: 'var(--accent-foreground)', borderRadius: '50%', padding: '2px 6px', fontSize: '0.75rem', fontWeight: 'bold' }}>
                   {cartCount}
                 </span>
               )}
@@ -67,7 +82,7 @@ export default function Navbar() {
 
       {/* Riel secundario corporativo */}
       <nav style={{ backgroundColor: 'var(--background)', padding: '12px 0', borderBottom: '1px solid var(--border)', fontSize: '0.85rem' }}>
-         <div className="container flex gap-6">
+         <div className="container flex gap-6" style={{ justifyContent: 'center' }}>
             <Link to="/presupuestador" style={{ display: 'flex', alignItems:'center', gap:'5px', color:'var(--foreground)', fontWeight:500 }}>
               <Cpu size={16} color="var(--accent)"/> Armá tu PC
             </Link>

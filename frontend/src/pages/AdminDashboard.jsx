@@ -30,7 +30,7 @@ export default function AdminDashboard() {
   return (
     <div className="container animate-fade-in" style={{ marginTop: '40px' }}>
       <h2 style={{ fontSize: '2rem', marginBottom: '10px', fontWeight: 600 }}>Business Intelligence (BI) Dashboard</h2>
-      <p style={{ color: 'var(--ml-light-text)', marginBottom: '30px' }}>Analíticas en tiempo real de Hardware Haven</p>
+      <p style={{ color: 'var(--muted-foreground)', marginBottom: '30px' }}>Analíticas en tiempo real de Hardware Haven</p>
       
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '20px', marginBottom: '40px' }}>
         <StatCard title="Ganancia Bruta" value={`$${Number(stats.revenue).toLocaleString()}`} icon={<DollarSign size={30} color="white" />} bg="#3483fa" />
@@ -42,7 +42,7 @@ export default function AdminDashboard() {
       <div style={{ display: 'grid', gridTemplateColumns: 'minmax(300px, 2fr) minmax(300px, 1fr)', gap: '30px' }}>
         
         {/* BIG CHART */}
-        <div className="card" style={{ padding: '30px', backgroundColor: 'white' }}>
+        <div className="card" style={{ padding: '30px', backgroundColor: 'var(--card)' }}>
           <h4>Rendimiento Neto (Últimos 6 meses)</h4>
           <Bar 
             options={{ responsive: true, plugins: { legend: { position: 'top' } } }} 
@@ -61,7 +61,7 @@ export default function AdminDashboard() {
         </div>
         
         {/* PIE CHART */}
-        <div className="card" style={{ padding: '30px', backgroundColor: 'white', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+        <div className="card" style={{ padding: '30px', backgroundColor: 'var(--card)', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
           <h4>Distribución de Ventas</h4>
           <div style={{ width: '100%', maxWidth: '250px', marginTop: '20px' }}>
             <Pie 
@@ -86,7 +86,7 @@ function StatCard({ title, value, icon, bg }) {
     <div className="card" style={{ padding: '20px', display: 'flex', alignItems: 'center', gap: '20px' }}>
       <div style={{ backgroundColor: bg, padding: '15px', borderRadius: '50%', boxShadow: '0 4px 6px rgba(0,0,0,0.1)' }}>{icon}</div>
       <div>
-        <h4 style={{ color: 'var(--ml-light-text)', fontSize: '0.9rem', marginBottom: '5px' }}>{title}</h4>
+        <h4 style={{ color: 'var(--muted-foreground)', fontSize: '0.9rem', marginBottom: '5px' }}>{title}</h4>
         <span style={{ fontSize: '1.5rem', fontWeight: 700 }}>{value}</span>
       </div>
     </div>

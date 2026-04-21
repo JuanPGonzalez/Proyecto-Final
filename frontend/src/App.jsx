@@ -20,12 +20,13 @@ import Chatbot from './components/Chatbot';
 function App() {
   return (
     <Router>
-      <div className="app">
+      <div className="app" style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
         <Navbar />
-        <main style={{ paddingBottom: '100px', minHeight: '100vh' }}>
+        <main style={{ flex: 1, position: 'relative', paddingBottom: '40px' }}>
           <Routes>
             <Route path="/" element={<Home />} />
             <Route path="/login" element={<Login />} />
+            <Route path="/register" element={<Login initialMode="register" />} />
             <Route path="/profile" element={<Profile />} />
             <Route path="/cart" element={<Cart />} />
             <Route path="/ayuda" element={<Ayuda />} />
@@ -48,13 +49,13 @@ function App() {
         </main>
         
         {/* Footer Minimalista */}
-        <footer style={{ backgroundColor: 'white', padding: '20px 0', borderTop: '1px solid #ddd', textAlign: 'center', marginTop: 'auto' }}>
-           <div style={{ display: 'flex', justifyContent: 'center', gap: '20px', marginBottom: '10px' }}>
-              <a href="/about" style={{ color: 'var(--ml-light-text)', fontSize: '0.9rem' }}>Acerca de</a>
-              <a href="/terms" style={{ color: 'var(--ml-light-text)', fontSize: '0.9rem' }}>Términos y Privacidad</a>
-              <a href="/ayuda" style={{ color: 'var(--ml-light-text)', fontSize: '0.9rem' }}>Ayuda</a>
+        <footer style={{ backgroundColor: 'var(--card)', padding: '30px 0', borderTop: '1px solid var(--border)', textAlign: 'center', marginTop: 'auto' }}>
+           <div style={{ display: 'flex', justifyContent: 'center', gap: '20px', marginBottom: '15px' }}>
+              <a href="/about" style={{ color: 'var(--muted-foreground)', fontSize: '0.9rem' }}>Acerca de</a>
+              <a href="/terms" style={{ color: 'var(--muted-foreground)', fontSize: '0.9rem' }}>Términos y Privacidad</a>
+              <a href="/ayuda" style={{ color: 'var(--muted-foreground)', fontSize: '0.9rem' }}>Ayuda</a>
            </div>
-           <p style={{ color: '#aaa', fontSize: '0.8rem' }}>&copy; 2026 Hardware Haven (Proyecto Universitario UTN).</p>
+           <p style={{ color: 'var(--muted-foreground)', fontSize: '0.85rem' }}>&copy; 2026 Hardware Haven (Proyecto Universitario UTN).</p>
         </footer>
 
         <Chatbot />

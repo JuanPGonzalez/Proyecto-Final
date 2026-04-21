@@ -29,29 +29,29 @@ export default function Cart() {
       
       {cartItems.length === 0 ? (
         <div className="card" style={{ padding: '40px', textAlign: 'center' }}>
-          <h3 style={{ color: 'var(--ml-light-text)' }}>Tu carrito está vacío</h3>
+          <h3 style={{ color: 'var(--muted-foreground)' }}>Tu carrito está vacío</h3>
         </div>
       ) : (
         <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '30px' }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
             {cartItems.map((item, idx) => (
               <div key={idx} className="card" style={{ display: 'flex', padding: '20px', alignItems: 'center', gap: '20px' }}>
-                <img src={item.imageUrl || item.imgURL} alt={item.name} style={{ width: '80px', height: '80px', objectFit: 'contain' }} />
+                <img src={item.imgURL || item.imageUrl || 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIzMDAiIGhlaWdodD0iMzAwIiB2aWV3Qm94PSIwIDAgMzAwIDMwMCI+PHJlY3Qgd2lkdGg9IjMwMCIgaGVpZ2h0PSIzMDAiIGZpbGw9IiNmOGZhZmMiLz48dGV4dCB4PSIxNTAiIHk9IjE1MCIgZm9udC1mYW1pbHk9IkFyaWFsIiBmb250LXNpemU9IjI0IiBmb250LXdlaWdodD0iYm9sZCIgZmlsbD0iIzY0NzQ4YiIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iPkhhcmR3YXJlPC90ZXh0Pjwvc3ZnPg=='} alt={item.name} style={{ width: '80px', height: '80px', objectFit: 'contain' }} />
                 <div style={{ flex: 1 }}>
                   <h4>{item.name}</h4>
-                  <p style={{ color: 'var(--ml-light-text)', fontSize: '0.9rem' }}>Cantidad: 1</p>
+                  <p style={{ color: 'var(--muted-foreground)', fontSize: '0.9rem' }}>Cantidad: 1</p>
                 </div>
                 <div>
                   <span style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>${Number(item.price).toLocaleString()}</span>
                 </div>
-                <button onClick={() => removeFromCart(idx)} style={{ background:'none', border:'none', color:'#d9534f', cursor:'pointer' }}>Eliminar</button>
+                <button onClick={() => removeFromCart(idx)} style={{ background:'none', border:'none', color:'var(--destructive)', cursor:'pointer' }}>Eliminar</button>
               </div>
             ))}
           </div>
 
           <div className="card" style={{ padding: '30px', height: 'fit-content' }}>
             <h3>Resumen de compra</h3>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '20px', borderTop: '1px solid #eee', paddingTop: '15px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '20px', borderTop: '1px solid var(--border)', paddingTop: '15px' }}>
               <span>Total</span>
               <span style={{ fontSize: '1.5rem', fontWeight: 'bold' }}>${total.toLocaleString()}</span>
             </div>

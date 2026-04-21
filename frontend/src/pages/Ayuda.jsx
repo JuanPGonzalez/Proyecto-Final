@@ -20,15 +20,15 @@ export default function Ayuda() {
           <ul style={{ listStyle: 'none', padding: 0, marginTop: '20px' }}>
             <li style={{ marginBottom: '20px' }}>
               <strong>¿Cómo puedo realizar un pedido?</strong>
-              <p style={{ color: 'var(--ml-light-text)' }}>Selecciona los productos, agrégalos al carrito y sigue el proceso de checkout.</p>
+              <p style={{ color: 'var(--muted-foreground)' }}>Selecciona los productos, agrégalos al carrito y sigue el proceso de checkout.</p>
             </li>
             <li style={{ marginBottom: '20px' }}>
               <strong>¿Cómo rastreo mi pedido?</strong>
-              <p style={{ color: 'var(--ml-light-text)' }}>Recibirás un email automático de seguimiento una vez enviado tu paquete.</p>
+              <p style={{ color: 'var(--muted-foreground)' }}>Recibirás un email automático de seguimiento una vez enviado tu paquete.</p>
             </li>
             <li>
               <strong>¿Aceptan devoluciones?</strong>
-              <p style={{ color: 'var(--ml-light-text)' }}>Sí, cuentas con 30 días naturales con tu recibo original de compra.</p>
+              <p style={{ color: 'var(--muted-foreground)' }}>Sí, cuentas con 30 días naturales con tu recibo original de compra.</p>
             </li>
           </ul>
         </div>
@@ -36,7 +36,7 @@ export default function Ayuda() {
         {/* Formulario */}
         <div className="card" style={{ padding: '30px' }}>
           <h3>Contáctanos</h3>
-          <p style={{ color: 'var(--ml-light-text)', marginBottom: '20px' }}>¿No encuentras lo que buscas? Déjanos un mensaje.</p>
+          <p style={{ color: 'var(--muted-foreground)', marginBottom: '20px' }}>¿No encuentras lo que buscas? Déjanos un mensaje.</p>
           <form onSubmit={sendEmail} style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
             <input type="text" placeholder="Nombre" required className="input-field" value={formData.name} onChange={e=>setFormData({...formData, name: e.target.value})} />
             <input type="text" placeholder="Asunto" required className="input-field" value={formData.subject} onChange={e=>setFormData({...formData, subject: e.target.value})} />

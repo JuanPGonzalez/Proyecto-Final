@@ -56,7 +56,7 @@ export default function Profile() {
     <div className="container animate-fade-in" style={{ marginTop: '40px' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
         <h2>Mi Perfil ({user.tipoUsuario})</h2>
-        <button className="btn btn-outline" onClick={logout} style={{ color: '#d9534f', borderColor: '#d9534f' }}>Cerrar Sesión</button>
+        <button className="btn btn-outline" onClick={logout} style={{ color: 'var(--destructive)', borderColor: 'var(--destructive)' }}>Cerrar Sesión</button>
       </div>
       
       <div className="card" style={{ padding: '30px', maxWidth: '600px' }}>
@@ -71,7 +71,7 @@ export default function Profile() {
           </div>
           <div>
             <label className="input-label">Sexo</label>
-            <select className="input-field" style={{width: '100%', background:'white'}} value={formData.sexo} onChange={e => setFormData({...formData, sexo: e.target.value})}>
+            <select className="input-field" style={{width: '100%', background:'var(--background)'}} value={formData.sexo} onChange={e => setFormData({...formData, sexo: e.target.value})}>
               <option value="Indefinido">Prefiero no decirlo</option>
               <option value="Masculino">Masculino</option>
               <option value="Femenino">Femenino</option>

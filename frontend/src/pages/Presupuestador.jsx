@@ -40,7 +40,7 @@ export default function Presupuestador() {
         <h4 style={{ marginBottom: '5px' }}>{label}</h4>
         <select 
           className="input-field" 
-          style={{ width: '100%', backgroundColor: 'white' }}
+          style={{ width: '100%', backgroundColor: 'var(--background)' }}
           onChange={(e) => {
             const item = products.find(p => p.id === parseInt(e.target.value));
             setBudget(prev => ({ ...prev, [category]: item || null }));
@@ -58,7 +58,7 @@ export default function Presupuestador() {
   return (
     <div className="container animate-fade-in" style={{ marginTop: '40px' }}>
       <h2 style={{ fontSize: '2rem', marginBottom: '10px' }}>Armador de PCs Personalizado</h2>
-      <p style={{ color: 'var(--ml-light-text)', marginBottom: '30px' }}>Selecciona pieza por pieza para cotizar tu armado ideal. El sistema cuidará la compatibilidad.</p>
+      <p style={{ color: 'var(--muted-foreground)', marginBottom: '30px' }}>Selecciona pieza por pieza para cotizar tu armado ideal. El sistema cuidará la compatibilidad.</p>
 
       <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '30px', alignItems: 'start' }}>
         
@@ -67,7 +67,7 @@ export default function Presupuestador() {
           <OptionSelect category="GPU" label="Placa de Video (GPU)" />
           <OptionSelect category="RAM" label="Memoria RAM" />
           <OptionSelect category="MOBO" label="Placa Madre (Motherboard)" />
-          <p style={{ fontSize: '0.8rem', color: '#888', marginTop: '20px' }}>
+          <p style={{ fontSize: '0.8rem', color: 'var(--muted-foreground)', marginTop: '20px' }}>
             *Para el propósito del demo universitario, la lista es general y extraída del stock.
           </p>
         </div>
@@ -77,14 +77,14 @@ export default function Presupuestador() {
           <ul style={{ listStyle: 'none', padding: 0, marginTop: '20px', minHeight: '150px' }}>
             {Object.entries(budget).map(([key, item]) => (
               <li key={key} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px', fontSize: '0.9rem' }}>
-                <span style={{ color: item ? 'var(--ml-text)' : '#aaa' }}>{item ? item.name : `Sin ${key}`}</span>
+                <span style={{ color: item ? 'var(--foreground)' : 'var(--muted-foreground)' }}>{item ? item.name : `Sin ${key}`}</span>
                 <span>{item ? `$${Number(item.price).toLocaleString()}` : '$0'}</span>
               </li>
             ))}
           </ul>
-          <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid #eee', paddingTop: '20px', marginBottom: '20px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid var(--border)', paddingTop: '20px', marginBottom: '20px' }}>
              <strong>Total Inversión:</strong>
-             <h3 style={{ color: 'var(--ml-blue)' }}>${total.toLocaleString()}</h3>
+             <h3 style={{ color: 'var(--primary)' }}>${total.toLocaleString()}</h3>
           </div>
 
           <button className="btn" style={{ width: '100%' }} onClick={agregarAlCarrito}>Añadir al Carrito</button>

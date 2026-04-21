@@ -1,83 +1,133 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+
 :root {
-  --background: #f8fafc;
-  --foreground: #0f172a;
-  --card: #ffffff;
-  --card-foreground: #0f172a;
-  --primary: #1e293b;
-  --primary-foreground: #f8fafc;
-  --secondary: #f1f5f9;
-  --secondary-foreground: #1e293b;
-  --muted: #f1f5f9;
-  --muted-foreground: #64748b;
-  --accent: #2563eb;
-  --accent-foreground: #ffffff;
-  --border: #e2e8f0;
-  --radius-sm: 0.25rem;
+  /* Minimalist OKLCH Light Theme from reference */
+  --background: oklch(1 0 0);
+  --foreground: oklch(0.145 0 0);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.145 0 0);
+  --primary: oklch(0.205 0 0);
+  --primary-foreground: oklch(0.985 0 0);
+  --secondary: oklch(0.97 0 0);
+  --secondary-foreground: oklch(0.205 0 0);
+  --muted: oklch(0.97 0 0);
+  --muted-foreground: oklch(0.556 0 0);
+  --accent: oklch(0.97 0 0);
+  --accent-foreground: oklch(0.205 0 0);
+  --border: oklch(0.922 0 0);
+  --input: oklch(0.922 0 0);
+  --ring: oklch(0.708 0 0);
+  --destructive: oklch(0.577 0.245 27.325);
+  --success: oklch(0.627 0.194 149.214);
+
+  --radius-sm: 0.375rem;
   --radius-md: 0.5rem;
   --radius-lg: 0.75rem;
+}
 
-  --ml-yellow: #1e293b; /* Redirigido a gris oscuro Shadcn */
-  --ml-bg: #f8fafc;
-  --ml-card: #ffffff;
-  --ml-text: #0f172a;
-  --ml-light-text: #64748b;
-  --ml-blue: #2563eb; /* Azul moderno */
+/* Dark mode fallback, just in case they have a system preference later */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: oklch(0.145 0 0);
+    --foreground: oklch(0.985 0 0);
+    --card: oklch(0.205 0 0);
+    --card-foreground: oklch(0.985 0 0);
+    --primary: oklch(0.985 0 0);
+    --primary-foreground: oklch(0.205 0 0);
+    --secondary: oklch(0.269 0 0);
+    --secondary-foreground: oklch(0.985 0 0);
+    --muted: oklch(0.269 0 0);
+    --muted-foreground: oklch(0.708 0 0);
+    --border: oklch(1 0 0 / 10%);
+  }
 }
 
 /* Base resets */
 * { box-sizing: border-box; margin: 0; padding: 0; }
 body {
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   background-color: var(--background);
   color: var(--foreground);
   -webkit-font-smoothing: antialiased;
+  line-height: 1.5;
 }
-a { text-decoration: none; color: inherit; }
+a { text-decoration: none; color: inherit; transition: color 0.2s; }
+a:hover { color: var(--muted-foreground); }
 
 /* Utilities */
-.container { width: 100%; max-width: 1200px; margin: 0 auto; padding: 0 20px; }
+.container { width: 100%; max-width: 1280px; margin: 0 auto; padding: 0 24px; }
 .flex { display: flex; }
 .items-center { align-items: center; }
 .justify-between { justify-content: space-between; }
+.gap-6 { gap: 1.5rem; }
 .gap-4 { gap: 1rem; }
 
 /* Components */
 .card {
   background-color: var(--card);
-  border-radius: var(--radius-md);
-  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px -1px rgba(0, 0, 0, 0.1);
-  transition: box-shadow 0.2s ease, transform 0.2s ease;
+  border-radius: var(--radius-lg);
   color: var(--card-foreground);
   border: 1px solid var(--border);
+  box-shadow: 0px 4px 20px rgba(0,0,0,0.03); 
+  transition: box-shadow 0.3s ease, transform 0.3s ease, border-color 0.3s ease;
+  overflow: hidden;
 }
 .card:hover {
-  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.1);
+  box-shadow: 0px 10px 30px rgba(0,0,0,0.08);
+  border-color: var(--ring);
+  transform: translateY(-2px);
 }
 
 .btn {
-  background-color: var(--accent);
-  color: var(--accent-foreground);
-  border: none;
-  border-radius: var(--radius-sm);
+  background-color: var(--primary);
+  color: var(--primary-foreground);
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
   padding: 10px 20px;
   font-weight: 500;
+  font-size: 0.95rem;
+  letter-spacing: 0.2px;
   cursor: pointer;
-  transition: opacity 0.2s ease, background-color 0.2s ease;
+  transition: opacity 0.2s ease, transform 0.1s ease, box-shadow 0.2s ease;
   text-align: center;
+  display: inline-block;
 }
-.btn:hover { opacity: 0.9; }
+.btn:hover { 
+  opacity: 0.9;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.1); 
+}
+.btn:active {
+  transform: scale(0.98);
+}
+.btn-outline {
+  background-color: transparent;
+  color: var(--foreground);
+  border: 1px solid var(--ring);
+}
+.btn-outline:hover {
+  background-color: var(--secondary);
+  border-color: var(--ring);
+}
 
 .input-field {
-  padding: 12px;
+  padding: 12px 16px;
   border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-md);
   background-color: var(--background);
   color: var(--foreground);
-  font-size: 1rem;
+  font-size: 0.95rem;
   outline: none;
-  transition: border-color 0.2s;
+  transition: border-color 0.2s, box-shadow 0.2s;
+  width: 100%;
 }
-.input-field:focus { border-color: var(--accent); }
+.input-field::placeholder {
+  color: var(--muted-foreground);
+  opacity: 0.8;
+}
+.input-field:focus { 
+  border-color: var(--primary); 
+  box-shadow: 0 0 0 2px var(--secondary);
+}
 
 /* Custom Scrollbar */
 ::-webkit-scrollbar { width: 8px; }
@@ -92,12 +142,29 @@ a { text-decoration: none; color: inherit; }
 /* Modal Background */
 .modal-overlay {
   position: fixed; top:0; left:0; width:100vw; height:100vh;
-  background: rgba(0,0,0,0.5); backdrop-filter: blur(4px);
+  background: rgba(0,0,0,0.3); backdrop-filter: blur(4px);
   display: flex; justify-content: center; align-items: center; z-index: 1000;
 }
 .modal-content {
-  background: var(--card); padding: 30px; border-radius: var(--radius-lg);
-  max-width: 600px; width: 90%; position: relative;
+  background: var(--card); padding: 32px; border-radius: var(--radius-lg);
+  max-width: 650px; width: 90%; position: relative;
   box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
   animation: fadeIn 0.2s ease-out;
+  border: 1px solid var(--border);
+}
+
+/* Estilos de Utilidad para Layout de Filtros (Sidebar / Topbar) */
+.layout-filters {
+  display: grid;
+  grid-template-columns: 240px 1fr;
+  gap: 2rem;
+  align-items: start;
+}
+@media (max-width: 768px) {
+  .layout-filters { grid-template-columns: 1fr; gap: 1rem; }
+}
+
+.filter-sidebar {
+  position: sticky;
+  top: 100px;
 }

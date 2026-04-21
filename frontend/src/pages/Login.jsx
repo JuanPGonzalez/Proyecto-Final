@@ -2,8 +2,8 @@ import React, { useState } from 'react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 
-export default function Login() {
-  const [isLogin, setIsLogin] = useState(true);
+export default function Login({ initialMode = 'login' }) {
+  const [isLogin, setIsLogin] = useState(initialMode === 'login');
   const [formData, setFormData] = useState({ name: '', email: '', password: '' });
   const navigate = useNavigate();
 
@@ -58,7 +58,7 @@ export default function Login() {
           </button>
         </form>
         <div style={{ marginTop: '20px', textAlign: 'center' }}>
-          <button onClick={() => setIsLogin(!isLogin)} style={{ background: 'none', border: 'none', color: 'var(--ml-blue)', cursor: 'pointer', fontWeight: 'bold' }}>
+          <button onClick={() => setIsLogin(!isLogin)} style={{ background: 'none', border: 'none', color: 'var(--foreground)', cursor: 'pointer', fontWeight: 'bold' }}>
             {isLogin ? '¿No tienes cuenta? Regístrate' : '¿Ya tienes cuenta? Inicia sesión'}
           </button>
         </div>
