@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
-import { Edit2, Trash2, Search, Download, X, PackagePlus, RefreshCcw } from 'lucide-react';
+import { Edit2, Trash2, Search, Download, X, PackagePlus, RefreshCcw, Link } from 'lucide-react';
+import MLMappingModal from '../components/MLMappingModal';
 
 export default function AdminProducts() {
   const [products, setProducts] = useState([]);
@@ -12,6 +13,9 @@ export default function AdminProducts() {
   const [mlSearch, setMlSearch] = useState('');
   const [mlResults, setMlResults] = useState([]);
   const [loadingML, setLoadingML] = useState(false);
+  
+  // Modal state for ML Mapping
+  const [mappingProduct, setMappingProduct] = useState(null);
 
   const navigate = useNavigate();
   const token = localStorage.getItem('token');
@@ -35,10 +39,17 @@ export default function AdminProducts() {
     if (!mlSearch) return;
     setLoadingML(true);
     try {
-      const res = await axios.get(`http://localhost:5000/api/products/ml-import?q=${mlSearch}`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      setMlResults(res.data);
+      // FRONTEND SEARCH DIRECT TO ML (SIN BACKEND)
+      const res = await fetch(`https://api.mercadolibre.com/sites/MLA/search?q=${encodeURIComponent(mlSearch)}`);
+      const data = await res.json();
+      
+      const results = data.results.slice(0, 10).map(item => ({
+        id: item.id,
+        name: item.title,
+        price: item.price,
+        imgURL: item.thumbnail
+      }));
+      setMlResults(results);
     } catch (err) {
       alert('Error consultando Mercado Libre');
     } finally {
@@ -248,6 +259,9 @@ export default function AdminProducts() {
                           <button onClick={() => handleEdit(p)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted-foreground)' }} title="Editar">
                             <Edit2 size={18} />
                           </button>
+                          <button onClick={() => setMappingProduct(p)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--primary)' }} title="Vincular ML">
+                            <Link size={18} />
+                          </button>
                           <button onClick={() => handleDelete(p.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--destructive)' }} title="Eliminar">
                             <Trash2 size={18} />
                           </button>
@@ -262,6 +276,14 @@ export default function AdminProducts() {
         </div>
 
       </div>
+
+      {mappingProduct && (
+        <MLMappingModal 
+          componenteId={mappingProduct.id} 
+          componenteName={mappingProduct.name} 
+          onClose={() => setMappingProduct(null)} 
+        />
+      )}
     </div>
   );
 }

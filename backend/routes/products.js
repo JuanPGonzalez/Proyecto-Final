@@ -69,40 +69,6 @@ router.post('/', adminMiddleware, async (req, res) => {
   }
 });
 
-// Proxy para buscar en Mercado Libre (Importación)
-router.get('/ml-import', adminMiddleware, async (req, res) => {
-  try {
-    const { q } = req.query;
-    if (!q) return res.status(400).json({ error: 'Falta término de búsqueda' });
-
-    // 1. Buscamos en MLA
-    const searchRes = await axios.get(`https://api.mercadolibre.com/sites/MLA/search?q=${encodeURIComponent(q)}&limit=5`);
-    const results = searchRes.data.results;
-
-    // 2. Para cada resultado, intentamos obtener imagen de alta calidad
-    const enrichedResults = await Promise.all(results.map(async (item) => {
-      try {
-        const itemDetail = await axios.get(`https://api.mercadolibre.com/items/${item.id}`);
-        return {
-          id: item.id,
-          name: item.title,
-          price: item.price,
-          currency: item.currency_id,
-          // Extraemos la primera imagen de alta resolución si existe
-          imgURL: itemDetail.data.pictures?.[0]?.url || item.thumbnail,
-          permalink: item.permalink
-        };
-      } catch (e) {
-        return { id: item.id, name: item.title, price: item.price, imgURL: item.thumbnail };
-      }
-    }));
-
-    res.json(enrichedResults);
-  } catch (error) {
-    console.error('Error ML API:', error.message);
-    res.status(500).json({ error: 'Error al consultar Mercado Libre' });
-  }
-});
 
 // Actualizar producto
 router.put('/:id', adminMiddleware, async (req, res) => {

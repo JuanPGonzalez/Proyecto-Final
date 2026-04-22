@@ -1,0 +1,574 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Gestor de Productos de Competencia - ML</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      padding: 20px;
+    }
+
+    .container {
+      max-width: 900px;
+      margin: 0 auto;
+      background: white;
+      border-radius: 10px;
+      box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+      overflow: hidden;
+    }
+
+    header {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      padding: 30px;
+      text-align: center;
+    }
+
+    header h1 {
+      font-size: 28px;
+      margin-bottom: 10px;
+    }
+
+    header p {
+      font-size: 14px;
+      opacity: 0.9;
+    }
+
+    .content {
+      padding: 40px;
+    }
+
+    .form-section {
+      margin-bottom: 40px;
+    }
+
+    .form-section h2 {
+      font-size: 20px;
+      margin-bottom: 20px;
+      color: #333;
+      border-bottom: 2px solid #667eea;
+      padding-bottom: 10px;
+    }
+
+    .form-group {
+      margin-bottom: 20px;
+    }
+
+    label {
+      display: block;
+      margin-bottom: 8px;
+      font-weight: 500;
+      color: #555;
+    }
+
+    .input-wrapper {
+      display: flex;
+      gap: 10px;
+    }
+
+    input[type="number"],
+    textarea {
+      flex: 1;
+      padding: 12px;
+      border: 2px solid #e0e0e0;
+      border-radius: 5px;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      font-size: 14px;
+      transition: border-color 0.3s;
+    }
+
+    input[type="number"]:focus,
+    textarea:focus {
+      outline: none;
+      border-color: #667eea;
+      box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+    }
+
+    textarea {
+      resize: vertical;
+      min-height: 150px;
+      font-family: monospace;
+    }
+
+    button {
+      padding: 12px 24px;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 600;
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+
+    button:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+    }
+
+    button:active {
+      transform: translateY(0);
+    }
+
+    button.secondary {
+      background: #f0f0f0;
+      color: #333;
+    }
+
+    button.secondary:hover {
+      background: #e0e0e0;
+    }
+
+    .help-text {
+      font-size: 13px;
+      color: #999;
+      margin-top: 8px;
+    }
+
+    .alert {
+      padding: 15px;
+      border-radius: 5px;
+      margin-bottom: 20px;
+      display: none;
+    }
+
+    .alert.show {
+      display: block;
+    }
+
+    .alert.success {
+      background: #d4edda;
+      border-left: 4px solid #28a745;
+      color: #155724;
+    }
+
+    .alert.error {
+      background: #f8d7da;
+      border-left: 4px solid #dc3545;
+      color: #721c24;
+    }
+
+    .alert.info {
+      background: #d1ecf1;
+      border-left: 4px solid #17a2b8;
+      color: #0c5460;
+    }
+
+    .result-section {
+      background: #f8f9fa;
+      padding: 20px;
+      border-radius: 5px;
+      margin-top: 20px;
+      display: none;
+    }
+
+    .result-section.show {
+      display: block;
+    }
+
+    .price-card {
+      background: white;
+      padding: 20px;
+      border-radius: 5px;
+      margin-bottom: 15px;
+      border-left: 4px solid #667eea;
+    }
+
+    .price-card h3 {
+      margin-bottom: 10px;
+      color: #333;
+      font-size: 14px;
+    }
+
+    .price-value {
+      font-size: 28px;
+      font-weight: bold;
+      color: #667eea;
+    }
+
+    .price-detail {
+      font-size: 12px;
+      color: #999;
+      margin-top: 5px;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 15px;
+      margin-bottom: 20px;
+    }
+
+    .loading {
+      display: inline-block;
+      width: 12px;
+      height: 12px;
+      background: #667eea;
+      border-radius: 50%;
+      animation: pulse 1.5s infinite;
+      margin-left: 5px;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+
+    .list-section {
+      margin-top: 30px;
+    }
+
+    .ml-list {
+      background: white;
+      border: 1px solid #e0e0e0;
+      border-radius: 5px;
+      overflow: hidden;
+    }
+
+    .ml-item {
+      padding: 12px 15px;
+      border-bottom: 1px solid #e0e0e0;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .ml-item:last-child {
+      border-bottom: none;
+    }
+
+    .ml-id {
+      font-family: monospace;
+      color: #667eea;
+      font-weight: 600;
+    }
+
+    .ml-url {
+      font-size: 12px;
+      color: #999;
+    }
+
+    .success-badge {
+      background: #28a745;
+      color: white;
+      padding: 2px 8px;
+      border-radius: 3px;
+      font-size: 11px;
+      font-weight: 600;
+    }
+
+    .error-badge {
+      background: #dc3545;
+      color: white;
+      padding: 2px 8px;
+      border-radius: 3px;
+      font-size: 11px;
+      font-weight: 600;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>🛍️ Gestor de Productos de Competencia</h1>
+      <p>Vincula productos internos con ofertas de MercadoLibre</p>
+    </header>
+
+    <div class="content">
+      <!-- Step 1: Select Component -->
+      <div class="form-section">
+        <h2>Paso 1: Seleccionar Producto Interno</h2>
+        <div class="form-group">
+          <label for="componenteId">ID del Componente / Producto</label>
+          <div class="input-wrapper">
+            <input type="number" id="componenteId" placeholder="Ej: 1" value="1" min="1">
+            <button class="secondary" onclick="loadComponente()">Cargar</button>
+          </div>
+          <div class="help-text">📝 Ingresa el ID del producto interno que quieres vincular</div>
+        </div>
+        <div id="componenteInfo" class="alert info"></div>
+      </div>
+
+      <!-- Step 2: Paste Links -->
+      <div class="form-section">
+        <h2>Paso 2: Pegar Links de MercadoLibre</h2>
+        <div class="form-group">
+          <label for="mlLinks">Links de Productos (uno por línea)</label>
+          <textarea id="mlLinks" placeholder="Pega aquí los links de MercadoLibre:&#10;Ej:&#10;https://www.mercadolibre.com.ar/p/MLA19518470&#10;https://www.mercadolibre.com.ar/p/MLA63419156"></textarea>
+          <div class="help-text">🔗 Puedes pegar links de MercadoLibre, los IDs se extraerán automáticamente</div>
+        </div>
+
+        <div id="previewSection" style="display: none; margin-bottom: 20px;">
+          <h3 style="font-size: 16px; margin-bottom: 10px; color: #333;">Vista Previa:</h3>
+          <div style="display: flex; gap: 20px; align-items: flex-start;">
+            <div style="flex: 1; background: #e8f5e9; padding: 15px; border-radius: 5px; border-left: 4px solid #4caf50;">
+              <h4 style="color: #2e7d32; margin-bottom: 5px;">✅ IDs Válidos (<span id="validCount">0</span>)</h4>
+              <div id="validIdsList" style="font-family: monospace; font-size: 12px; max-height: 150px; overflow-y: auto;"></div>
+            </div>
+            <div style="flex: 1; background: #ffebee; padding: 15px; border-radius: 5px; border-left: 4px solid #f44336;">
+              <h4 style="color: #c62828; margin-bottom: 5px;">❌ Links Inválidos (<span id="invalidCount">0</span>)</h4>
+              <div id="invalidLinksList" style="font-size: 11px; color: #555; word-break: break-all; max-height: 150px; overflow-y: auto;"></div>
+            </div>
+          </div>
+        </div>
+
+        <button id="saveBtn" onclick="saveLinks()">💾 Guardar Productos de Competencia</button>
+      </div>
+
+      <!-- Alert Messages -->
+      <div id="alert" class="alert"></div>
+
+      <!-- Results -->
+      <div id="resultSection" class="result-section">
+        <h2>📊 Resultados del Análisis de Precio</h2>
+        <div class="grid">
+          <div class="price-card">
+            <h3>Precio Actual</h3>
+            <div class="price-value" id="currentPrice">-</div>
+            <div class="price-detail">Precio en tu base de datos</div>
+          </div>
+          <div class="price-card">
+            <h3>Promedio Competencia</h3>
+            <div class="price-value" id="avgPrice">-</div>
+            <div class="price-detail">Promedio de precios competidores</div>
+          </div>
+          <div class="price-card">
+            <h3>Precio Sugerido</h3>
+            <div class="price-value" id="suggestedPrice">-</div>
+            <div class="price-detail">Precio recomendado</div>
+          </div>
+        </div>
+
+        <div class="list-section">
+          <h3>IDs de MercadoLibre Guardados</h3>
+          <div id="mlList" class="ml-list"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const API_BASE = 'http://localhost:5000/api';
+
+    function showAlert(message, type = 'info') {
+      const alertEl = document.getElementById('alert');
+      alertEl.textContent = message;
+      alertEl.className = `alert ${type} show`;
+      setTimeout(() => alertEl.classList.remove('show'), 5000);
+    }
+
+    async function loadComponente() {
+      const componenteId = document.getElementById('componenteId').value;
+      if (!componenteId) {
+        showAlert('⚠️ Por favor ingresa un ID de componente', 'error');
+        return;
+      }
+
+      try {
+        const response = await fetch(`${API_BASE}/componentes/${componenteId}/ml-mapping`);
+        const data = await response.json();
+
+        if (!response.ok) {
+          showAlert(`❌ ${data.error}`, 'error');
+          return;
+        }
+
+        const infoEl = document.getElementById('componenteInfo');
+        infoEl.textContent = `✅ Componente: ${data.componente_name} (${data.total} productos vinculados)`;
+        infoEl.classList.add('show');
+
+        // Display ML IDs
+        displayMLIds(data.ml_ids);
+      } catch (error) {
+        showAlert(`❌ Error al cargar componente: ${error.message}`, 'error');
+      }
+    }
+
+    async function saveLinks() {
+      const componenteId = document.getElementById('componenteId').value;
+      const linksText = document.getElementById('mlLinks').value.trim();
+
+      if (!componenteId) {
+        showAlert('⚠️ Por favor selecciona un componente', 'error');
+        return;
+      }
+
+      if (!linksText) {
+        showAlert('⚠️ Por favor pega al menos un link', 'error');
+        return;
+      }
+
+      try {
+        const payload = {
+          ids: window.cachedFetchedItems ? window.cachedFetchedItems.map(i => i.id) : [],
+          prices: window.cachedFetchedItems ? window.cachedFetchedItems.map(i => i.price) : [],
+          titles: window.cachedFetchedItems ? window.cachedFetchedItems.map(i => i.title) : []
+        };
+        const response = await fetch(`${API_BASE}/componentes/${componenteId}/ml-mapping`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+          showAlert(`❌ ${data.error}: ${data.details}`, 'error');
+          return;
+        }
+
+        showAlert(`✅ Se guardaron ${data.extracted} productos de competencia`, 'success');
+        document.getElementById('mlLinks').value = '';
+
+        // Load pricing data
+        await loadPricingData(componenteId);
+
+        // Reload component info
+        await loadComponente();
+      } catch (error) {
+        showAlert(`❌ Error al guardar: ${error.message}`, 'error');
+      }
+    }
+
+    async function loadPricingData(componenteId) {
+      try {
+        const response = await fetch(`${API_BASE}/pricing/componente/${componenteId}`);
+        const data = await response.json();
+
+        if (!response.ok || !data.success) {
+          showAlert('⚠️ No se pudo calcular el precio (datos insuficientes)', 'info');
+          return;
+        }
+
+        // Display results
+        const resultEl = document.getElementById('resultSection');
+        resultEl.classList.add('show');
+
+        document.getElementById('currentPrice').textContent = data.current_price
+          ? `$${data.current_price.toLocaleString()}`
+          : 'Sin datos';
+        document.getElementById('avgPrice').textContent = `$${Math.round(data.average).toLocaleString()}`;
+        document.getElementById('suggestedPrice').textContent = data.suggestedPricing
+          ? `$${data.suggestedPricing.suggestedPrice.toLocaleString()}`
+          : '-';
+      } catch (error) {
+        console.error('Error loading pricing:', error);
+      }
+    }
+
+    function displayMLIds(mlIds) {
+      const listEl = document.getElementById('mlList');
+      if (!mlIds || mlIds.length === 0) {
+        listEl.innerHTML = '<div class="ml-item">Sin productos vinculados</div>';
+        return;
+      }
+
+      listEl.innerHTML = mlIds.map(mlId => `
+        <div class="ml-item">
+          <span class="ml-id">${mlId}</span>
+          <span class="success-badge">Guardado</span>
+        </div>
+      `).join('');
+    }
+
+    // Preview logic
+    document.getElementById('mlLinks').addEventListener('input', async function() {
+      const text = this.value.trim();
+      const previewSection = document.getElementById('previewSection');
+      const saveBtn = document.getElementById('saveBtn');
+      
+      if (!text) {
+        previewSection.style.display = 'none';
+        saveBtn.disabled = false;
+        saveBtn.style.opacity = '1';
+        return;
+      }
+      
+      previewSection.style.display = 'block';
+      const lines = text.split('\n').map(l => l.trim()).filter(l => l);
+      
+      const valid = [];
+      const invalid = [];
+      
+      function extractMLId(url) {
+        // 1. Buscar item_id
+        const itemMatch = url.match(/item_id:?(MLA\d+)/);
+        if (itemMatch) return itemMatch[1];
+        
+        // 2. Buscar IDs largos
+        const matches = url.match(/MLA\d{10,}/g);
+        if (matches) return matches[0];
+        
+        return null;
+      }
+      
+      lines.forEach(line => {
+        const extracted = extractMLId(line);
+        if (extracted) {
+          valid.push(extracted);
+        } else {
+          invalid.push(line);
+        }
+      });
+      
+      const uniqueValid = [...new Set(valid)];
+      
+      document.getElementById('validCount').textContent = uniqueValid.length;
+      document.getElementById('invalidCount').textContent = invalid.length;
+      
+      if (uniqueValid.length === 0) {
+        document.getElementById('validIdsList').innerHTML = '<div style="color:#888;">Ninguno</div>';
+        window.cachedFetchedItems = [];
+      } else {
+        document.getElementById('validIdsList').innerHTML = '<div style="color:#888;">Consultando MercadoLibre...</div>';
+        const fetchedItems = [];
+        const fetchHTML = [];
+        
+        for (const id of uniqueValid) {
+          try {
+            const res = await fetch(`https://api.mercadolibre.com/items/${id}`);
+            const data = await res.json();
+            if (data.price) {
+              fetchedItems.push({ id, price: data.price, title: data.title });
+              fetchHTML.push(`
+                <div style="display:flex; justify-content:space-between; margin-bottom:5px; padding:5px; border:1px solid #ccc; border-radius:4px; font-size: 0.85rem;">
+                  <div><strong>${data.title}</strong><br><small>${id}</small></div>
+                  <div><strong>$${data.price.toLocaleString()}</strong></div>
+                </div>
+              `);
+            } else {
+              fetchHTML.push(`<div style="color:red; font-size: 0.85rem;">Error con ${id}</div>`);
+            }
+          } catch (e) {
+            fetchHTML.push(`<div style="color:red; font-size: 0.85rem;">Error de red ${id}</div>`);
+          }
+        }
+        
+        window.cachedFetchedItems = fetchedItems;
+        document.getElementById('validIdsList').innerHTML = fetchHTML.join('');
+      }
+      
+      document.getElementById('invalidLinksList').innerHTML = invalid.map(l => `<div>${l}</div>`).join('') || '<div style="color:#888;">Ninguno</div>';
+      
+      const isValid = window.cachedFetchedItems && window.cachedFetchedItems.length > 0;
+      saveBtn.disabled = !isValid;
+      saveBtn.style.opacity = isValid ? '1' : '0.5';
+      saveBtn.style.cursor = isValid ? 'pointer' : 'not-allowed';
+    });
+
+    // Load component on page load
+    document.addEventListener('DOMContentLoaded', loadComponente);
+  </script>
+</body>
+</html>
