@@ -2,26 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { Product, ComponenteML } = require('../models');
 
-/**
- * Extract ML ID from MercadoLibre URL
- * Examples:
- * https://www.mercadolibre.com.ar/p/MLA19518470
- * https://www.mercadolibre.com/p/MLA63419156
- * https://articulo.mercadolibre.com.ar/MLA-1234567890_JM
- */
-function extractMLId(url) {
-  if (!url) return null;
 
-  // 1. Buscar item_id
-  const itemMatch = url.match(/item_id:?(MLA\d+)/);
-  if (itemMatch) return itemMatch[1];
-
-  // 2. Buscar IDs largos
-  const matches = url.match(/MLA\d{10,}/g);
-  if (matches) return matches[0];
-
-  return null;
-}
 
 // POST /api/componentes/:id/ml-mapping
 // Save MercadoLibre IDs and fetches prices via authenticated endpoint

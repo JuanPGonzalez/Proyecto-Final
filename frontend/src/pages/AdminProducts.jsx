@@ -39,10 +39,14 @@ export default function AdminProducts() {
     if (!mlSearch) return;
     setLoadingML(true);
     try {
-      // FRONTEND SEARCH DIRECT TO ML (SIN BACKEND)
-      const res = await fetch(`https://api.mercadolibre.com/sites/MLA/search?q=${encodeURIComponent(mlSearch)}`);
+      // VIA BACKEND INTERNAL SEARCH PROXY ENDPOINT
+      const res = await fetch(`http://localhost:5000/api/ml/search?q=${encodeURIComponent(mlSearch)}`);
       const data = await res.json();
       
+      if (!res.ok || !data.ok) {
+        throw new Error('Error en búsqueda backend');
+      }
+
       const results = data.results.slice(0, 10).map(item => ({
         id: item.id,
         name: item.title,
@@ -51,7 +55,7 @@ export default function AdminProducts() {
       }));
       setMlResults(results);
     } catch (err) {
-      alert('Error consultando Mercado Libre');
+      alert('Error consultando servidor de MercadoLibre');
     } finally {
       setLoadingML(false);
     }
