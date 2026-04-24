@@ -68,7 +68,7 @@ export default function Navbar() {
               <span style={{ fontSize: '0.9rem', fontWeight: 500 }}>{token ? user.name.split(' ')[0] : 'Ingresar'}</span>
             </div>
 
-            <Link to="/cart" title="Mi Carrito" style={{ color:'var(--foreground)', position: 'relative' }}>
+            <Link to="/cart" title="Mi Carrito" style={{ color:'var(--foreground)', position: 'relative', marginLeft: '10px' }}>
               <ShoppingCart size={22} />
               {cartCount > 0 && (
                 <span style={{ position: 'absolute', top: '-8px', right: '-10px', background: 'var(--accent)', color: 'var(--accent-foreground)', borderRadius: '50%', padding: '2px 6px', fontSize: '0.75rem', fontWeight: 'bold' }}>

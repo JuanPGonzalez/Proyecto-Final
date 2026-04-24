@@ -15,33 +15,51 @@ const authMiddleware = (req, res, next) => {
   }
 };
 
+const { Order, OrderItem, Product } = require('../models');
+
+// Obtener órdenes del usuario
+router.get('/', authMiddleware, async (req, res) => {
+  try {
+    const orders = await Order.findAll({
+      where: { user_id: req.user.id }, // Asumiendo que el campo es user_id en la DB
+      include: [{
+        model: OrderItem,
+        include: [Product]
+      }],
+      order: [['id', 'DESC']]
+    });
+    res.json(orders);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Error al obtener historial' });
+  }
+});
+
 router.post('/', authMiddleware, async (req, res) => {
   try {
-    const { cartItems, shippingMethod } = req.body;
-    if (!cartItems || cartItems.length === 0) return res.status(400).json({ error: 'No hay productos en la orden' });
+    const { total, items } = req.body;
+    if (!items || items.length === 0) return res.status(400).json({ error: 'No hay productos' });
 
-    const total = cartItems.reduce((acc, item) => acc + Number(item.price), 0);
-    const userId = req.user.id;
+    const order = await Order.create({
+      total,
+      status: 'completed',
+      user_id: req.user.id, // Sequelize mapeará esto
+      fecha_compra: new Date() // Si la columna es fecha_compra
+    });
 
-    // Dado el esquema heredado, se inyecta directamente usando raw query para garantizar compatibilidad con snake_case o camelCase previos
-    const [result] = await sequelize.query(
-      `INSERT INTO compra (total, fechaCompra, user_id) VALUES (?, NOW(), ?)`, 
-      { replacements: [total, userId] }
-    );
-    const compraId = result;
-
-    for (const item of cartItems) {
-      // Inserción manual de las líneas de compra evadiendo constricciones restrictas de Sequelize fallido.
-      await sequelize.query(
-        `INSERT INTO linea_compra (quantity, priceAtPurchase, compra_id, componente_id) VALUES (?, ?, ?, ?)`,
-        { replacements: [1, item.price, compraId, item.id] }
-      ).catch(e => console.error('Error insertando linea', e));
+    for (const item of items) {
+      await OrderItem.create({
+        quantity: item.quantity,
+        priceAtPurchase: item.priceAtPurchase,
+        orderId: order.id, // Sequelize usará el foreignKey mapeado (compra_id)
+        productId: item.productId // Sequelize usará el foreignKey mapeado (componente_id)
+      });
     }
 
-    res.status(201).json({ success: true, orderId: compraId });
+    res.status(201).json(order);
   } catch (error) {
     console.error('Checkout error:', error);
-    res.status(500).json({ error: 'Fallo al procesar la compra en el servidor' });
+    res.status(500).json({ error: 'Fallo al procesar la compra' });
   }
 });
 

@@ -6,6 +6,7 @@ export default function Chatbot() {
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState([{ text: '¡Hola! Soy la IA de Hardware Haven. ¿Qué buscas armar hoy?', sender: 'bot' }]);
   const [input, setInput] = useState('');
+  const [isTyping, setIsTyping] = useState(false);
   const messagesEndRef = useRef(null);
 
   const scrollToBottom = () => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -13,17 +14,21 @@ export default function Chatbot() {
 
   const sendMessage = async (e) => {
     e.preventDefault();
-    if (!input.trim()) return;
+    if (!input.trim() || isTyping) return;
     
     const userMsg = { text: input, sender: 'user' };
     setMessages(prev => [...prev, userMsg]);
+    const currentInput = input;
     setInput('');
+    setIsTyping(true);
     
     try {
-      const res = await axios.post('http://localhost:5000/api/chatbot', { message: input });
+      const res = await axios.post('http://localhost:5000/api/chatbot/message', { message: currentInput });
       setMessages(prev => [...prev, { text: res.data.reply, sender: 'bot' }]);
     } catch (err) {
-      setMessages(prev => [...prev, { text: 'Lo siento, tuve un error consultando la base de datos.', sender: 'bot' }]);
+      setMessages(prev => [...prev, { text: 'Lo siento, tuve un error consultando mi base de conocimientos.', sender: 'bot' }]);
+    } finally {
+      setIsTyping(false);
     }
   };
 
@@ -33,10 +38,11 @@ export default function Chatbot() {
         onClick={() => setIsOpen(true)}
         style={{
           position: 'fixed', bottom: '30px', right: '30px',
-          width: '60px', height: '60px', borderRadius: '50%',
-          backgroundColor: 'var(--accent)', color: 'white',
+          width: '64px', height: '64px', borderRadius: '50%',
+          background: 'linear-gradient(135deg, var(--accent) 0%, oklch(0.205 0 0) 100%)', 
+          color: 'white',
           border: 'none', cursor: 'pointer',
-          boxShadow: '0 4px 12px rgba(37, 99, 235, 0.4)',
+          boxShadow: '0 8px 24px rgba(0, 0, 0, 0.2), inset 0 2px 4px rgba(255, 255, 255, 0.2)',
           display: isOpen ? 'none' : 'flex',
           justifyContent: 'center', alignItems: 'center', zIndex: 100
         }}
@@ -68,13 +74,19 @@ export default function Chatbot() {
                 <div style={{
                   padding: '12px 16px', borderRadius: 'var(--radius-md)',
                   backgroundColor: msg.sender === 'user' ? 'var(--accent)' : 'var(--muted)',
-                  color: msg.sender === 'user' ? 'white' : 'var(--foreground)',
-                  fontSize: '0.95rem', lineHeight: '1.4'
+                  color: msg.sender === 'user' ? 'var(--accent-foreground)' : 'var(--foreground)',
+                  fontSize: '0.95rem', lineHeight: '1.4',
+                  whiteSpace: 'pre-wrap' // Para respetar saltos de línea de la IA
                 }}>
                   {msg.text}
                 </div>
               </div>
             ))}
+            {isTyping && (
+              <div style={{ alignSelf: 'flex-start', padding: '12px 16px', borderRadius: 'var(--radius-md)', backgroundColor: 'var(--muted)', color: 'var(--muted-foreground)', fontSize: '0.9rem' }}>
+                La IA está escribiendo...
+              </div>
+            )}
             <div ref={messagesEndRef} />
           </div>
 

@@ -5,14 +5,14 @@ const { Order, OrderItem } = require('./Order');
 const ComponenteML = require('./ComponenteML');
 const LogMotorPrecio = require('./LogMotorPrecio');
 
-User.hasMany(Order, { foreignKey: 'userId' });
-Order.belongsTo(User, { foreignKey: 'userId' });
+User.hasMany(Order, { foreignKey: 'user_id' });
+Order.belongsTo(User, { foreignKey: 'user_id' });
 
-Order.hasMany(OrderItem, { foreignKey: 'orderId' });
-OrderItem.belongsTo(Order, { foreignKey: 'orderId' });
+Order.hasMany(OrderItem, { foreignKey: 'compra_id' });
+OrderItem.belongsTo(Order, { foreignKey: 'compra_id' });
 
-Product.hasMany(OrderItem, { foreignKey: 'productId' });
-OrderItem.belongsTo(Product, { foreignKey: 'productId' });
+Product.hasMany(OrderItem, { foreignKey: 'componente_id' });
+OrderItem.belongsTo(Product, { foreignKey: 'componente_id' });
 
 // Componente ML relationships (Product is the componente model)
 Product.hasMany(ComponenteML, { foreignKey: 'componente_id', as: 'mlItems' });

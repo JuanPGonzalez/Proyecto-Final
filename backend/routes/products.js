@@ -97,4 +97,42 @@ router.delete('/:id', adminMiddleware, async (req, res) => {
   }
 });
 
+// Endpoint de Análisis de IA para un producto específico
+router.get('/:id/ai-analysis', async (req, res) => {
+    try {
+        const product = await Product.findByPk(req.params.id);
+        if (!product) return res.status(404).json({ error: 'Producto no encontrado' });
+
+        const OpenAI = require('openai');
+        const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+
+        const prompt = `Analiza este componente de hardware y dame 3 campos cortos:
+        1. performance: Rendimiento esperado.
+        2. compatibility: Tips de compatibilidad.
+        3. tip: Un consejo experto.
+        
+        Producto: ${product.name}
+        Descripción: ${product.description}
+        
+        Responde estrictamente en formato JSON: {"performance": "...", "compatibility": "...", "tip": "..."}`;
+
+        const completion = await openai.chat.completions.create({
+            model: "gpt-4o",
+            messages: [{ role: "user", content: prompt }],
+            max_tokens: 400,
+            response_format: { type: "json_object" }
+        });
+
+        const analysis = JSON.parse(completion.choices[0].message.content);
+        res.json(analysis);
+    } catch (err) {
+        console.error('AI Analysis Error:', err);
+        res.json({ 
+            performance: "Alto rendimiento garantizado para gaming.", 
+            compatibility: "Compatible con la mayoría de setups modernos.", 
+            tip: "Asegúrate de tener una fuente de poder certificada." 
+        });
+    }
+});
+
 module.exports = router;

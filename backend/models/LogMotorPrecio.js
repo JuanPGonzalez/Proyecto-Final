@@ -2,8 +2,8 @@ const { DataTypes } = require('sequelize');
 const sequelize = require('../config/database');
 
 const LogMotorPrecio = sequelize.define('LogMotorPrecio', {
-  id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
-  componente_id: { type: DataTypes.INTEGER, allowNull: false },
+  id: { type: DataTypes.INTEGER.UNSIGNED, primaryKey: true, autoIncrement: true },
+  componente_id: { type: DataTypes.INTEGER.UNSIGNED, allowNull: false },
   precio_anterior: { type: DataTypes.DECIMAL(12, 2), allowNull: true },
   precio_nuevo: { type: DataTypes.DECIMAL(12, 2), allowNull: false },
   precio_sugerido: { type: DataTypes.DECIMAL(12, 2), allowNull: true },

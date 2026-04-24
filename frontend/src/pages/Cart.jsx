@@ -1,7 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import axios from 'axios';
+import { Trash2, CreditCard, ShoppingBag, ArrowRight } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 
 export default function Cart() {
   const [cartItems, setCartItems] = useState([]);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const navigate = useNavigate();
 
   useEffect(() => {
     const items = JSON.parse(localStorage.getItem('cart') || '[]');
@@ -13,51 +17,120 @@ export default function Cart() {
     newItems.splice(index, 1);
     setCartItems(newItems);
     localStorage.setItem('cart', JSON.stringify(newItems));
+    window.dispatchEvent(new Event('storage')); // Notificar al Navbar
   };
 
   const total = cartItems.reduce((acc, item) => acc + Number(item.price), 0);
 
-  const checkout = () => {
-    alert('Funcionalidad de Checkout procesando. En un caso real llamaría al backend para insertar en compra/linea_compra.');
-    localStorage.removeItem('cart');
-    setCartItems([]);
+  const checkout = async () => {
+    const token = localStorage.getItem('token');
+    if (!token) {
+      alert('Debes iniciar sesión para finalizar la compra.');
+      return navigate('/login');
+    }
+
+    setIsProcessing(true);
+    try {
+      // Estructura para el backend (Order + OrderItems)
+      const orderData = {
+        total,
+        items: cartItems.map(item => ({
+          productId: item.id,
+          quantity: 1,
+          priceAtPurchase: item.price
+        }))
+      };
+
+      await axios.post('http://localhost:5000/api/orders', orderData, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+
+      localStorage.removeItem('cart');
+      setCartItems([]);
+      window.dispatchEvent(new Event('storage'));
+      navigate('/success');
+    } catch (err) {
+      console.error(err);
+      alert('Error al procesar la compra. Intenta de nuevo.');
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
   return (
-    <div className="container animate-fade-in" style={{ marginTop: '40px' }}>
-      <h2 style={{ marginBottom: '30px' }}>Mi Carrito</h2>
+    <div className="container animate-fade-in" style={{ marginTop: '60px', maxWidth: '1000px' }}>
+      <header style={{ marginBottom: '40px', display: 'flex', alignItems: 'center', gap: '15px' }}>
+        <div style={{ backgroundColor: 'var(--secondary)', padding: '12px', borderRadius: '50%' }}>
+           <ShoppingBag size={24} />
+        </div>
+        <h2 style={{ fontSize: '2rem', fontWeight: 800, letterSpacing: '-1px' }}>Tu Carrito</h2>
+      </header>
       
       {cartItems.length === 0 ? (
-        <div className="card" style={{ padding: '40px', textAlign: 'center' }}>
-          <h3 style={{ color: 'var(--muted-foreground)' }}>Tu carrito está vacío</h3>
+        <div className="card" style={{ padding: '80px 40px', textAlign: 'center', backgroundColor: 'var(--card)' }}>
+          <ShoppingBag size={48} style={{ marginBottom: '20px', opacity: 0.2 }} />
+          <h3 style={{ color: 'var(--muted-foreground)', fontWeight: 500 }}>Tu carrito está vacío</h3>
+          <button className="btn" style={{ marginTop: '24px' }} onClick={() => navigate('/')}>
+            Explorar Productos
+          </button>
         </div>
       ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '30px' }}>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 350px', gap: '40px', alignItems: 'start' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
             {cartItems.map((item, idx) => (
-              <div key={idx} className="card" style={{ display: 'flex', padding: '20px', alignItems: 'center', gap: '20px' }}>
-                <img src={item.imgURL || item.imageUrl || 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIzMDAiIGhlaWdodD0iMzAwIiB2aWV3Qm94PSIwIDAgMzAwIDMwMCI+PHJlY3Qgd2lkdGg9IjMwMCIgaGVpZ2h0PSIzMDAiIGZpbGw9IiNmOGZhZmMiLz48dGV4dCB4PSIxNTAiIHk9IjE1MCIgZm9udC1mYW1pbHk9IkFyaWFsIiBmb250LXNpemU9IjI0IiBmb250LXdlaWdodD0iYm9sZCIgZmlsbD0iIzY0NzQ4YiIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iPkhhcmR3YXJlPC90ZXh0Pjwvc3ZnPg=='} alt={item.name} style={{ width: '80px', height: '80px', objectFit: 'contain' }} />
+              <div key={idx} className="card animate-fade-in" style={{ display: 'flex', padding: '24px', alignItems: 'center', gap: '24px' }}>
+                <div style={{ width: '100px', height: '100px', backgroundColor: 'var(--background)', borderRadius: 'var(--radius-md)', padding: '10px' }}>
+                   <img src={item.imgURL || 'data:image/svg+xml;base64,...'} alt={item.name} style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+                </div>
                 <div style={{ flex: 1 }}>
-                  <h4>{item.name}</h4>
-                  <p style={{ color: 'var(--muted-foreground)', fontSize: '0.9rem' }}>Cantidad: 1</p>
+                  <h4 style={{ fontSize: '1.1rem', fontWeight: 600, marginBottom: '4px' }}>{item.name}</h4>
+                  <p style={{ color: 'var(--muted-foreground)', fontSize: '0.9rem' }}>Hardware Garantizado</p>
                 </div>
-                <div>
-                  <span style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>${Number(item.price).toLocaleString()}</span>
+                <div style={{ textAlign: 'right' }}>
+                  <span style={{ fontSize: '1.25rem', fontWeight: 800, display: 'block', marginBottom: '8px' }}>
+                    ${Number(item.price).toLocaleString()}
+                  </span>
+                  <button onClick={() => removeFromCart(idx)} style={{ background:'none', border:'none', color:'var(--destructive)', cursor:'pointer', display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.85rem', marginLeft: 'auto' }}>
+                    <Trash2 size={14} /> Quitar
+                  </button>
                 </div>
-                <button onClick={() => removeFromCart(idx)} style={{ background:'none', border:'none', color:'var(--destructive)', cursor:'pointer' }}>Eliminar</button>
               </div>
             ))}
           </div>
 
-          <div className="card" style={{ padding: '30px', height: 'fit-content' }}>
-            <h3>Resumen de compra</h3>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '20px', borderTop: '1px solid var(--border)', paddingTop: '15px' }}>
-              <span>Total</span>
-              <span style={{ fontSize: '1.5rem', fontWeight: 'bold' }}>${total.toLocaleString()}</span>
+          <div className="card" style={{ padding: '32px', position: 'sticky', top: '100px' }}>
+            <h3 style={{ fontSize: '1.2rem', fontWeight: 700, marginBottom: '24px' }}>Resumen</h3>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginBottom: '24px' }}>
+               <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--muted-foreground)' }}>
+                  <span>Subtotal</span>
+                  <span>${total.toLocaleString()}</span>
+               </div>
+               <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--muted-foreground)' }}>
+                  <span>Envío</span>
+                  <span style={{ color: 'var(--success)', fontWeight: 600 }}>Gratis</span>
+               </div>
             </div>
-            <button className="btn" style={{ width: '100%', marginTop: '20px' }} onClick={checkout}>
-              Finalizar Compra
+            
+            <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid var(--border)', paddingTop: '24px', marginBottom: '32px' }}>
+              <span style={{ fontWeight: 600 }}>Total</span>
+              <span style={{ fontSize: '1.75rem', fontWeight: 800 }}>${total.toLocaleString()}</span>
+            </div>
+
+            <button 
+              className="btn" 
+              style={{ width: '100%', padding: '16px', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '10px' }} 
+              onClick={checkout}
+              disabled={isProcessing}
+            >
+              {isProcessing ? 'Procesando...' : (
+                <>
+                  <CreditCard size={20} /> Proceder al Pago <ArrowRight size={18} />
+                </>
+              )}
             </button>
+            <p style={{ fontSize: '0.75rem', color: 'var(--muted-foreground)', textAlign: 'center', marginTop: '16px' }}>
+              Pago seguro encriptado por SSL 256-bit.
+            </p>
           </div>
         </div>
       )}

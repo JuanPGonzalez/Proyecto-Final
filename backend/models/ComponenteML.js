@@ -2,8 +2,8 @@ const { DataTypes } = require('sequelize');
 const sequelize = require('../config/database');
 
 const ComponenteML = sequelize.define('ComponenteML', {
-  id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
-  componente_id: { type: DataTypes.INTEGER, allowNull: false },
+  id: { type: DataTypes.INTEGER.UNSIGNED, primaryKey: true, autoIncrement: true },
+  componente_id: { type: DataTypes.INTEGER.UNSIGNED, allowNull: false },
   ml_id: { type: DataTypes.STRING, allowNull: false },
   price: { type: DataTypes.FLOAT, allowNull: true },
   title: { type: DataTypes.STRING, allowNull: true }

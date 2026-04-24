@@ -1,10 +1,9 @@
-import React, { useState, useEffect } from 'react';
-import axios from 'axios';
-import { useNavigate } from 'react-router-dom';
+import { Cpu, Monitor, Zap, Layout } from 'lucide-react';
 
 export default function Presupuestador() {
   const [products, setProducts] = useState([]);
   const [budget, setBudget] = useState({ CPU: null, GPU: null, RAM: null, MOBO: null });
+  const [isAdding, setIsAdding] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -17,18 +16,22 @@ export default function Presupuestador() {
 
   const agregarAlCarrito = () => {
     const items = Object.values(budget).filter(p => p !== null);
-    if(items.length === 0) return alert('No hay piezas seleccionadas');
+    if(items.length === 0) return alert('Por favor selecciona al menos un componente.');
     
-    // Add multiple items safely
+    setIsAdding(true);
     const cart = JSON.parse(localStorage.getItem('cart') || '[]');
     cart.push(...items);
     localStorage.setItem('cart', JSON.stringify(cart));
-    alert('¡Build armada agregada exitosamente al carrito general!');
-    navigate('/cart');
+    
+    // Trigger navbar update
+    window.dispatchEvent(new Event('storage'));
+    
+    setTimeout(() => {
+      navigate('/cart');
+    }, 500);
   };
 
-  const OptionSelect = ({ category, label }) => {
-    // Si tu bd tiene 'categoria', usamos eso. Si no, simularemos usando keywords en description/name
+  const OptionSelect = ({ category, label, icon }) => {
     const filteredList = products.filter(p => 
       p.category === category || 
       p.description?.toLowerCase().includes(category.toLowerCase()) ||
@@ -36,19 +39,22 @@ export default function Presupuestador() {
     );
 
     return (
-      <div style={{ marginBottom: '15px' }}>
-        <h4 style={{ marginBottom: '5px' }}>{label}</h4>
+      <div style={{ marginBottom: '24px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
+          <span style={{ color: 'var(--primary)' }}>{icon}</span>
+          <h4 style={{ fontSize: '0.9rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px' }}>{label}</h4>
+        </div>
         <select 
           className="input-field" 
-          style={{ width: '100%', backgroundColor: 'var(--background)' }}
+          style={{ width: '100%', padding: '14px', borderRadius: 'var(--radius-md)' }}
           onChange={(e) => {
             const item = products.find(p => p.id === parseInt(e.target.value));
             setBudget(prev => ({ ...prev, [category]: item || null }));
           }}
         >
-          <option value="">Selecciona tu {label}</option>
+          <option value="">Selecciona una opción...</option>
           {filteredList.map(p => (
-            <option key={p.id} value={p.id}>{p.name} - ${Number(p.price).toLocaleString()}</option>
+            <option key={p.id} value={p.id}>{p.name} — ${Number(p.price).toLocaleString()}</option>
           ))}
         </select>
       </div>
@@ -56,38 +62,58 @@ export default function Presupuestador() {
   };
 
   return (
-    <div className="container animate-fade-in" style={{ marginTop: '40px' }}>
-      <h2 style={{ fontSize: '2rem', marginBottom: '10px' }}>Armador de PCs Personalizado</h2>
-      <p style={{ color: 'var(--muted-foreground)', marginBottom: '30px' }}>Selecciona pieza por pieza para cotizar tu armado ideal. El sistema cuidará la compatibilidad.</p>
+    <div className="container animate-fade-in" style={{ marginTop: '60px', paddingBottom: '80px' }}>
+      <header style={{ marginBottom: '50px', maxWidth: '700px' }}>
+        <h2 style={{ fontSize: '2.5rem', fontWeight: 800, letterSpacing: '-1px', marginBottom: '15px' }}>Configurador de PC Expert</h2>
+        <p style={{ color: 'var(--muted-foreground)', fontSize: '1.1rem' }}>
+          Armá tu setup ideal con componentes seleccionados por rendimiento. 
+          Hardware Haven garantiza la compatibilidad de las piezas listadas.
+        </p>
+      </header>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '30px', alignItems: 'start' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1.3fr 1fr', gap: '50px', alignItems: 'start' }}>
         
-        <div className="card" style={{ padding: '30px' }}>
-          <OptionSelect category="CPU" label="Procesador (CPU)" />
-          <OptionSelect category="GPU" label="Placa de Video (GPU)" />
-          <OptionSelect category="RAM" label="Memoria RAM" />
-          <OptionSelect category="MOBO" label="Placa Madre (Motherboard)" />
-          <p style={{ fontSize: '0.8rem', color: 'var(--muted-foreground)', marginTop: '20px' }}>
-            *Para el propósito del demo universitario, la lista es general y extraída del stock.
-          </p>
+        <div className="card" style={{ padding: '40px' }}>
+          <OptionSelect category="CPU" label="Procesador" icon={<Cpu size={18} />} />
+          <OptionSelect category="GPU" label="Placa de Video" icon={<Monitor size={18} />} />
+          <OptionSelect category="RAM" label="Memoria RAM" icon={<Zap size={18} />} />
+          <OptionSelect category="MOBO" label="Motherboard" icon={<Layout size={18} />} />
+          <div style={{ padding: '20px', backgroundColor: 'var(--secondary)', borderRadius: 'var(--radius-md)', border: '1px dashed var(--border)', marginTop: '20px' }}>
+             <p style={{ fontSize: '0.85rem', color: 'var(--muted-foreground)', textAlign: 'center' }}>
+               ¿Necesitas ayuda? Consultá con nuestro <strong>Asistente IA</strong> en la esquina inferior.
+             </p>
+          </div>
         </div>
 
-        <div className="card" style={{ padding: '30px', position: 'sticky', top: '100px' }}>
-          <h3>Resumen de Build</h3>
-          <ul style={{ listStyle: 'none', padding: 0, marginTop: '20px', minHeight: '150px' }}>
+        <div className="card" style={{ padding: '40px', position: 'sticky', top: '120px', border: '1px solid var(--primary)' }}>
+          <h3 style={{ fontSize: '1.4rem', fontWeight: 700, marginBottom: '30px' }}>Resumen Técnico</h3>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '15px', marginBottom: '30px' }}>
             {Object.entries(budget).map(([key, item]) => (
-              <li key={key} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px', fontSize: '0.9rem' }}>
-                <span style={{ color: item ? 'var(--foreground)' : 'var(--muted-foreground)' }}>{item ? item.name : `Sin ${key}`}</span>
-                <span>{item ? `$${Number(item.price).toLocaleString()}` : '$0'}</span>
-              </li>
+              <div key={key} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                <div>
+                  <p style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--muted-foreground)', textTransform: 'uppercase' }}>{key}</p>
+                  <p style={{ fontSize: '0.95rem', fontWeight: 500, color: item ? 'var(--foreground)' : 'oklch(0.5 0 0 / 30%)' }}>
+                    {item ? item.name : 'Pendiente'}
+                  </p>
+                </div>
+                <span style={{ fontWeight: 600 }}>{item ? `$${Number(item.price).toLocaleString()}` : '-'}</span>
+              </div>
             ))}
-          </ul>
-          <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid var(--border)', paddingTop: '20px', marginBottom: '20px' }}>
-             <strong>Total Inversión:</strong>
-             <h3 style={{ color: 'var(--primary)' }}>${total.toLocaleString()}</h3>
           </div>
 
-          <button className="btn" style={{ width: '100%' }} onClick={agregarAlCarrito}>Añadir al Carrito</button>
+          <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid var(--border)', paddingTop: '25px', marginBottom: '30px' }}>
+             <span style={{ fontSize: '1.1rem', fontWeight: 600 }}>Presupuesto Total</span>
+             <span style={{ fontSize: '1.8rem', fontWeight: 800, color: 'var(--primary)' }}>${total.toLocaleString()}</span>
+          </div>
+
+          <button 
+            className="btn" 
+            style={{ width: '100%', padding: '18px', fontSize: '1rem' }} 
+            onClick={agregarAlCarrito}
+            disabled={isAdding}
+          >
+            {isAdding ? 'Agregando...' : 'Agregar Build Completa'}
+          </button>
         </div>
       </div>
     </div>

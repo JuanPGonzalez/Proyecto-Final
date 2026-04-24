@@ -29,14 +29,19 @@ export default function Home() {
     setLoadingModal(true);
     axios.post(`http://localhost:5000/api/products/${product.id}/view`).catch(console.error);
 
-    setTimeout(() => {
+    try {
+      const res = await axios.get(`http://localhost:5000/api/products/${product.id}/ai-analysis`);
+      setAiData(res.data);
+    } catch (err) {
+      console.error(err);
       setAiData({
-        compatibility: 'Óptima compatibilidad verificada. Diseñado para rendimiento sostenido.',
-        performance: 'Adecuado tanto para gaming en resoluciones demandantes como para trabajo.',
-        aiTip: `De los más elegidos en su segmento por relación calidad/precio.`
+        performance: 'Error obteniendo datos.',
+        compatibility: 'Revisa manual del fabricante.',
+        aiTip: 'Intenta nuevamente más tarde.'
       });
+    } finally {
       setLoadingModal(false);
-    }, 1200);
+    }
   };
 
   const closeModal = () => {
