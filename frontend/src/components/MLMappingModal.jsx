@@ -44,7 +44,9 @@ export default function MLMappingModal({ componenteId, componenteName, onClose }
     setLoading(true);
     setErrorMsg(null);
     try {
+      console.log("SEARCH QUERY:", targetQuery);
       const res = await fetch(`https://api.mercadolibre.com/sites/MLA/search?q=${encodeURIComponent(targetQuery)}&limit=20`);
+      console.log("RESPONSE STATUS:", res.status);
       
       if (!res.ok) {
         setErrorMsg('Error al buscar en MercadoLibre');
@@ -52,10 +54,12 @@ export default function MLMappingModal({ componenteId, componenteName, onClose }
         return;
       }
 
-      const data = await res.json();
+      const data = await res.json().catch(() => null);
+      console.log("RAW DATA:", data);
 
-      const mappedResults = (data.results || [])
-        .filter(item => item.price && item.price > 0)
+      const mappedResults = (data?.results || [])
+        .filter(item => item?.price && item.price > 0)
+        .slice(0, 20)
         .map(item => ({
           id: item.id,
           title: item.title,

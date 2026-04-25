@@ -40,16 +40,19 @@ export default function AdminProducts() {
     if (!mlSearch) return;
     setLoadingML(true);
     try {
+      console.log("SEARCH QUERY:", mlSearch);
       const res = await fetch(`https://api.mercadolibre.com/sites/MLA/search?q=${encodeURIComponent(mlSearch)}&limit=20`);
+      console.log("RESPONSE STATUS:", res.status);
       
       if (!res.ok) {
         throw new Error('Error en búsqueda ML');
       }
 
-      const data = await res.json();
+      const data = await res.json().catch(() => null);
+      console.log("RAW DATA:", data);
       
-      const results = (data.results || [])
-        .filter(item => item.price && item.price > 0)
+      const results = (data?.results || [])
+        .filter(item => item?.price && item.price > 0)
         .slice(0, 20)
         .map(item => ({
           id: item.id,
