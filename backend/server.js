@@ -16,10 +16,20 @@ const orderRoutes = require('./routes/orders');
 const componenteRoutes = require('./routes/Componente');
 const pricingRoutes = require('./routes/pricing');
 const mlRoutes = require('./routes/ml');
+const cartRoutes = require('./routes/cart');
 
 const app = express();
 app.use(cors());
 app.use(express.json());
+const session = require('express-session');
+
+// Simple in-memory session for cart handling (suitable for dev).
+app.use(session({
+  secret: process.env.SESSION_SECRET || 'dev_secret_change_me',
+  resave: false,
+  saveUninitialized: true,
+  cookie: { secure: false }
+}));
 
 // Serve static files from frontend directory
 app.use(express.static(path.join(__dirname, '../frontend')));
@@ -41,6 +51,7 @@ app.use('/api/orders', orderRoutes);
 app.use('/api/componentes', componenteRoutes);
 app.use('/api/pricing', pricingRoutes);
 app.use('/api/ml', mlRoutes);
+app.use('/api/cart', cartRoutes);
 
 const PORT = process.env.PORT || 5000;
 
