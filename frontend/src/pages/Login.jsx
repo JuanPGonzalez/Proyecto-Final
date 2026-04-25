@@ -11,9 +11,17 @@ export default function Login({ initialMode = 'login' }) {
     e.preventDefault();
     try {
       const endpoint = isLogin ? '/api/auth/login' : '/api/auth/register';
-      const res = await axios.post(`http://localhost:5000${endpoint}`, formData);
+      const payload = isLogin 
+        ? { identifier: formData.email, password: formData.password }
+        : { name: formData.name, email: formData.email, password: formData.password };
+      const res = await axios.post(`http://localhost:5000${endpoint}`, payload);
+      const user = {
+        ...res.data.user,
+        tipoUsuario: res.data.user.tipoUsuario || res.data.user.tipo_usuario,
+        tipo_usuario: res.data.user.tipo_usuario || res.data.user.tipoUsuario
+      };
       localStorage.setItem('token', res.data.token);
-      localStorage.setItem('user', JSON.stringify(res.data.user));
+      localStorage.setItem('user', JSON.stringify(user));
       navigate('/');
     } catch (err) {
       alert(err.response?.data?.error || 'Error de autenticación');
@@ -38,8 +46,8 @@ export default function Login({ initialMode = 'login' }) {
             />
           )}
           <input 
-            type="email" 
-            placeholder="Correo electrónico" 
+            type={isLogin ? "text" : "email"}
+            placeholder={isLogin ? "Email o usuario" : "Correo electrónico"}
             className="input-field" 
             required
             value={formData.email}

@@ -1,15 +1,12 @@
 const express = require('express');
 const router = express.Router();
 const { User, Product, Order, OrderItem, sequelize } = require('../models');
+const { authMiddleware, adminMiddleware } = require('../middleware/roles');
 
-// Middleware básico de autenticación (simplificado para admin)
-const authMiddleware = (req, res, next) => {
-    // Aquí validaríamos un Bearer token real
-    next();
-};
+router.use(authMiddleware, adminMiddleware);
 
 // Estadísticas básicas
-router.get('/stats', authMiddleware, async (req, res) => {
+router.get('/stats', async (req, res) => {
   try {
     const totalUsers = await User.count();
     const totalProducts = await Product.count();

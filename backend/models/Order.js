@@ -4,7 +4,6 @@ const sequelize = require('../config/database');
 const Order = sequelize.define('Order', {
   id: { type: DataTypes.INTEGER.UNSIGNED, primaryKey: true, autoIncrement: true },
   total: { type: DataTypes.DECIMAL(10, 2), allowNull: false },
-  status: { type: DataTypes.ENUM('pending', 'completed', 'cancelled'), defaultValue: 'pending' },
   fecha_compra: { type: DataTypes.DATE, defaultValue: DataTypes.NOW },
   user_id: { type: DataTypes.INTEGER.UNSIGNED, allowNull: false }
 }, {

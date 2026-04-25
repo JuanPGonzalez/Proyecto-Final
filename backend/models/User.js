@@ -6,14 +6,14 @@ const User = sequelize.define('User', {
   name: { type: DataTypes.STRING, allowNull: false },
   password: { type: DataTypes.STRING, allowNull: false },
   email: { type: DataTypes.STRING, allowNull: false },
-  tipoUsuario: { type: DataTypes.STRING, allowNull: false, defaultValue: 'client' },
-  fechaReg: { type: DataTypes.DATE, defaultValue: DataTypes.NOW },
-  sexo: { type: DataTypes.STRING, defaultValue: 'Indefinido' },
-  fechaNac: { type: DataTypes.DATE, defaultValue: DataTypes.NOW },
-  direccion: { type: DataTypes.STRING, defaultValue: 'Desconocida' }
+  tipo_usuario: { type: DataTypes.STRING, allowNull: false, defaultValue: 'cliente', field: 'tipo_usuario' },
+  fecha_reg: { type: DataTypes.DATE, defaultValue: DataTypes.NOW, field: 'fecha_reg' },
+  sexo: { type: DataTypes.STRING, defaultValue: 'Indefinido', field: 'sexo' },
+  fecha_nac: { type: DataTypes.DATE, defaultValue: DataTypes.NOW, field: 'fecha_nac' },
+  direccion: { type: DataTypes.STRING, defaultValue: 'Desconocida', field: 'direccion' }
 }, {
   tableName: 'user',
-  timestamps: false // asumiendo que sus entidades no usan createdAt/updatedAt a menos que extendan algo, pero user tiene fechaReg, no updatedAt. Si rompe se ajusta.
+  timestamps: false
 });
 
 module.exports = User;

@@ -5,15 +5,11 @@ const Product = sequelize.define('Product', {
   id: { type: DataTypes.INTEGER.UNSIGNED, primaryKey: true, autoIncrement: true },
   name: { type: DataTypes.STRING, allowNull: false },
   description: { type: DataTypes.TEXT, allowNull: false },
-  imgURL: {
-    type: DataTypes.STRING,
-    allowNull: true,
-    field: 'imgURL' // Corregido de img_url a imgURL para coincidir con la DB
-  },
-  price: { type: DataTypes.DECIMAL(10, 2), defaultValue: 0 },
-  stock: { type: DataTypes.INTEGER, defaultValue: 0 },
-  views: { type: DataTypes.INTEGER, defaultValue: 0 },
-  categoria_id: { type: DataTypes.INTEGER.UNSIGNED, allowNull: true }
+  price: { type: DataTypes.DECIMAL(10, 2), field: 'precio_actual', allowNull: true, defaultValue: 0 },
+  stock: { type: DataTypes.INTEGER, field: 'stock', allowNull: true, defaultValue: 0 },
+  views: { type: DataTypes.INTEGER, field: 'views', allowNull: true, defaultValue: 0 },
+  imgURL: { type: DataTypes.STRING, field: 'img_url', allowNull: true },
+  categoria_id: { type: DataTypes.INTEGER.UNSIGNED, field: 'categoria_id', allowNull: false }
 }, {
   tableName: 'componente',
   timestamps: false

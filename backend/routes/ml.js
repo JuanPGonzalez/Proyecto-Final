@@ -53,38 +53,6 @@ router.get('/test-item', async (req, res) => {
   }
 });
 
-router.get('/search', async (req, res) => {
-  try {
-    const { q } = req.query;
-    if (!q) {
-      return res.status(400).json({ ok: false, error: 'Falta parametro de busqueda (q)' });
-    }
-
-    const mlResponse = await axios.get(`https://api.mercadolibre.com/sites/MLA/search?q=${encodeURIComponent(q)}`);
-    const data = mlResponse.data;
-
-    if (!data.results) {
-      return res.json({ ok: true, results: [] });
-    }
-
-    // Filter null prices and limit to 20
-    const results = data.results
-      .filter(item => item.price != null)
-      .slice(0, 20)
-      .map(item => ({
-        id: item.id,
-        title: item.title,
-        price: item.price,
-        thumbnail: item.thumbnail,
-        condition: item.condition,
-        sold_quantity: item.sold_quantity || 0
-      }));
-
-    res.json({ ok: true, results });
-  } catch (error) {
-    console.error('Error in /api/ml/search:', error.message);
-    res.status(500).json({ ok: false, error: 'Error al consultar MercadoLibre API' });
-  }
-});
+// /search deprecated - moved to frontend direct API
 
 module.exports = router;

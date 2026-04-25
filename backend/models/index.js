@@ -4,6 +4,7 @@ const Product = require('./Product');
 const { Order, OrderItem } = require('./Order');
 const ComponenteML = require('./ComponenteML');
 const LogMotorPrecio = require('./LogMotorPrecio');
+const SupportTicket = require('./SupportTicket');
 
 User.hasMany(Order, { foreignKey: 'user_id' });
 Order.belongsTo(User, { foreignKey: 'user_id' });
@@ -22,4 +23,8 @@ ComponenteML.belongsTo(Product, { foreignKey: 'componente_id' });
 Product.hasMany(LogMotorPrecio, { foreignKey: 'componente_id', as: 'pricingLogs' });
 LogMotorPrecio.belongsTo(Product, { foreignKey: 'componente_id' });
 
-module.exports = { sequelize, User, Product, Order, OrderItem, ComponenteML, LogMotorPrecio };
+// Support tickets
+User.hasMany(SupportTicket, { foreignKey: 'user_id', as: 'supportTickets' });
+SupportTicket.belongsTo(User, { foreignKey: 'user_id', as: 'user' });
+
+module.exports = { sequelize, User, Product, Order, OrderItem, ComponenteML, LogMotorPrecio, SupportTicket };

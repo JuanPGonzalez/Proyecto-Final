@@ -1,6 +1,8 @@
+import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { Trash2, CreditCard, ShoppingBag, ArrowRight } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { isAdminRole } from '../constants/roles';
 
 export default function Cart() {
   const [cartItems, setCartItems] = useState([]);
@@ -8,9 +10,15 @@ export default function Cart() {
   const navigate = useNavigate();
 
   useEffect(() => {
+    const user = JSON.parse(localStorage.getItem('user') || '{}');
+    if (isAdminRole(user)) {
+      navigate('/forbidden');
+      return;
+    }
+
     const items = JSON.parse(localStorage.getItem('cart') || '[]');
     setCartItems(items);
-  }, []);
+  }, [navigate]);
 
   const removeFromCart = (index) => {
     const newItems = [...cartItems];

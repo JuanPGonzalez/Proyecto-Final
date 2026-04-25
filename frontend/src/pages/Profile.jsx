@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
+import { isAdminRole } from '../constants/roles';
 
 export default function Profile() {
   const [user, setUser] = useState(null);
-  const [formData, setFormData] = useState({ name: '', direccion: '', sexo: '', fechaNac: '' });
+  const [formData, setFormData] = useState({ name: '', direccion: '', sexo: '', fecha_nac: '' });
   const navigate = useNavigate();
 
   const [orders, setOrders] = useState([]);
@@ -22,8 +23,14 @@ export default function Profile() {
           name: res.data.name || '',
           direccion: res.data.direccion || '',
           sexo: res.data.sexo || '',
-          fechaNac: res.data.fechaNac ? res.data.fechaNac.split('T')[0] : ''
+          fecha_nac: res.data.fecha_nac ? res.data.fecha_nac.split('T')[0] : ''
         });
+
+        if (!isAdminRole(res.data)) {
+          axios.get('http://localhost:5000/api/orders', { headers })
+            .then(orderRes => setOrders(orderRes.data))
+            .catch(console.error);
+        }
       })
       .catch((err) => {
         console.error(err);
@@ -32,11 +39,6 @@ export default function Profile() {
           navigate('/login');
         }
       });
-
-    // Cargar historial de órdenes
-    axios.get('http://localhost:5000/api/orders', { headers })
-      .then(res => setOrders(res.data))
-      .catch(console.error);
   }, [navigate]);
 
   const handleSubmit = async (e) => {
@@ -93,7 +95,7 @@ export default function Profile() {
                 </div>
                 <div>
                   <label style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--muted-foreground)', marginBottom: '8px', display: 'block' }}>Nacimiento</label>
-                  <input type="date" className="input-field" value={formData.fechaNac} onChange={e => setFormData({...formData, fechaNac: e.target.value})} />
+                  <input type="date" className="input-field" value={formData.fecha_nac} onChange={e => setFormData({...formData, fecha_nac: e.target.value})} />
                 </div>
               </div>
               <button type="submit" className="btn" style={{ marginTop: '10px' }}>Actualizar Perfil</button>
@@ -101,17 +103,29 @@ export default function Profile() {
           </div>
         </div>
 
+        {isAdminRole(user) && (
+          <div className="card" style={{ padding: '30px', marginBottom: '30px' }}>
+            <h3 style={{ marginBottom: '20px' }}>Panel de Administración</h3>
+            <p style={{ color: 'var(--muted-foreground)', marginBottom: '20px' }}>Accede rápidamente a la gestión de productos y al dashboard BI.</p>
+            <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+              <button className="btn" onClick={() => navigate('/admin')}>Dashboard</button>
+              <button className="btn btn-outline" onClick={() => navigate('/admin/productos')}>Gestionar Productos</button>
+            </div>
+          </div>
+        )}
+
         {/* Lado Derecho: Historial de Órdenes */}
-        <div>
-          <h2 style={{ fontSize: '2rem', fontWeight: 800, marginBottom: '30px' }}>Historial de Órdenes</h2>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-            {orders.length === 0 ? (
-              <div className="card" style={{ padding: '40px', textAlign: 'center', color: 'var(--muted-foreground)' }}>
-                Aún no has realizado ninguna compra.
-              </div>
-            ) : (
-              orders.map(order => (
-                <div key={order.id} className="card" style={{ padding: '24px' }}>
+        {!isAdminRole(user) ? (
+          <div>
+            <h2 style={{ fontSize: '2rem', fontWeight: 800, marginBottom: '30px' }}>Historial de Órdenes</h2>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+              {orders.length === 0 ? (
+                <div className="card" style={{ padding: '40px', textAlign: 'center', color: 'var(--muted-foreground)' }}>
+                  Aún no has realizado ninguna compra.
+                </div>
+              ) : (
+                orders.map(order => (
+                  <div key={order.id} className="card" style={{ padding: '24px' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px', borderBottom: '1px solid var(--border)', paddingBottom: '15px' }}>
                     <div>
                       <span style={{ fontSize: '0.8rem', color: 'var(--muted-foreground)', textTransform: 'uppercase' }}>Orden #{order.id}</span>
@@ -134,8 +148,9 @@ export default function Profile() {
                 </div>
               ))
             )}
+            </div>
           </div>
-        </div>
+        ) : null}
 
       </div>
     </div>

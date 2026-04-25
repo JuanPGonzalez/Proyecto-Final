@@ -8,6 +8,8 @@ const startPricingCron = require('./services/pricingCron');
 
 const authRoutes = require('./routes/auth');
 const productRoutes = require('./routes/products');
+const usersRoutes = require('./routes/users');
+const ticketsRoutes = require('./routes/tickets');
 const chatbotRoutes = require('./routes/chatbot');
 const adminRoutes = require('./routes/admin');
 const orderRoutes = require('./routes/orders');
@@ -27,14 +29,12 @@ app.get('/test', (req, res) => {
   res.json({ message: 'TEST OK' });
 });
 
-// Serve ML Manager UI
-app.get('/ml-manager', (req, res) => {
-  res.sendFile(path.join(__dirname, '../frontend/ml-manager.html'));
-});
 
 // Init routes
 app.use('/api/auth', authRoutes);
 app.use('/api/products', productRoutes);
+app.use('/api/users', usersRoutes);
+app.use('/api/tickets', ticketsRoutes);
 app.use('/api/chatbot', chatbotRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/orders', orderRoutes);
@@ -49,7 +49,6 @@ sequelize.sync({ alter: false }).then(() => {
   startPricingCron();
   app.listen(PORT, () => {
     console.log(`🚀 Backend corriendo en el puerto ${PORT}`);
-    console.log(`📊 Accede al gestor ML en: http://localhost:${PORT}/ml-manager`);
   });
 }).catch(err => {
   console.error('Error syncing database:', err);

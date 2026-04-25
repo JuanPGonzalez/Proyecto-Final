@@ -73,8 +73,8 @@ router.get('/componente/:id', async (req, res) => {
       });
     }
 
-    const mlIds = mlMappings.map(m => m.ml_id);
-    const result = await getRobustMarketPrice(mlIds);
+    const cachedPrices = mlMappings.map(m => m.price).filter(p => p !== null && p > 0);
+    const result = await getRobustMarketPrice(cachedPrices);
 
     // Get current product info
     const producto = await Product.findByPk(componenteId);
@@ -92,7 +92,7 @@ router.get('/componente/:id', async (req, res) => {
       componenteId,
       componente_name: producto?.name,
       current_price: currentPrice,
-      ml_ids: mlIds,
+      ml_ids: mlMappings.map(m => m.ml_id),
       ...result,
       suggestedPricing
     });
@@ -107,21 +107,21 @@ router.get('/componente/:id', async (req, res) => {
 
 /**
  * POST /api/pricing/calculate
- * Calculate market price for custom ML IDs
- * Body: { ids: ['MLA...', 'MLA...'] }
+ * Calculate market price for array of cached prices directly
+ * Body: { prices: [1000, 1200, 1300] }
  */
 router.post('/calculate', async (req, res) => {
   try {
-    const { ids } = req.body;
+    const { prices } = req.body;
 
-    if (!Array.isArray(ids) || ids.length === 0) {
+    if (!Array.isArray(prices) || prices.length === 0) {
       return res.status(400).json({
         error: 'Invalid request',
-        details: 'ids must be a non-empty array'
+        details: 'prices must be a non-empty array of numbers'
       });
     }
 
-    const result = await getRobustMarketPrice(ids);
+    const result = await getRobustMarketPrice(prices);
 
     // Calculate suggested price
     const suggestedPricing = result.success

@@ -3,6 +3,7 @@ import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 import { Edit2, Trash2, Search, Download, X, PackagePlus, RefreshCcw, Link } from 'lucide-react';
 import MLMappingModal from '../components/MLMappingModal';
+import { isAdminRole } from '../constants/roles';
 
 export default function AdminProducts() {
   const [products, setProducts] = useState([]);
@@ -22,7 +23,7 @@ export default function AdminProducts() {
 
   useEffect(() => {
     const user = JSON.parse(localStorage.getItem('user') || '{}');
-    if (!token || user.tipoUsuario !== 'admin') {
+    if (!token || !isAdminRole(user)) {
       return navigate('/forbidden');
     }
     fetchProducts();
@@ -39,23 +40,27 @@ export default function AdminProducts() {
     if (!mlSearch) return;
     setLoadingML(true);
     try {
-      // VIA BACKEND INTERNAL SEARCH PROXY ENDPOINT
-      const res = await fetch(`http://localhost:5000/api/ml/search?q=${encodeURIComponent(mlSearch)}`);
-      const data = await res.json();
+      const res = await fetch(`https://api.mercadolibre.com/sites/MLA/search?q=${encodeURIComponent(mlSearch)}&limit=20`);
       
-      if (!res.ok || !data.ok) {
-        throw new Error('Error en búsqueda backend');
+      if (!res.ok) {
+        throw new Error('Error en búsqueda ML');
       }
 
-      const results = data.results.slice(0, 10).map(item => ({
-        id: item.id,
-        name: item.title,
-        price: item.price,
-        imgURL: item.thumbnail
-      }));
+      const data = await res.json();
+      
+      const results = (data.results || [])
+        .filter(item => item.price && item.price > 0)
+        .slice(0, 20)
+        .map(item => ({
+          id: item.id,
+          title: item.title,
+          price: item.price,
+          thumbnail: item.thumbnail
+        }));
+
       setMlResults(results);
     } catch (err) {
-      alert('Error consultando servidor de MercadoLibre');
+      alert('Error consultando MercadoLibre');
     } finally {
       setLoadingML(false);
     }
@@ -64,9 +69,9 @@ export default function AdminProducts() {
   const importFromML = (item) => {
     setFormData({
       ...formData,
-      name: item.name,
+      name: item.title,
       price: item.price,
-      imgURL: item.imgURL,
+      imgURL: item.thumbnail,
       category: formData.category || 'Hardware'
     });
     setMlResults([]);
@@ -160,9 +165,9 @@ export default function AdminProducts() {
                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', maxHeight: '300px', overflowY: 'auto', paddingRight: '5px' }}>
                  {mlResults.map(item => (
                    <div key={item.id} className="card" style={{ padding: '12px', display: 'flex', gap: '12px', alignItems: 'center', fontSize: '0.85rem', cursor: 'pointer' }} onClick={() => importFromML(item)}>
-                      <img src={item.imgURL} alt="thumb" style={{ width: '50px', height: '50px', objectFit: 'contain', backgroundColor: 'white', borderRadius: '4px' }} />
+                      <img src={item.thumbnail} alt="thumb" style={{ width: '50px', height: '50px', objectFit: 'contain', backgroundColor: 'white', borderRadius: '4px' }} />
                       <div style={{ flex: 1 }}>
-                         <div style={{ fontWeight: 600, lineHeight: 1.2, marginBottom: '4px' }}>{item.name}</div>
+                         <div style={{ fontWeight: 600, lineHeight: 1.2, marginBottom: '4px' }}>{item.title}</div>
                          <div style={{ color: 'var(--primary)', fontWeight: 700 }}>${item.price.toLocaleString()} ARS</div>
                       </div>
                       <X size={16} style={{ opacity: 0.3 }} />

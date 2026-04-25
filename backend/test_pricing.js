@@ -1,9 +1,9 @@
 const {
   getRobustMarketPrice,
   getMarketPriceByComponenteId,
-  calculateMedian,
-  fetchItemFromML
+  calculateMedian
 } = require('./services/pricingService');
+const { fetchItemFromML } = require('./services/mlService');
 
 /**
  * Test the pricing service implementation
@@ -29,7 +29,7 @@ async function testPricingService() {
 
   // Test 3: Fetch single item from ML
   console.log('Test 3: Fetch Single Item from MercadoLibre');
-  const item = await fetchItemFromML('MLA1617800563', 5000);
+  const item = await fetchItemFromML('MLA1617800563');
   if (item) {
     console.log(`  ✅ Item fetched: Price = ${item.price}, Status = ${item.status}`);
   } else {
@@ -37,16 +37,16 @@ async function testPricingService() {
   }
   console.log();
 
-  // Test 4: Get robust market price with real ML IDs
-  console.log('Test 4: Get Robust Market Price (Real ML IDs)');
-  const testIds = [
-    'MLA1617800563',
-    'MLA1339807170',
-    'MLA1677927445'
+  // Test 4: Get robust market price with real prices
+  console.log('Test 4: Get Robust Market Price (Simulated Cached Prices)');
+  const testPrices = [
+    50000,
+    52000,
+    49000
   ];
 
-  console.log(`  Testing with IDs: ${testIds.join(', ')}`);
-  const priceResult = await getRobustMarketPrice(testIds);
+  console.log(`  Testing with Cached Prices: ${testPrices.join(', ')}`);
+  const priceResult = await getRobustMarketPrice(testPrices);
 
   console.log(`  All Prices: ${priceResult.prices.join(', ')}`);
   console.log(`  Median: ${priceResult.median}`);

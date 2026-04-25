@@ -16,17 +16,14 @@ router.post('/:id/ml-mapping', async (req, res) => {
       return res.status(400).json({ error: 'ids inválidos' });
     }
 
-    const { fetchItemFromML } = require('../services/mlService');
     const results = [];
 
     for (const ml_id of ids) {
-      const item = await fetchItemFromML(ml_id);
+      if (!ml_id || typeof ml_id !== 'string') continue;
 
       const [instance, created] = await ComponenteML.upsert({
         componente_id: Number(id),
-        ml_id,
-        price: item?.price || null,
-        title: item?.title || null
+        ml_id
       });
 
       results.push({ ml_id, created: created !== false });
@@ -35,7 +32,7 @@ router.post('/:id/ml-mapping', async (req, res) => {
     res.json({ ok: true, results });
   } catch (error) {
     console.error(error);
-    res.status(500).send('Error guardando mapping');
+    res.status(500).json({ ok: false, error: 'Error guardando mapping' });
   }
 });
 

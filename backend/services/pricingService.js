@@ -182,15 +182,33 @@ function calculateSuggestedPrice(competitionPrice, currentPrice = 0, rules = {})
  */
 async function getMarketPriceByComponenteId(componenteId) {
   const { ComponenteML } = require('../models');
+  const { fetchItemFromML } = require('./mlService');
+
   try {
     // Get all ML mappings for this componente
     const mappings = await ComponenteML.findAll({
       where: { componente_id: componenteId }
     });
 
-    const cachedPrices = mappings.map(m => m.price).filter(p => p !== null && p > 0);
+    const validatedPrices = [];
 
-    if (cachedPrices.length === 0) {
+    for (const mapping of mappings) {
+      if (mapping.price && isPriceValid(mapping.price)) {
+        validatedPrices.push(mapping.price);
+      } else {
+        // Fetch from MercadoLibre via standard items endpoint
+        const item = await fetchItemFromML(mapping.ml_id);
+        if (item && item.price && isPriceValid(item.price)) {
+          validatedPrices.push(item.price);
+          // Update cache explicitly in background
+          mapping.price = item.price;
+          mapping.title = item.title;
+          await mapping.save().catch(e => console.error('Cache save error', e));
+        }
+      }
+    }
+
+    if (validatedPrices.length === 0) {
       return {
         componenteId,
         prices: [],
@@ -201,8 +219,8 @@ async function getMarketPriceByComponenteId(componenteId) {
       };
     }
 
-    // Get robust market price
-    const priceData = await getRobustMarketPrice(cachedPrices);
+    // Get robust market price (filters outliers and computes median/average)
+    const priceData = await getRobustMarketPrice(validatedPrices);
 
     return {
       componenteId,

@@ -4,6 +4,7 @@ import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, LineElement, 
 import { Bar, Pie, Line } from 'react-chartjs-2';
 import { Users, ShoppingBag, DollarSign, Activity } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { isAdminRole } from '../constants/roles';
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, LineElement, PointElement, Title, Tooltip, Legend, ArcElement);
 
@@ -18,7 +19,7 @@ export default function AdminDashboard() {
     const token = localStorage.getItem('token');
     const user = JSON.parse(localStorage.getItem('user') || '{}');
     
-    if (!token || user.tipoUsuario !== 'admin') {
+    if (!token || !isAdminRole(user)) {
       return navigate('/forbidden');
     }
 

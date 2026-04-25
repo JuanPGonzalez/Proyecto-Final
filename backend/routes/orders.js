@@ -1,31 +1,26 @@
 const express = require('express');
 const router = express.Router();
-const jwt = require('jsonwebtoken');
+const { authMiddleware, clientMiddleware, isAdminRole } = require('../middleware/roles');
 const sequelize = require('../config/database');
-
-const authMiddleware = (req, res, next) => {
-  const token = req.headers.authorization?.split(' ')[1];
-  if (!token) return res.status(401).json({ error: 'No autorizado' });
-  try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'secret');
-    req.user = decoded;
-    next();
-  } catch (err) {
-    res.status(401).json({ error: 'Token inválido' });
-  }
-};
-
-const { Order, OrderItem, Product } = require('../models');
+const { Order, OrderItem, Product, User } = require('../models');
 
 // Obtener órdenes del usuario
 router.get('/', authMiddleware, async (req, res) => {
   try {
-    const orders = await Order.findAll({
-      where: { user_id: req.user.id }, // Asumiendo que el campo es user_id en la DB
-      include: [{
+    const where = isAdminRole(req.user.tipoUsuario) ? {} : { user_id: req.user.id };
+    const include = [
+      {
         model: OrderItem,
         include: [Product]
-      }],
+      }
+    ];
+    if (isAdminRole(req.user.tipoUsuario)) {
+      include.push({ model: User, attributes: ['id', 'name', 'email', 'tipoUsuario'] });
+    }
+
+    const orders = await Order.findAll({
+      where,
+      include,
       order: [['id', 'DESC']]
     });
     res.json(orders);
@@ -35,24 +30,23 @@ router.get('/', authMiddleware, async (req, res) => {
   }
 });
 
-router.post('/', authMiddleware, async (req, res) => {
+router.post('/', authMiddleware, clientMiddleware, async (req, res) => {
   try {
     const { total, items } = req.body;
     if (!items || items.length === 0) return res.status(400).json({ error: 'No hay productos' });
 
     const order = await Order.create({
       total,
-      status: 'completed',
-      user_id: req.user.id, // Sequelize mapeará esto
-      fecha_compra: new Date() // Si la columna es fecha_compra
+      user_id: req.user.id,
+      fecha_compra: new Date()
     });
 
     for (const item of items) {
       await OrderItem.create({
         quantity: item.quantity,
         priceAtPurchase: item.priceAtPurchase,
-        orderId: order.id, // Sequelize usará el foreignKey mapeado (compra_id)
-        productId: item.productId // Sequelize usará el foreignKey mapeado (componente_id)
+        compra_id: order.id,
+        componente_id: item.productId
       });
     }
 

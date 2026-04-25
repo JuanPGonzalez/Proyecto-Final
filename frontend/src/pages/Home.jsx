@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import axios from 'axios';
 import { ShoppingCart, Filter, SlidersHorizontal } from 'lucide-react';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
+import { isAdminRole, isClientRole } from '../constants/roles';
 
 export default function Home() {
   const [products, setProducts] = useState([]);
@@ -17,6 +18,10 @@ export default function Home() {
   const [maxPrice, setMaxPrice] = useState('');
   const [sortBy, setSortBy] = useState('relevance');
   const [quickFilter, setQuickFilter] = useState('');
+  const navigate = useNavigate();
+  const user = JSON.parse(localStorage.getItem('user') || '{}');
+  const isAdmin = isAdminRole(user);
+  const isClient = isClientRole(user);
 
   useEffect(() => {
     axios.get('http://localhost:5000/api/products')
@@ -55,6 +60,25 @@ export default function Home() {
     cart.push(product);
     localStorage.setItem('cart', JSON.stringify(cart));
     window.dispatchEvent(new Event('storage'));
+  };
+
+  const handleDeleteProduct = async (e, productId) => {
+    e.stopPropagation();
+    const token = localStorage.getItem('token');
+    if (!token) {
+      return alert('Necesitas permisos de administrador para eliminar productos');
+    }
+    if (!window.confirm('¿Deseas eliminar este producto?')) return;
+
+    try {
+      await axios.delete(`http://localhost:5000/api/products/${productId}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setProducts(products.filter(p => p.id !== productId));
+    } catch (err) {
+      console.error(err);
+      alert('Error al eliminar producto');
+    }
   };
 
   const filteredProducts = useMemo(() => {
@@ -212,9 +236,28 @@ export default function Home() {
                     <h3 style={{ fontSize: '0.95rem', color: 'var(--muted-foreground)', fontWeight: 500, flex: 1, lineHeight: '1.5' }}>
                       {product.name}
                     </h3>
-                    <button className="btn btn-outline" style={{ width: '100%', marginTop: '20px', display:'flex', justifyContent:'center', alignItems:'center', gap:'8px' }} onClick={(e) => addToCart(e, product)}>
-                       <ShoppingCart size={16}/> Sumar al Carrito
-                    </button>
+                    {isAdmin ? (
+                      <div style={{ display: 'grid', gap: '10px', marginTop: '20px' }}>
+                        <button className="btn btn-outline" style={{ width: '100%', display:'flex', justifyContent:'center', alignItems:'center', gap:'8px' }} onClick={(e) => { e.stopPropagation(); openProductModal(product); }}>
+                          Ver detalle
+                        </button>
+                        <button className="btn btn-outline" style={{ width: '100%', display:'flex', justifyContent:'center', alignItems:'center', gap:'8px' }} onClick={(e) => { e.stopPropagation(); navigate('/admin/productos'); }}>
+                          Editar
+                        </button>
+                        <button className="btn" style={{ width: '100%', display:'flex', justifyContent:'center', alignItems:'center', gap:'8px' }} onClick={(e) => handleDeleteProduct(e, product.id)}>
+                          Eliminar
+                        </button>
+                      </div>
+                    ) : (
+                      <div style={{ display: 'grid', gap: '10px', marginTop: '20px' }}>
+                        <button className="btn btn-outline" style={{ display:'flex', justifyContent:'center', alignItems:'center', gap:'8px' }} onClick={(e) => { e.stopPropagation(); openProductModal(product); }}>
+                          Ver detalle
+                        </button>
+                        <button className="btn" style={{ display:'flex', justifyContent:'center', alignItems:'center', gap:'8px' }} onClick={(e) => addToCart(e, product)}>
+                          <ShoppingCart size={16}/> Comprar
+                        </button>
+                      </div>
+                    )}
                   </div>
                 </div>
               ))}
@@ -256,7 +299,25 @@ export default function Home() {
              </div>
 
              <div style={{ display: 'flex', gap: '16px', marginTop: '24px' }}>
-                <button className="btn" style={{ flex: 1, padding: '14px' }} onClick={(e) => { addToCart(e, selectedProduct); closeModal(); }}>Agregar al Carrito</button>
+                {isAdmin ? (
+                  <>
+                    <button className="btn" style={{ flex: 1, padding: '14px' }} onClick={() => navigate('/admin/productos')}>
+                      Editar producto
+                    </button>
+                    <button className="btn btn-destructive" style={{ flex: '0 0 120px' }} onClick={async () => { await handleDeleteProduct({ stopPropagation: () => {} }, selectedProduct.id); closeModal(); }}>
+                      Eliminar
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <button className="btn" style={{ flex: 1, padding: '14px' }} onClick={(e) => { addToCart(e, selectedProduct); closeModal(); }}>
+                      Agregar al Carrito
+                    </button>
+                    <button className="btn btn-outline" style={{ flex: '0 0 120px' }} onClick={(e) => { addToCart(e, selectedProduct); closeModal(); navigate('/cart'); }}>
+                      Comprar
+                    </button>
+                  </>
+                )}
                 <button className="btn btn-outline" style={{ flex: '0 0 120px' }} onClick={closeModal}>Cerrar</button>
              </div>
           </div>

@@ -15,8 +15,8 @@ async function patchDatabase() {
 
   try {
     console.log('Aplicando patch de columnas a componente...');
-    await runQuery('ALTER TABLE componente ADD COLUMN imgURL VARCHAR(255);');
-    await runQuery('ALTER TABLE componente ADD COLUMN price DECIMAL(10,2) DEFAULT 0;');
+    await runQuery('ALTER TABLE componente ADD COLUMN img_url VARCHAR(255);');
+    await runQuery('ALTER TABLE componente ADD COLUMN precio_actual DECIMAL(10,2) DEFAULT 0;');
     await runQuery('ALTER TABLE componente ADD COLUMN stock INTEGER DEFAULT 0;');
     await runQuery('ALTER TABLE componente ADD COLUMN views INTEGER DEFAULT 0;');
     await runQuery('ALTER TABLE componente ADD COLUMN categoria_id INT UNSIGNED;');

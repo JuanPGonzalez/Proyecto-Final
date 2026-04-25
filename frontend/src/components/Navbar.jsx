@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Search, ShoppingCart, User, Settings, Database, Headphones, Cpu } from 'lucide-react';
+import { isAdminRole } from '../constants/roles';
 
 export default function Navbar() {
   const navigate = useNavigate();
   const token = localStorage.getItem('token');
   const user = JSON.parse(localStorage.getItem('user') || '{}');
+  const isAdmin = isAdminRole(user);
   const [cartCount, setCartCount] = useState(0);
   const [searchTerm, setSearchTerm] = useState('');
 
@@ -56,7 +58,7 @@ export default function Navbar() {
           </form>
 
           <div className="flex items-center gap-5">
-            {user.tipoUsuario === 'admin' && (
+            {isAdmin && (
               <div style={{ display: 'flex', gap: '15px', marginRight: '10px', borderRight: '1px solid var(--border)', paddingRight: '15px' }}>
                 <Link to="/admin" title="BI Dashboard" style={{ color:'var(--muted-foreground)' }}><Settings size={20} /></Link>
                 <Link to="/admin/productos" title="Inventario" style={{ color:'var(--muted-foreground)' }}><Database size={20} /></Link>
@@ -68,14 +70,16 @@ export default function Navbar() {
               <span style={{ fontSize: '0.9rem', fontWeight: 500 }}>{token ? user.name.split(' ')[0] : 'Ingresar'}</span>
             </div>
 
-            <Link to="/cart" title="Mi Carrito" style={{ color:'var(--foreground)', position: 'relative', marginLeft: '10px' }}>
-              <ShoppingCart size={22} />
-              {cartCount > 0 && (
-                <span style={{ position: 'absolute', top: '-8px', right: '-10px', background: 'var(--accent)', color: 'var(--accent-foreground)', borderRadius: '50%', padding: '2px 6px', fontSize: '0.75rem', fontWeight: 'bold' }}>
-                  {cartCount}
-                </span>
-              )}
-            </Link>
+            {!isAdmin && (
+              <Link to="/cart" title="Mi Carrito" style={{ color:'var(--foreground)', position: 'relative', marginLeft: '10px' }}>
+                <ShoppingCart size={22} />
+                {cartCount > 0 && (
+                  <span style={{ position: 'absolute', top: '-8px', right: '-10px', background: 'var(--accent)', color: 'var(--accent-foreground)', borderRadius: '50%', padding: '2px 6px', fontSize: '0.75rem', fontWeight: 'bold' }}>
+                    {cartCount}
+                  </span>
+                )}
+              </Link>
+            )}
           </div>
         </div>
       </header>
@@ -86,9 +90,11 @@ export default function Navbar() {
             <Link to="/presupuestador" style={{ display: 'flex', alignItems:'center', gap:'5px', color:'var(--foreground)', fontWeight:500 }}>
               <Cpu size={16} color="var(--accent)"/> Armá tu PC
             </Link>
-            <Link to="/soporte" style={{ display: 'flex', alignItems:'center', gap:'5px', color:'var(--foreground)', fontWeight:500 }}>
-              <Headphones size={16} color="var(--accent)"/> Soporte / Reclamos
-            </Link>
+            {!isAdmin && (
+              <Link to="/soporte" style={{ display: 'flex', alignItems:'center', gap:'5px', color:'var(--foreground)', fontWeight:500 }}>
+                <Headphones size={16} color="var(--accent)"/> Soporte / Reclamos
+              </Link>
+            )}
             <Link to="/ayuda" style={{ color:'var(--foreground)', fontWeight:500 }}>Centro de Ayuda</Link>
          </div>
       </nav>

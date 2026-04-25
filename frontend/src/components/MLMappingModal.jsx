@@ -44,19 +44,30 @@ export default function MLMappingModal({ componenteId, componenteName, onClose }
     setLoading(true);
     setErrorMsg(null);
     try {
-      const res = await fetch(`/api/ml/search?q=${encodeURIComponent(targetQuery)}`);
-      const data = await res.json();
+      const res = await fetch(`https://api.mercadolibre.com/sites/MLA/search?q=${encodeURIComponent(targetQuery)}&limit=20`);
       
-      if (!res.ok || !data.ok) {
-        setErrorMsg(data.error || 'Error al buscar en MercadoLibre');
+      if (!res.ok) {
+        setErrorMsg('Error al buscar en MercadoLibre');
         setResults([]);
         return;
       }
 
-      setResults(data.results || []);
+      const data = await res.json();
+
+      const mappedResults = (data.results || [])
+        .filter(item => item.price && item.price > 0)
+        .map(item => ({
+          id: item.id,
+          title: item.title,
+          price: item.price,
+          thumbnail: item.thumbnail,
+          condition: item.condition
+        }));
+
+      setResults(mappedResults);
     } catch (err) {
       console.error('Network Error:', err);
-      setErrorMsg('Error de conexión con el servidor.');
+      setErrorMsg('Error de conexión con MercadoLibre.');
       setResults([]);
     } finally {
       setLoading(false);
