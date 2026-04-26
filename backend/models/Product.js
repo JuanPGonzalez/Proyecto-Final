@@ -9,6 +9,8 @@ const Product = sequelize.define('Product', {
   stock: { type: DataTypes.INTEGER, field: 'stock', allowNull: true, defaultValue: 0 },
   views: { type: DataTypes.INTEGER, field: 'views', allowNull: true, defaultValue: 0 },
   imgURL: { type: DataTypes.STRING, field: 'img_url', allowNull: true },
+  socket: { type: DataTypes.STRING, field: 'socket', allowNull: true },
+  memoryType: { type: DataTypes.STRING, field: 'memory_type', allowNull: true },
   categoria_id: { type: DataTypes.INTEGER.UNSIGNED, field: 'categoria_id', allowNull: false }
 }, {
   tableName: 'componente',

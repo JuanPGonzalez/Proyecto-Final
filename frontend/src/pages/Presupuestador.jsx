@@ -1,3 +1,7 @@
+import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import axios from 'axios';
+import { formatCurrency } from '../utils';
 import { Cpu, Monitor, Zap, Layout } from 'lucide-react';
 
 export default function Presupuestador() {
@@ -31,12 +35,12 @@ export default function Presupuestador() {
     }, 500);
   };
 
-  const OptionSelect = ({ category, label, icon }) => {
-    const filteredList = products.filter(p => 
-      p.category === category || 
-      p.description?.toLowerCase().includes(category.toLowerCase()) ||
-      p.name?.toLowerCase().includes(category.toLowerCase())
-    );
+  const OptionSelect = ({ category, categoryId, label, icon, filter }) => {
+    let filteredList = products.filter(p => p.categoria_id === categoryId);
+    
+    if (filter) {
+      filteredList = filteredList.filter(filter);
+    }
 
     return (
       <div style={{ marginBottom: '24px' }}>
@@ -47,16 +51,33 @@ export default function Presupuestador() {
         <select 
           className="input-field" 
           style={{ width: '100%', padding: '14px', borderRadius: 'var(--radius-md)' }}
+          value={budget[category]?.id || ""}
           onChange={(e) => {
             const item = products.find(p => p.id === parseInt(e.target.value));
-            setBudget(prev => ({ ...prev, [category]: item || null }));
+            setBudget(prev => {
+              const newBudget = { ...prev, [category]: item || null };
+              // Reset dependent fields if parent changes
+              if (category === 'CPU') {
+                newBudget.MOBO = null;
+                newBudget.RAM = null;
+              } else if (category === 'MOBO') {
+                newBudget.RAM = null;
+              }
+              return newBudget;
+            });
           }}
         >
           <option value="">Selecciona una opción...</option>
           {filteredList.map(p => (
-            <option key={p.id} value={p.id}>{p.name} — ${Number(p.price).toLocaleString()}</option>
+            <option key={p.id} value={p.id}>{p.name} — {formatCurrency(p.price)}</option>
           ))}
         </select>
+        {budget[category] && (
+          <p style={{ fontSize: '0.75rem', color: 'var(--primary)', marginTop: '5px', fontWeight: 500 }}>
+             {budget[category].socket ? `Socket: ${budget[category].socket}` : ''}
+             {budget[category].memoryType ? ` | Memoria: ${budget[category].memoryType}` : ''}
+          </p>
+        )}
       </div>
     );
   };
@@ -74,10 +95,35 @@ export default function Presupuestador() {
       <div style={{ display: 'grid', gridTemplateColumns: '1.3fr 1fr', gap: '50px', alignItems: 'start' }}>
         
         <div className="card" style={{ padding: '40px' }}>
-          <OptionSelect category="CPU" label="Procesador" icon={<Cpu size={18} />} />
-          <OptionSelect category="GPU" label="Placa de Video" icon={<Monitor size={18} />} />
-          <OptionSelect category="RAM" label="Memoria RAM" icon={<Zap size={18} />} />
-          <OptionSelect category="MOBO" label="Motherboard" icon={<Layout size={18} />} />
+          <OptionSelect 
+            category="CPU" 
+            categoryId={1} 
+            label="Procesador" 
+            icon={<Cpu size={18} />} 
+          />
+          
+          <OptionSelect 
+            category="MOBO" 
+            categoryId={3} 
+            label="Motherboard" 
+            icon={<Layout size={18} />} 
+            filter={(p) => !budget.CPU || p.socket === budget.CPU.socket}
+          />
+          
+          <OptionSelect 
+            category="RAM" 
+            categoryId={2} 
+            label="Memoria RAM" 
+            icon={<Zap size={18} />} 
+            filter={(p) => !budget.MOBO || p.memoryType === budget.MOBO.memoryType}
+          />
+          
+          <OptionSelect 
+            category="GPU" 
+            categoryId={4} 
+            label="Placa de Video" 
+            icon={<Monitor size={18} />} 
+          />
           <div style={{ padding: '20px', backgroundColor: 'var(--secondary)', borderRadius: 'var(--radius-md)', border: '1px dashed var(--border)', marginTop: '20px' }}>
              <p style={{ fontSize: '0.85rem', color: 'var(--muted-foreground)', textAlign: 'center' }}>
                ¿Necesitas ayuda? Consultá con nuestro <strong>Asistente IA</strong> en la esquina inferior.
@@ -96,14 +142,14 @@ export default function Presupuestador() {
                     {item ? item.name : 'Pendiente'}
                   </p>
                 </div>
-                <span style={{ fontWeight: 600 }}>{item ? `$${Number(item.price).toLocaleString()}` : '-'}</span>
+                <span style={{ fontWeight: 600 }}>{item ? formatCurrency(item.price) : '-'}</span>
               </div>
             ))}
           </div>
 
           <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid var(--border)', paddingTop: '25px', marginBottom: '30px' }}>
              <span style={{ fontSize: '1.1rem', fontWeight: 600 }}>Presupuesto Total</span>
-             <span style={{ fontSize: '1.8rem', fontWeight: 800, color: 'var(--primary)' }}>${total.toLocaleString()}</span>
+             <span style={{ fontSize: '1.8rem', fontWeight: 800, color: 'var(--primary)' }}>{formatCurrency(total)}</span>
           </div>
 
           <button 

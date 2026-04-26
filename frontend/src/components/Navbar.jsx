@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Search, ShoppingCart, User, Settings, Database, Headphones, Cpu } from 'lucide-react';
+import { Search, ShoppingCart, User, Settings, Database, Headphones, Cpu, HelpCircle } from 'lucide-react';
 import { isAdminRole } from '../constants/roles';
 
 export default function Navbar() {
@@ -11,8 +11,25 @@ export default function Navbar() {
   const [cartCount, setCartCount] = useState(0);
   const [searchTerm, setSearchTerm] = useState('');
 
+  // Search as you type with debounce
+  useEffect(() => {
+    const delayDebounceFn = setTimeout(() => {
+      if (searchTerm.trim()) {
+        navigate(`/?search=${encodeURIComponent(searchTerm.trim())}`);
+      } else if (searchTerm === '') {
+        // Only navigate home if the user explicitly cleared the search
+        // This check prevents navigating home on initial mount ifsearchTerm is already empty
+        if (new URLSearchParams(window.location.search).get('search')) {
+           navigate('/');
+        }
+      }
+    }, 400);
+
+    return () => clearTimeout(delayDebounceFn);
+  }, [searchTerm, navigate]);
+
   const handleSearch = (e) => {
-    e.preventDefault();
+    if (e) e.preventDefault();
     if(searchTerm.trim()) {
       navigate(`/?search=${encodeURIComponent(searchTerm.trim())}`);
     } else {
@@ -95,7 +112,9 @@ export default function Navbar() {
                 <Headphones size={16} color="var(--accent)"/> Soporte / Reclamos
               </Link>
             )}
-            <Link to="/ayuda" style={{ color:'var(--foreground)', fontWeight:500 }}>Centro de Ayuda</Link>
+            <Link to="/ayuda" style={{ display: 'flex', alignItems:'center', gap:'5px', color:'var(--foreground)', fontWeight:500 }}>
+              <HelpCircle size={16} color="var(--accent)"/> Centro de Ayuda
+            </Link>
          </div>
       </nav>
     </>

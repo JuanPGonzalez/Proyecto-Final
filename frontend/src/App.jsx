@@ -42,6 +42,8 @@ function App() {
             <Route path="/admin" element={<AdminDashboard />} />
             <Route path="/admin/productos" element={<AdminProducts />} />
             
+            <Route path="/chatbot" element={<Chatbot standalone={true} />} />
+
             {/* Error handling */}
             <Route path="/forbidden" element={<Forbidden />} />
             <Route path="*" element={<Forbidden />} />
