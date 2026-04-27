@@ -3,6 +3,8 @@ import Navbar from './components/Navbar';
 import Home from './pages/Home';
 import AdminDashboard from './pages/AdminDashboard';
 import AdminProducts from './pages/AdminProducts';
+import AdminTickets from './pages/AdminTickets';
+import AdminOrders from './pages/AdminOrders';
 import Login from './pages/Login';
 import Profile from './pages/Profile';
 import Cart from './pages/Cart';
@@ -15,6 +17,7 @@ import SoporteTickets from './pages/SoporteTickets';
 import About from './pages/About';
 import Terms from './pages/Terms';
 import Forbidden from './pages/Forbidden';
+import Payment from './pages/Payment';
 import Chatbot from './components/Chatbot';
 
 function App() {
@@ -32,6 +35,7 @@ function App() {
             <Route path="/ayuda" element={<Ayuda />} />
             <Route path="/presupuestador" element={<Presupuestador />} />
             <Route path="/envio" element={<Envios />} />
+            <Route path="/pago" element={<Payment />} />
             <Route path="/success" element={<CompraExitosa />} />
             <Route path="/cancel-purchase" element={<CancelPurchase />} />
             <Route path="/soporte" element={<SoporteTickets />} />
@@ -41,6 +45,8 @@ function App() {
             {/* Admin Routes */}
             <Route path="/admin" element={<AdminDashboard />} />
             <Route path="/admin/productos" element={<AdminProducts />} />
+            <Route path="/admin/reclamos" element={<AdminTickets />} />
+            <Route path="/admin/pedidos" element={<AdminOrders />} />
             
             <Route path="/chatbot" element={<Chatbot standalone={true} />} />
 

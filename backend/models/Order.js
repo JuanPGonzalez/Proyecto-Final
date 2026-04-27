@@ -5,7 +5,15 @@ const Order = sequelize.define('Order', {
   id: { type: DataTypes.INTEGER.UNSIGNED, primaryKey: true, autoIncrement: true },
   total: { type: DataTypes.DECIMAL(10, 2), allowNull: false },
   fecha_compra: { type: DataTypes.DATE, defaultValue: DataTypes.NOW },
-  user_id: { type: DataTypes.INTEGER.UNSIGNED, allowNull: false }
+  user_id: { type: DataTypes.INTEGER.UNSIGNED, allowNull: false },
+  status: { 
+    type: DataTypes.ENUM('Pendiente', 'Cerrada', 'Cancelada'), 
+    defaultValue: 'Pendiente',
+    allowNull: false 
+  },
+  shipping_address: { type: DataTypes.STRING, allowNull: true },
+  shipping_method: { type: DataTypes.STRING, allowNull: true },
+  shipping_cost: { type: DataTypes.DECIMAL(10, 2), defaultValue: 5000 }
 }, {
   tableName: 'compra',
   timestamps: false

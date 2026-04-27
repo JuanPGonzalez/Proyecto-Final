@@ -1,24 +1,27 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import { useNavigate } from 'react-router-dom';
-import { Edit2, Trash2, Search, Download, X, PackagePlus, RefreshCcw, Link } from 'lucide-react';
-import MLMappingModal from '../components/MLMappingModal';
+import { useNavigate, useLocation } from 'react-router-dom';
+import { Edit2, Trash2, Search, AlertTriangle, Filter, Activity } from 'lucide-react';
 import { isAdminRole } from '../constants/roles';
 
 export default function AdminProducts() {
   const [products, setProducts] = useState([]);
-  const [formData, setFormData] = useState({ name: '', description: '', price: '', stock: '', category: '', imgURL: '' });
+  const [categories, setCategories] = useState([]);
+  const [formData, setFormData] = useState({ name: '', description: '', price: '', stock: '', categoryId: '', newCategoryName: '', imgURL: '' });
   const [isEditing, setIsEditing] = useState(false);
   const [editingId, setEditingId] = useState(null);
   
-  const [mlSearch, setMlSearch] = useState('');
-  const [mlResults, setMlResults] = useState([]);
-  const [loadingML, setLoadingML] = useState(false);
-  
-  // Modal state for ML Mapping
-  const [mappingProduct, setMappingProduct] = useState(null);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [filterCategoryId, setFilterCategoryId] = useState('');
+  const [stockStatus, setStockStatus] = useState('all'); // 'all', 'in_stock', 'low_stock', 'out_of_stock'
+  const [stockExact, setStockExact] = useState('');
+  const [sortBy, setSortBy] = useState('name_asc');
+
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10;
 
   const navigate = useNavigate();
+  const location = useLocation();
   const token = localStorage.getItem('token');
 
   useEffect(() => {
@@ -27,7 +30,15 @@ export default function AdminProducts() {
       return navigate('/forbidden');
     }
     fetchProducts();
-  }, [navigate]);
+    fetchCategories();
+
+    if (location.state?.filterLowStock) {
+      setStockStatus('low_stock');
+    }
+    if (location.state?.filterOutOfStock) {
+      setStockStatus('out_of_stock');
+    }
+  }, [navigate, location.state]);
 
   const fetchProducts = () => {
     axios.get('http://localhost:5000/api/products')
@@ -35,69 +46,64 @@ export default function AdminProducts() {
       .catch(console.error);
   };
 
-  const handleSearchML = async (e) => {
-    e.preventDefault();
-    if (!mlSearch) return;
-    setLoadingML(true);
-    try {
-      console.log("SEARCH QUERY:", mlSearch);
-      const res = await fetch(`https://api.mercadolibre.com/sites/MLA/search?q=${encodeURIComponent(mlSearch)}&limit=20`);
-      console.log("RESPONSE STATUS:", res.status);
-      
-      if (!res.ok) {
-        throw new Error('Error en búsqueda ML');
-      }
-
-      const data = await res.json().catch(() => null);
-      console.log("RAW DATA:", data);
-      
-      const results = (data?.results || [])
-        .filter(item => item?.price && item.price > 0)
-        .slice(0, 20)
-        .map(item => ({
-          id: item.id,
-          title: item.title,
-          price: item.price,
-          thumbnail: item.thumbnail
-        }));
-
-      setMlResults(results);
-    } catch (err) {
-      alert('Error consultando MercadoLibre');
-    } finally {
-      setLoadingML(false);
-    }
+  const fetchCategories = () => {
+    axios.get('http://localhost:5000/api/products/categories')
+      .then(res => setCategories(res.data))
+      .catch(console.error);
   };
 
-  const importFromML = (item) => {
-    setFormData({
-      ...formData,
-      name: item.title,
-      price: item.price,
-      imgURL: item.thumbnail,
-      category: formData.category || 'Hardware'
-    });
-    setMlResults([]);
-  };
+  const filteredProducts = products.filter(p => {
+    const matchesSearch = p.name.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesCategory = filterCategoryId === '' || String(p.categoria_id) === filterCategoryId;
+    
+    let matchesStockStatus = true;
+    if (stockStatus === 'in_stock') matchesStockStatus = p.stock > 0;
+    if (stockStatus === 'low_stock') matchesStockStatus = p.stock > 0 && p.stock < 5;
+    if (stockStatus === 'out_of_stock') matchesStockStatus = p.stock === 0;
+
+    let matchesExactStock = true;
+    if (stockExact !== '') matchesExactStock = p.stock === parseInt(stockExact);
+
+    return matchesSearch && matchesCategory && matchesStockStatus && matchesExactStock;
+  });
+
+  const sortedProducts = [...filteredProducts].sort((a, b) => {
+    if (sortBy === 'name_asc') return a.name.localeCompare(b.name);
+    if (sortBy === 'name_desc') return b.name.localeCompare(a.name);
+    if (sortBy === 'price_asc') return Number(a.price) - Number(b.price);
+    if (sortBy === 'price_desc') return Number(b.price) - Number(a.price);
+    if (sortBy === 'stock_asc') return Number(a.stock) - Number(b.stock);
+    if (sortBy === 'stock_desc') return Number(b.stock) - Number(a.stock);
+    return 0;
+  });
+
+  const lowStockProducts = products.filter(p => p.stock > 0 && p.stock < 5);
+  const outOfStockProducts = products.filter(p => p.stock === 0);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
+      const dataToSend = { ...formData };
+      if (dataToSend.categoryId !== 'otros') {
+        dataToSend.newCategoryName = '';
+      }
+
       if (isEditing) {
-        await axios.put(`http://localhost:5000/api/products/${editingId}`, formData, {
+        await axios.put(`http://localhost:5000/api/products/${editingId}`, dataToSend, {
           headers: { Authorization: `Bearer ${token}` }
         });
         alert('Producto actualizado');
       } else {
-        await axios.post('http://localhost:5000/api/products', formData, {
+        await axios.post('http://localhost:5000/api/products', dataToSend, {
           headers: { Authorization: `Bearer ${token}` }
         });
         alert('Producto creado');
       }
       resetForm();
       fetchProducts();
+      fetchCategories();
     } catch (err) {
-      alert('Error al guardar producto');
+      alert(err.response?.data?.error || 'Error al guardar producto');
     }
   };
 
@@ -109,7 +115,8 @@ export default function AdminProducts() {
       description: product.description || '',
       price: product.price,
       stock: product.stock,
-      category: product.category || '',
+      categoryId: product.categoria_id || '',
+      newCategoryName: '',
       imgURL: product.imgURL || ''
     });
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -123,113 +130,197 @@ export default function AdminProducts() {
       });
       fetchProducts();
     } catch (err) {
-      alert('Error al eliminar');
+      alert(err.response?.data?.error || 'Error al eliminar');
     }
   };
 
   const resetForm = () => {
-    setFormData({ name: '', description: '', price: '', stock: '', category: '', imgURL: '' });
+    setFormData({ name: '', description: '', price: '', stock: '', categoryId: '', newCategoryName: '', imgURL: '' });
     setIsEditing(false);
     setEditingId(null);
   };
 
+  const clearFilters = () => {
+    setSearchTerm('');
+    setFilterCategoryId('');
+    setStockStatus('all');
+    setStockExact('');
+    setSortBy('name_asc');
+    setCurrentPage(1);
+  };
+
+  const totalPages = Math.ceil(sortedProducts.length / itemsPerPage) || 1;
+  const paginatedProducts = sortedProducts.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+
   return (
     <div className="container animate-fade-in" style={{ marginTop: '40px', paddingBottom: '60px' }}>
+      
+      {/* ALERTAS DE STOCK - REPOSICIÓN INMEDIATA */}
+      {outOfStockProducts.length > 0 && (
+        <div style={{ backgroundColor: '#ef4444', color: 'white', padding: '15px 20px', borderRadius: 'var(--radius-lg)', marginBottom: '15px', display: 'flex', alignItems: 'center', gap: '15px', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)' }}>
+          <AlertTriangle size={24} />
+          <div>
+            <h4 style={{ margin: 0, fontWeight: 700, fontSize: '1.1rem' }}>URGENTE: Stock Agotado</h4>
+            <p style={{ margin: 0, fontSize: '0.9rem', opacity: 0.9 }}>
+              Hay {outOfStockProducts.length} producto(s) sin unidades disponibles.
+            </p>
+          </div>
+          <button className="btn" onClick={() => { setStockStatus('out_of_stock'); setCurrentPage(1); }} style={{ marginLeft: 'auto', backgroundColor: 'white', color: '#ef4444', border: 'none' }}>
+            Ver Agotados
+          </button>
+        </div>
+      )}
+
+      {/* ALERTA DE STOCK BAJO - ADVERTENCIA */}
+      {lowStockProducts.length > 0 && (
+        <div style={{ backgroundColor: '#f59e0b', color: 'white', padding: '15px 20px', borderRadius: 'var(--radius-lg)', marginBottom: '30px', display: 'flex', alignItems: 'center', gap: '15px', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)' }}>
+          <Activity size={24} />
+          <div>
+            <h4 style={{ margin: 0, fontWeight: 700, fontSize: '1.1rem' }}>Advertencia: Stock Bajo</h4>
+            <p style={{ margin: 0, fontSize: '0.9rem', opacity: 0.9 }}>
+              Hay {lowStockProducts.length} producto(s) en alerta (1-4 unidades).
+            </p>
+          </div>
+          <button className="btn" onClick={() => { setStockStatus('low_stock'); setCurrentPage(1); }} style={{ marginLeft: 'auto', backgroundColor: 'white', color: '#f59e0b', border: 'none' }}>
+            Filtrar Alerta
+          </button>
+        </div>
+      )}
+
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px' }}>
          <h2 style={{ fontSize: '2.2rem', fontWeight: 800, letterSpacing: '-1px' }}>Gestión de Inventario</h2>
          <div style={{ display: 'flex', gap: '10px' }}>
             {isEditing && <button className="btn btn-outline" onClick={resetForm}>Cancelar Edición</button>}
          </div>
       </div>
-      
-      <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 2fr', gap: '40px', alignItems: 'start' }}>
+
+      {/* SEARCH AND FILTER BAR */}
+      <div className="card" style={{ padding: '20px', marginBottom: '30px', display: 'flex', gap: '15px', alignItems: 'center', flexWrap: 'wrap' }}>
+         <div style={{ flex: 1, minWidth: '200px', position: 'relative' }}>
+            <Search size={18} style={{ position: 'absolute', left: '15px', top: '12px', color: 'var(--muted-foreground)' }} />
+            <input 
+              type="text" 
+              className="input-field" 
+              placeholder="Buscar por nombre..." 
+              style={{ paddingLeft: '45px' }}
+              value={searchTerm}
+              onChange={e => { setSearchTerm(e.target.value); setCurrentPage(1); }}
+            />
+         </div>
+         <select 
+           className="input-field" 
+           style={{ width: '180px' }}
+           value={filterCategoryId}
+           onChange={e => { setFilterCategoryId(e.target.value); setCurrentPage(1); }}
+         >
+            <option value="">Todas las categorías</option>
+            {categories.map(c => <option key={c.id} value={c.id}>{c.descripcion}</option>)}
+         </select>
+         
+         <select 
+           className="input-field" 
+           style={{ width: '160px' }}
+           value={stockStatus}
+           onChange={e => { setStockStatus(e.target.value); setCurrentPage(1); }}
+         >
+            <option value="all">Todo el stock</option>
+            <option value="in_stock">En Stock (&gt;0)</option>
+            <option value="low_stock">En Alerta (1-4)</option>
+            <option value="out_of_stock">Agotados (0)</option>
+         </select>
+
+         <div style={{ position: 'relative', width: '140px' }}>
+            <Filter size={18} style={{ position: 'absolute', left: '10px', top: '12px', color: 'var(--muted-foreground)' }} />
+            <input 
+              type="number" 
+              className="input-field" 
+              placeholder="Stock exacto" 
+              style={{ paddingLeft: '35px' }}
+              value={stockExact}
+              onChange={e => { setStockExact(e.target.value); setCurrentPage(1); }}
+            />
+         </div>
+
+         <select 
+           className="input-field" 
+           style={{ width: '150px' }}
+           value={sortBy}
+           onChange={e => setSortBy(e.target.value)}
+         >
+            <option value="name_asc">Nombre (A-Z)</option>
+            <option value="name_desc">Nombre (Z-A)</option>
+            <option value="price_asc">Precio Menor</option>
+            <option value="price_desc">Precio Mayor</option>
+            <option value="stock_asc">Stock Menor</option>
+            <option value="stock_desc">Stock Mayor</option>
+         </select>
+
+         <button className="btn btn-outline" onClick={clearFilters} style={{ padding: '10px' }} title="Limpiar Filtros">
+            Limpiar
+         </button>
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '30px', alignItems: 'start' }}>
         
-        {/* Lado Izquierdo: Formulario e Importador */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-          
-          {/* 1. Importador Mercado Libre */}
-          <div className="card" style={{ padding: '24px', border: '1px solid var(--primary)', backgroundColor: 'var(--secondary)' }}>
-             <h3 style={{ fontSize: '1rem', marginBottom: '15px', display:'flex', alignItems:'center', gap:'8px' }}>
-               <Download size={18} /> Importar desde Mercado Libre
-             </h3>
-             <form onSubmit={handleSearchML} style={{ display: 'flex', gap: '10px', marginBottom: '15px' }}>
-                <input 
-                  className="input-field" 
-                  placeholder="Buscar en ML (ej. RTX 4090)..." 
-                  value={mlSearch} 
-                  onChange={e => setMlSearch(e.target.value)} 
-                />
-                <button className="btn" type="submit" disabled={loadingML}>
-                  {loadingML ? '...' : <Search size={18} />}
-                </button>
-             </form>
+        {/* Formulario de Alta/Edición */}
+        <div className="card" style={{ padding: '30px' }}>
+          <h3 style={{ marginBottom: '25px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+            {isEditing ? 'Editar Componente' : 'Nuevo Componente'}
+          </h3>
+          <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+            <div>
+              <label style={{ fontSize: '0.85rem', color: 'var(--muted-foreground)', marginBottom: '5px', display: 'block' }}>Nombre Completo</label>
+              <input type="text" className="input-field" placeholder="Ej: Procesador Intel i9" value={formData.name} onChange={e=>setFormData({...formData, name:e.target.value})} required />
+            </div>
 
-             {mlResults.length > 0 && (
-               <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', maxHeight: '300px', overflowY: 'auto', paddingRight: '5px' }}>
-                 {mlResults.map(item => (
-                   <div key={item.id} className="card" style={{ padding: '12px', display: 'flex', gap: '12px', alignItems: 'center', fontSize: '0.85rem', cursor: 'pointer' }} onClick={() => importFromML(item)}>
-                      <img src={item.thumbnail} alt="thumb" style={{ width: '50px', height: '50px', objectFit: 'contain', backgroundColor: 'white', borderRadius: '4px' }} />
-                      <div style={{ flex: 1 }}>
-                         <div style={{ fontWeight: 600, lineHeight: 1.2, marginBottom: '4px' }}>{item.title}</div>
-                         <div style={{ color: 'var(--primary)', fontWeight: 700 }}>${item.price.toLocaleString()} ARS</div>
-                      </div>
-                      <X size={16} style={{ opacity: 0.3 }} />
-                   </div>
-                 ))}
-               </div>
-             )}
-          </div>
-
-          {/* 2. Formulario Principal */}
-          <div className="card" style={{ padding: '30px', position: 'sticky', top: '100px' }}>
-            <h3 style={{ marginBottom: '20px', display:'flex', alignItems:'center', gap:'8px' }}>
-              {isEditing ? <RefreshCcw size={20}/> : <PackagePlus size={20}/>}
-              {isEditing ? 'Actualizar Producto' : 'Nuevo Componente'}
-            </h3>
-            <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
               <div>
-                <label style={{ fontSize: '0.85rem', color: 'var(--muted-foreground)', marginBottom: '5px', display: 'block' }}>Nombre Completo</label>
-                <input type="text" className="input-field" placeholder="Ej: Procesador Intel i9" value={formData.name} onChange={e=>setFormData({...formData, name:e.target.value})} required/>
+                <label style={{ fontSize: '0.85rem', color: 'var(--muted-foreground)', marginBottom: '5px', display: 'block' }}>Categoría</label>
+                <select className="input-field" value={formData.categoryId} onChange={e=>setFormData({...formData, categoryId:e.target.value})} required>
+                  <option value="">Seleccionar...</option>
+                  {categories.map(c => <option key={c.id} value={c.id}>{c.descripcion}</option>)}
+                  <option value="otros">+ Nueva Categoría</option>
+                </select>
               </div>
-
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
-                <div>
-                  <label style={{ fontSize: '0.85rem', color: 'var(--muted-foreground)', marginBottom: '5px', display: 'block' }}>Categoría</label>
-                  <input type="text" className="input-field" placeholder="GPU, RAM, etc" value={formData.category} onChange={e=>setFormData({...formData, category:e.target.value})} />
-                </div>
-                <div>
-                  <label style={{ fontSize: '0.85rem', color: 'var(--muted-foreground)', marginBottom: '5px', display: 'block' }}>Stock</label>
-                  <input type="number" className="input-field" placeholder="Cant." value={formData.stock} onChange={e=>setFormData({...formData, stock:e.target.value})} required/>
-                </div>
-              </div>
-
               <div>
-                <label style={{ fontSize: '0.85rem', color: 'var(--muted-foreground)', marginBottom: '5px', display: 'block' }}>Precio Base ($)</label>
-                <input type="number" className="input-field" value={formData.price} onChange={e=>setFormData({...formData, price:e.target.value})} required/>
+                <label style={{ fontSize: '0.85rem', color: 'var(--muted-foreground)', marginBottom: '5px', display: 'block' }}>Stock</label>
+                <input type="number" className="input-field" placeholder="Cant." value={formData.stock} onChange={e=>setFormData({...formData, stock:e.target.value})} required />
               </div>
+            </div>
 
-              <div>
-                <label style={{ fontSize: '0.85rem', color: 'var(--muted-foreground)', marginBottom: '5px', display: 'block' }}>Descripción / Specs</label>
-                <textarea className="input-field" placeholder="Detalles técnicos..." value={formData.description} onChange={e=>setFormData({...formData, description:e.target.value})} required style={{minHeight:'100px'}}/>
+            {formData.categoryId === 'otros' && (
+              <div className="animate-fade-in">
+                <label style={{ fontSize: '0.85rem', color: 'var(--muted-foreground)', marginBottom: '5px', display: 'block' }}>Nombre de Nueva Categoría</label>
+                <input type="text" className="input-field" placeholder="Ej: Refrigeración" value={formData.newCategoryName} onChange={e=>setFormData({...formData, newCategoryName:e.target.value})} required />
               </div>
+            )}
 
-              <div>
-                <label style={{ fontSize: '0.85rem', color: 'var(--muted-foreground)', marginBottom: '5px', display: 'block' }}>URL Imagen</label>
-                <input type="text" className="input-field" placeholder="http://..." value={formData.imgURL} onChange={e=>setFormData({...formData, imgURL:e.target.value})} />
-              </div>
+            <div>
+              <label style={{ fontSize: '0.85rem', color: 'var(--muted-foreground)', marginBottom: '5px', display: 'block' }}>Precio Base ($)</label>
+              <input type="number" step="0.01" className="input-field" placeholder="0.00" value={formData.price} onChange={e=>setFormData({...formData, price:e.target.value})} required />
+            </div>
 
-              <button className="btn" type="submit" style={{ width: '100%', padding: '14px', fontSize: '1rem' }}>
-                {isEditing ? 'Guardar Cambios' : 'Crear Producto'}
-              </button>
-            </form>
-          </div>
+            <div>
+              <label style={{ fontSize: '0.85rem', color: 'var(--muted-foreground)', marginBottom: '5px', display: 'block' }}>Descripción / Specs</label>
+              <textarea className="input-field" placeholder="Detalles técnicos..." value={formData.description} onChange={e=>setFormData({...formData, description:e.target.value})} required style={{minHeight:'100px'}}/>
+            </div>
+
+            <div>
+              <label style={{ fontSize: '0.85rem', color: 'var(--muted-foreground)', marginBottom: '5px', display: 'block' }}>URL Imagen</label>
+              <input type="text" className="input-field" placeholder="http://..." value={formData.imgURL} onChange={e=>setFormData({...formData, imgURL:e.target.value})} />
+            </div>
+
+            <button className="btn" type="submit" style={{ width: '100%', padding: '14px', fontSize: '1rem' }}>
+              {isEditing ? 'Guardar Cambios' : 'Crear Producto'}
+            </button>
+          </form>
         </div>
 
-        {/* Lado Derecho: Tabla de Inventario */}
+        {/* Tabla de Inventario */}
         <div className="card" style={{ padding: '0', overflow: 'hidden' }}>
           <div style={{ padding: '24px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <h3 style={{ margin: 0 }}>Listado de Stock</h3>
-            <span style={{ fontSize: '0.85rem', color: 'var(--muted-foreground)' }}>{products.length} productos registrados</span>
+            <span style={{ fontSize: '0.85rem', color: 'var(--muted-foreground)' }}>{sortedProducts.length} resultados</span>
           </div>
           <div style={{ overflowX: 'auto' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.9rem' }}>
@@ -242,41 +333,34 @@ export default function AdminProducts() {
                 </tr>
               </thead>
               <tbody>
-                {products.length === 0 ? (
-                  <tr><td colSpan="4" style={{ padding: '40px', textAlign: 'center', color: 'var(--muted-foreground)' }}>Sin productos en inventario</td></tr>
+                {paginatedProducts.length === 0 ? (
+                  <tr><td colSpan="4" style={{ padding: '40px', textAlign: 'center', color: 'var(--muted-foreground)' }}>No se encontraron productos.</td></tr>
                 ) : (
-                  products.map(p => (
+                  paginatedProducts.map(p => (
                     <tr key={p.id} style={{ borderBottom: '1px solid var(--border)', transition: 'background 0.2s' }}>
                       <td style={{ padding: '16px' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                            <img src={p.imgURL || 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIzMDAiIGhlaWdodD0iMzAwIiB2aWV3Qm94PSIwIDAgMzAwIDMwMCI+PHJlY3Qgd2lkdGg9IjMwMCIgaGVpZ2h0PSIzMDAiIGZpbGw9IiNmOGZhZmMiLz48dGV4dCB4PSIxNTAiIHk9IjE1MCIgZm9udC1mYW1pbHk9IkFyaWFsIiBmb250LXNpemU9IjI0IiBmb250LXdlaWdodD0iYm9sZCIgZmlsbD0iIzY0NzQ4YiIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iPkhhcmR3YXJlPC90ZXh0Pjwvc3ZnPg=='} alt="p" style={{ width: '40px', height: '40px', objectFit: 'contain', backgroundColor: 'white', border: '1px solid var(--border)', borderRadius: '4px' }} />
                            <div>
                               <div style={{ fontWeight: 600 }}>{p.name}</div>
-                              <div style={{ fontSize: '0.75rem', color: 'var(--muted-foreground)' }}>ID: #{p.id} | {p.category || 'Sin Cat.'}</div>
+                              <div style={{ fontSize: '0.75rem', color: 'var(--muted-foreground)' }}>ID: #{p.id} | {p.Category?.descripcion || 'Sin Cat.'}</div>
                            </div>
                         </div>
                       </td>
-                      <td style={{ padding: '16px', fontWeight: 700 }}>${Number(p.price).toLocaleString()}</td>
+                      <td style={{ padding: '16px', fontWeight: 700 }}>${Number(p.price).toLocaleString('es-AR')}</td>
                       <td style={{ padding: '16px' }}>
                         <span style={{ 
                           padding: '4px 8px', borderRadius: '4px', fontSize: '0.75rem', fontWeight: 800,
-                          backgroundColor: p.stock > 0 ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.1)',
-                          color: p.stock > 0 ? 'var(--success)' : 'var(--destructive)'
+                          backgroundColor: p.stock > 0 ? (p.stock < 5 ? 'rgba(245, 158, 11, 0.1)' : 'rgba(16, 185, 129, 0.1)') : 'rgba(239, 68, 68, 0.1)',
+                          color: p.stock > 0 ? (p.stock < 5 ? '#f59e0b' : 'var(--success)') : 'var(--destructive)'
                         }}>
-                          {p.stock > 0 ? `${p.stock} DISP.` : 'AGOTADO'}
+                          {p.stock > 0 ? (p.stock < 5 ? `${p.stock} ALERTA` : `${p.stock} DISP.`) : 'AGOTADO'}
                         </span>
                       </td>
                       <td style={{ padding: '16px' }}>
                         <div style={{ display: 'flex', gap: '10px', justifyContent: 'center' }}>
-                          <button onClick={() => handleEdit(p)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted-foreground)' }} title="Editar">
-                            <Edit2 size={18} />
-                          </button>
-                          <button onClick={() => setMappingProduct(p)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--primary)' }} title="Vincular ML">
-                            <Link size={18} />
-                          </button>
-                          <button onClick={() => handleDelete(p.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--destructive)' }} title="Eliminar">
-                            <Trash2 size={18} />
-                          </button>
+                          <button onClick={() => handleEdit(p)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted-foreground)' }} title="Editar"><Edit2 size={18} /></button>
+                          <button onClick={() => handleDelete(p.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--destructive)' }} title="Eliminar"><Trash2 size={18} /></button>
                         </div>
                       </td>
                     </tr>
@@ -285,17 +369,16 @@ export default function AdminProducts() {
               </tbody>
             </table>
           </div>
+          {/* Pagination */}
+          {totalPages > 1 && (
+            <div style={{ padding: '15px', borderTop: '1px solid var(--border)', display: 'flex', justifyContent: 'center', gap: '10px' }}>
+              <button className="pagination-btn" onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1}>Anterior</button>
+              <span style={{ padding: '8px' }}>Página {currentPage} de {totalPages}</span>
+              <button className="pagination-btn" onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages}>Siguiente</button>
+            </div>
+          )}
         </div>
-
       </div>
-
-      {mappingProduct && (
-        <MLMappingModal 
-          componenteId={mappingProduct.id} 
-          componenteName={mappingProduct.name} 
-          onClose={() => setMappingProduct(null)} 
-        />
-      )}
     </div>
   );
 }

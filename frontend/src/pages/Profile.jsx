@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 import { isAdminRole } from '../constants/roles';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
 
 export default function Profile() {
   const [user, setUser] = useState(null);
@@ -9,6 +10,8 @@ export default function Profile() {
   const navigate = useNavigate();
 
   const [orders, setOrders] = useState([]);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
 
   useEffect(() => {
     const token = localStorage.getItem('token');
@@ -27,8 +30,11 @@ export default function Profile() {
         });
 
         if (!isAdminRole(res.data)) {
-          axios.get('http://localhost:5000/api/orders', { headers })
-            .then(orderRes => setOrders(orderRes.data))
+          axios.get(`http://localhost:5000/api/orders?page=${currentPage}&limit=5`, { headers })
+            .then(orderRes => {
+              setOrders(orderRes.data.orders);
+              setTotalPages(orderRes.data.totalPages);
+            })
             .catch(console.error);
         }
       })
@@ -39,7 +45,7 @@ export default function Profile() {
           navigate('/login');
         }
       });
-  }, [navigate]);
+  }, [navigate, currentPage]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -106,10 +112,12 @@ export default function Profile() {
         {isAdminRole(user) && (
           <div className="card" style={{ padding: '30px', marginBottom: '30px' }}>
             <h3 style={{ marginBottom: '20px' }}>Panel de Administración</h3>
-            <p style={{ color: 'var(--muted-foreground)', marginBottom: '20px' }}>Accede rápidamente a la gestión de productos y al dashboard BI.</p>
-            <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
-              <button className="btn" onClick={() => navigate('/admin')}>Dashboard</button>
-              <button className="btn btn-outline" onClick={() => navigate('/admin/productos')}>Gestionar Productos</button>
+            <p style={{ color: 'var(--muted-foreground)', marginBottom: '20px' }}>Accede a las herramientas de gestión del negocio.</p>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+              <button className="btn" style={{ padding:'12px' }} onClick={() => navigate('/admin')}>📊 BI Dashboard</button>
+              <button className="btn btn-outline" style={{ padding:'12px' }} onClick={() => navigate('/admin/productos')}>📦 Inventario</button>
+              <button className="btn btn-outline" style={{ padding:'12px' }} onClick={() => navigate('/admin/pedidos')}>📝 Pedidos</button>
+              <button className="btn btn-outline" style={{ padding:'12px' }} onClick={() => navigate('/admin/reclamos')}>🎧 Reclamos</button>
             </div>
           </div>
         )}
@@ -129,24 +137,64 @@ export default function Profile() {
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px', borderBottom: '1px solid var(--border)', paddingBottom: '15px' }}>
                     <div>
                       <span style={{ fontSize: '0.8rem', color: 'var(--muted-foreground)', textTransform: 'uppercase' }}>Orden #{order.id}</span>
-                      <p style={{ fontWeight: 600 }}>{new Date(order.fecha_compra || order.createdAt).toLocaleDateString()}</p>
+                      <p style={{ fontWeight: 600 }}>{new Date(order.fecha_compra || order.createdAt || Date.now()).toLocaleDateString()}</p>
                     </div>
                     <div style={{ textAlign: 'right' }}>
                       <span style={{ padding: '4px 12px', borderRadius: '50px', fontSize: '0.75rem', fontWeight: 700, backgroundColor: 'oklch(0.627 0.194 149.214 / 15%)', color: 'oklch(0.627 0.194 149.214)' }}>
-                        {order.status.toUpperCase()}
+                        {(order.status || 'pendiente').toUpperCase()}
                       </span>
-                      <p style={{ fontSize: '1.2rem', fontWeight: 800, marginTop: '5px' }}>${Number(order.total).toLocaleString()}</p>
+                      <p style={{ fontSize: '1.2rem', fontWeight: 800, marginTop: '5px' }}>${Number(order.total || 0).toLocaleString()}</p>
                     </div>
                   </div>
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px' }}>
-                    {order.OrderItems?.map(item => (
-                      <div key={item.id} style={{ fontSize: '0.85rem', color: 'var(--muted-foreground)', backgroundColor: 'var(--secondary)', padding: '4px 10px', borderRadius: 'var(--radius-sm)' }}>
-                        {item.Product?.name} (x{item.quantity})
-                      </div>
-                    ))}
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+                      {order.OrderItems?.map(item => (
+                        <div key={item.id} style={{ fontSize: '0.85rem', color: 'var(--muted-foreground)', backgroundColor: 'var(--secondary)', padding: '4px 10px', borderRadius: 'var(--radius-sm)' }}>
+                          {item.Product?.name || 'Producto'} (x{item.quantity || 1})
+                        </div>
+                      ))}
+                    </div>
+                    <button 
+                      className="btn btn-outline" 
+                      style={{ fontSize: '0.8rem', padding: '6px 12px', display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--primary)', borderColor: 'var(--primary)' }}
+                      onClick={async () => {
+                        const token = localStorage.getItem('token');
+                        try {
+                          const res = await axios.get(`http://localhost:5000/api/orders/${order.id}/invoice`, {
+                            headers: { Authorization: `Bearer ${token}` },
+                            responseType: 'blob'
+                          });
+                          const url = window.URL.createObjectURL(new Blob([res.data]));
+                          const link = document.createElement('a');
+                          link.href = url;
+                          link.setAttribute('download', `comprobante_${order.id}.pdf`);
+                          document.body.appendChild(link);
+                          link.click();
+                          link.remove();
+                        } catch (err) {
+                          alert('Error al descargar el comprobante');
+                        }
+                      }}
+                    >
+                       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                       Ver Comprobante
+                    </button>
                   </div>
                 </div>
               ))
+            )}
+            
+            {/* Pagination */}
+            {totalPages > 1 && (
+              <div style={{ display: 'flex', justifyContent: 'center', gap: '10px', marginTop: '20px' }}>
+                <button className="pagination-btn" disabled={currentPage === 1} onClick={() => setCurrentPage(p => p - 1)}>
+                  <ChevronLeft size={16} />
+                </button>
+                <span style={{ fontSize: '0.9rem', display: 'flex', alignItems: 'center' }}>{currentPage} / {totalPages}</span>
+                <button className="pagination-btn" disabled={currentPage === totalPages} onClick={() => setCurrentPage(p => p + 1)}>
+                  <ChevronRight size={16} />
+                </button>
+              </div>
             )}
             </div>
           </div>

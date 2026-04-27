@@ -2,308 +2,214 @@ const express = require('express');
 const router = express.Router();
 const { Product } = require('../models');
 const { Op } = require('sequelize');
-const OpenAI = require('openai');
 const axios = require('axios');
 
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+// ==========================================
+// 🧠 EXPANDED KNOWLEDGE BASE (THE "BRAIN")
+// ==========================================
+// ==========================================
+// 🧠 EXPANDED KNOWLEDGE BASE (THE "BRAIN")
+// ==========================================
+const KNOWLEDGE_BASE = {
+  // Business Info
+  LOCATION: "📍 Estamos ubicados en el corazón de Rosario: **Zeballos 1315**. Es nuestra única sucursal física por el momento.",
+  HOURS: "🕒 Atendemos de **Martes a Viernes**.\n- Mañana: 06:00 AM - 11:59 AM\n- Tarde: 04:00 PM - 10:00 PM\n*Lunes, Sábados y Domingos la sucursal permanece cerrada.*",
+  PAYMENTS: "💵 Por ahora aceptamos únicamente **Efectivo** al momento de retirar en el local. Estamos trabajando para integrar pagos con tarjeta y transferencia muy pronto.",
+  SHIPPING: "🚚 No realizamos envíos a domicilio. Todo pedido realizado en la web debe ser retirado presencialmente en nuestra sucursal de Rosario.",
+  RETURNS: "🔄 Tienes un plazo de **30 días corridos** para cambios o devoluciones, siempre que el producto esté en su empaque original y sin daños por mal uso.",
+  WARRANTY: "🛡️ Todos los componentes cuentan con garantía oficial. Si algo falla, tráelo a la sucursal con el comprobante de compra para que nuestro servicio técnico lo revise.",
+  INVOICE: "🧾 La factura se emite de forma física en el local al momento de abonar y retirar el pedido.",
+  PREP_TIME: "⏳ Una vez que confirmas tu pedido en la web, tardamos aproximadamente **3 días hábiles** en tenerlo listo para que pases a buscarlo.",
+  ABOUT: "🏢 Hardware Haven nació en Rosario de la mano de **Ignacio Rodríguez**. Somos apasionados por el hardware de alto rendimiento.",
+  SOCIAL: "📱 ¡Síguenos! \n- Instagram: **@HardwareHaven_OK**\n- TikTok: **@HH_Gaming**",
+  
+  // Technical / Advice
+  COMPATIBILITY: "🧩 La compatibilidad es clave. Revisa que el socket (AM4, LGA1700) y el tipo de memoria (DDR4, DDR5) coincidan entre tu procesador y tu motherboard.",
+  POWER_SUPPLY: "⚡ Para una PC Gamer equilibrada, busca fuentes de al menos **600W o 700W** con certificación **80 Plus Bronze**. Evita las fuentes genéricas para componentes caros.",
+  RAM_ADVICE: "🚀 Para gaming moderno y multitasking, **16GB de RAM** es el estándar. Si haces edición de video o streaming pesado, considera subir a 32GB.",
+  SSD_ADVICE: "💾 ¡Instala siempre el Windows en un **SSD**! El cambio de velocidad es abismal comparado con un disco rígido tradicional.",
+  MAINTENANCE: "🛠️ Recomendamos hacer una limpieza profunda y cambio de pasta térmica al menos **una vez al año** para evitar sobrecalentamiento.",
+  MONITORS: "🖥️ Si juegas shooters, busca paneles **TN o IPS** con 144Hz. Si buscas calidad de color para diseño, un panel **IPS 4K** es tu mejor opción.",
+  KEYBOARDS: "⌨️ ¿Buscas un teclado mecánico? Los switches **Red** son silenciosos y rápidos para jugar, mientras que los **Blue** son ruidosos pero excelentes para escribir.",
+  MICE: "🖱️ Para juegos competitivos, busca un mouse con sensor óptico de alta precisión y que sea liviano para movimientos rápidos.",
+  BUNDLES: "🎁 ¡Consulta por nuestros combos de **Actualización (Mother + Micro + RAM)**! Suelen tener un precio especial comparado a comprar los componentes por separado."
+};
 
-function getRelatedCategory(productName) {
-  const q = productName.toLowerCase();
-  if (q.includes("rtx") || q.includes("rx") || q.includes("gpu") || q.includes("grafica") || q.includes("radeon") || q.includes("video")) return ["psu", "cpu", "gabinete", "fuente", "motherboard"];
-  if (q.includes("ryzen") || q.includes("intel") || q.includes("cpu") || q.includes("core") || q.includes("procesador")) return ["motherboard", "ram", "mother", "memoria"];
-  if (q.includes("ram") || q.includes("ddr") || q.includes("fury") || q.includes("memoria")) return ["cpu", "procesador", "ryzen", "intel"];
-  if (q.includes("teclado") || q.includes("keyboard")) return ["mouse", "raton"];
-  if (q.includes("mouse") || q.includes("raton")) return ["teclado", "pad"];
-  return ["ram", "ssd"];
-}
+// ==========================================
+// 🔍 SYNONYM MAPPER (IMPROVES UNDERSTANDING)
+// ==========================================
+const SYNONYMS = {
+  "gpu": ["placa de video", "grafica", "nvidia", "radeon", "rtx", "geforce", "video", "gtx", "rx"],
+  "cpu": ["procesador", "micro", "intel", "ryzen", "core", "amd", "i5", "i7", "i9", "r5", "r7"],
+  "motherboard": ["madre", "placa base", "mother", "mobo", "b450", "b550", "h610", "z790"],
+  "ram": ["memoria", "stick", "ddr4", "ddr5", "fury", "vengeance"],
+  "storage": ["disco", "ssd", "hdd", "solido", "m2", "nvme", "almacenamiento", "terabyte", "giga"],
+  "psu": ["fuente", "poder", "alimentacion", "watts", "80 plus", "bronze", "gold", "certificada"],
+  "case": ["gabinete", "torre", "caja", "atx", "vidrio"],
+  "peripherals": ["teclado", "mouse", "raton", "auriculares", "monitor", "pantalla", "headset", "cascos"],
+  "maintenance": ["limpieza", "pasta termica", "service", "mantenimiento", "limpiar", "calienta"]
+};
 
-const HARDWARE_HAVEN_GUIDE = `
-Help Center - Hardware Haven
-FAQ
-1. How can I place an order? Select products, add to cart, and follow checkout steps. You can generate an invoice and email it.
-2. Shipping: No shipping offered currently. Contact us at 123456.
-3. Track order: Proceed to nearest branch.
-4. Returns: Within 30 days if compliant with policy.
-5. Cancellations: Use "Purchases" option. Canceled orders won't show in history.
-6. Invoices: Pickup at branch where payment is made and invoice issued.
-7. About: Founded by Ignacio Rodríguez during the pandemic. Specializes in PC components.
-8. Payment: Cash only at branch for now.
-9. Hours: 6:00 AM - 11:59 AM & 4:00 PM - 10:00 PM, Tue-Fri.
-10. Location: Zeballos 1315, Rosario.
-11. Preparation time: 3 days.
+// ==========================================
+// 👋 RESPONSE POOLS
+// ==========================================
+const GREETINGS = [
+  "¡Hola! Bienvenido a Hardware Haven. ¿Qué componente estás buscando hoy? 🖥️",
+  "¡Buenas! Soy tu asistente virtual. Puedo ayudarte con stock, precios o info del local. 😊",
+  "Hola, ¿cómo estás? ¿En qué puedo asesorarte hoy? Tengo acceso a todo nuestro catálogo."
+];
 
-NAVIGATION
-- /home: Main landing.
-- /productList: Browse catalog.
-- /purchase: Checkout.
-- /profile: Account management.
-- /delivery: Pickup info.
-- /inventory: Admin only.
-- /chatbot: AI assistant.
-- /help: Help Center.
+const NOT_FOUND = [
+  "Lo siento, no pude encontrar exactamente lo que buscas. Pero no te preocupes, aquí tienes los componentes más populares de nuestra tienda: 🔥",
+  "Por el momento no tenemos ese artículo específico en stock, pero te comparto lo más vendido por si te sirve de inspiración: 🧐",
+  "No logré identificar esos productos en nuestro catálogo actual. ¿Te gustaría ver nuestros artículos más destacados mientras tanto?",
+  "¡Qué buena pregunta! Lamentablemente no tengo una respuesta exacta para eso ahora mismo, pero aquí tienes lo más pedido por nuestra comunidad:"
+];
 
-SUPPORT
-Email: HardwareHaven@gmail.com
-`;
+const HELP_PROMPT = "Si necesitas ayuda con algo más, puedes preguntarme por nuestra **ubicación**, **horarios**, **métodos de pago** o simplemente decirme qué componente buscas. ¡Estoy para ayudarte! 😊";
 
-const INTERPRETER_SYSTEM_PROMPT = `You are the Expert Sales & Support Agent for Hardware Haven.
-Your mission is to analyze user queries with high reasoning capability and provide structured instructions to the system.
-
-CONTEXT:
-${HARDWARE_HAVEN_GUIDE}
-
-🧩 INTENTS
-CONVERSATION → Greetings or small talk.
-SEARCH_PRODUCT → Looking for hardware/components.
-ADD_TO_CART → Wants to buy or add a specific item.
-ASK_STOCK → Availability check.
-ASK_BUSINESS → Hours, location, payment, shipping, help center info.
-RECOMMENDATION → Seeking advice for a build or use case.
-OTHER → General technical support or unrelated queries.
-
-📦 OUTPUT FORMAT (STRICT JSON)
-{
-  "intent": "INTENT_NAME",
-  "keywords": ["key", "words"],
-  "productId": null,
-  "requiresProducts": boolean,
-  "reasoning": "Briefly explain why you chose this intent"
-}
-
-🧪 EXAMPLES:
-User: "¿Donde queda el local?" 
--> {"intent": "ASK_BUSINESS", "keywords": ["local", "ubicacion"], "productId": null, "requiresProducts": false, "reasoning": "User is asking for the store location."}
-
-User: "¿Cuales son los horarios de atencion?" 
--> {"intent": "ASK_BUSINESS", "keywords": ["horarios"], "productId": null, "requiresProducts": false, "reasoning": "User is asking for business hours."}
-
-User: "Hola, ¿como estan?" 
--> {"intent": "CONVERSATION", "keywords": [], "productId": null, "requiresProducts": false, "reasoning": "General greeting."}
-
-User: "¿Tenes placas de video RTX?" 
--> {"intent": "SEARCH_PRODUCT", "keywords": ["placas", "video", "rtx"], "productId": null, "requiresProducts": true, "reasoning": "User is searching for GPUs."}
-
-📌 RULES
-- Use ASK_BUSINESS for any info found in the FAQ/Guide (Hours, Location, Payment, About, Shipping).
-- Set requiresProducts: true ONLY if the user needs to see a list of items.
-- Be an efficient reasoning agent. Identify hidden needs.`;
-
+// ==========================================
+// 🤖 BOT ROUTE
+// ==========================================
 router.post('/message', async (req, res) => {
-  const { message, history, lastProducts, cartItems } = req.body;
+  const { message, lastProducts } = req.body;
   if (!message) return res.status(400).json({ error: 'Mensaje es requerido' });
 
-  console.log(`[Chatbot] Recibido mensaje: "${message}"`);
+  const msg = message.toLowerCase().trim();
+  console.log(`[Chatbot Advanced] Msg: "${msg}"`);
 
-  let aiData = null;
+  // --- 1. INTENT CLASSIFICATION (REGEX BASED) ---
+  let intent = 'SEARCH';
+  
+  if (/\b(hola|buen(as|os)|dias|tardes|noches|saludos|que tal|como estas|quien sos)\b/.test(msg)) intent = 'GREETING';
+  else if (/\b(donde|ubicacion|sucursal|direccion|local|rosario|donde queda)\b/.test(msg)) intent = 'LOCATION';
+  else if (/\b(horario|cuando abren|atienden|cerrado|abierto|hora)\b/.test(msg)) intent = 'HOURS';
+  else if (/\b(pago|efectivo|tarjeta|abonar|metodo|transferencia|compro|comprar)\b/.test(msg)) intent = 'PAYMENT';
+  else if (/\b(envio|manda|domicilio|llega|entrega|reparto)\b/.test(msg)) intent = 'SHIPPING';
+  else if (/\b(devolucion|garantia|falla|roto|cambio|devolver)\b/.test(msg)) intent = 'WARRANTY';
+  else if (/\b(factura|ticket|boleta|comprobante)\b/.test(msg)) intent = 'INVOICE';
+  else if (/\b(quien|dueño|fundador|ignacio|rodriguez|sobre|historia)\b/.test(msg)) intent = 'ABOUT';
+  else if (/\b(tarda|tiempo|demora|cuanto)\b/.test(msg) && (msg.includes('pedido') || msg.includes('preparar'))) intent = 'PREP_TIME';
+  else if (/\b(instagram|tiktok|redes|social|seguirlos)\b/.test(msg)) intent = 'SOCIAL';
+  else if (/\b(limpiar|limpieza|pasta|mantenimiento|service|calienta|temperatura)\b/.test(msg)) intent = 'MAINTENANCE';
+  else if (/\b(monitor|pantalla|hz|panel|ips|tn|va|4k)\b/.test(msg)) intent = 'MONITORS';
+  else if (/\b(teclado|switch|red|blue|brown|mecanico)\b/.test(msg)) intent = 'KEYBOARDS';
+  else if (/\b(mouse|raton|dpi|sensor|optico)\b/.test(msg)) intent = 'MICE';
+  else if (/\b(combo|kit|actualizacion|bundle)\b/.test(msg)) intent = 'BUNDLES';
+  else if (/\b(fuente|watts|certificada|80|bronze|gold|silver|platinum)\b/.test(msg)) intent = 'POWER_SUPPLY';
+  else if (/\b(compatible|compatibilidad|sirve|calza|socket)\b/.test(msg)) intent = 'COMPATIBILITY';
+  else if (/\b(agregar|carrito|sumar|llevo)\b/.test(msg)) intent = 'ADD_TO_CART';
+  else if (/\b(recomenda|sugerime|cual es mejor|sirve para|gaming|jugar)\b/.test(msg)) intent = 'RECOMMEND';
 
-  try {
-    const aiResponse = await openai.chat.completions.create({
-      model: "gpt-4o",
-      messages: [
-        { role: "system", content: INTERPRETER_SYSTEM_PROMPT },
-        { role: "user", content: message }
-      ],
-      response_format: { type: "json_object" },
-      temperature: 0.1
-    });
+  // --- 2. EXECUTE INTENT ---
 
-    const content = aiResponse.choices[0].message.content;    
-    aiData = JSON.parse(content);
+  // Simple Text Responses
+  if (intent === 'GREETING') return res.json({ type: 'text', message: GREETINGS[Math.floor(Math.random()*GREETINGS.length)], products: [] });
+  if (intent === 'LOCATION') return res.json({ type: 'text', message: KNOWLEDGE_BASE.LOCATION, products: [] });
+  if (intent === 'HOURS') return res.json({ type: 'text', message: KNOWLEDGE_BASE.HOURS, products: [] });
+  if (intent === 'PAYMENT') return res.json({ type: 'text', message: KNOWLEDGE_BASE.PAYMENT, products: [] });
+  if (intent === 'SHIPPING') return res.json({ type: 'text', message: KNOWLEDGE_BASE.SHIPPING, products: [] });
+  if (intent === 'WARRANTY') return res.json({ type: 'text', message: `${KNOWLEDGE_BASE.WARRANTY}\n\n${KNOWLEDGE_BASE.RETURNS}`, products: [] });
+  if (intent === 'INVOICE') return res.json({ type: 'text', message: KNOWLEDGE_BASE.INVOICE, products: [] });
+  if (intent === 'ABOUT') return res.json({ type: 'text', message: KNOWLEDGE_BASE.ABOUT, products: [] });
+  if (intent === 'PREP_TIME') return res.json({ type: 'text', message: KNOWLEDGE_BASE.PREP_TIME, products: [] });
+  if (intent === 'SOCIAL') return res.json({ type: 'text', message: KNOWLEDGE_BASE.SOCIAL, products: [] });
+  if (intent === 'MAINTENANCE') return res.json({ type: 'text', message: KNOWLEDGE_BASE.MAINTENANCE, products: [] });
+  if (intent === 'MONITORS') return res.json({ type: 'text', message: KNOWLEDGE_BASE.MONITORS, products: [] });
+  if (intent === 'KEYBOARDS') return res.json({ type: 'text', message: KNOWLEDGE_BASE.KEYBOARDS, products: [] });
+  if (intent === 'MICE') return res.json({ type: 'text', message: KNOWLEDGE_BASE.MICE, products: [] });
+  if (intent === 'BUNDLES') return res.json({ type: 'text', message: KNOWLEDGE_BASE.BUNDLES, products: [] });
+  if (intent === 'POWER_SUPPLY') return res.json({ type: 'text', message: KNOWLEDGE_BASE.POWER_SUPPLY, products: [] });
+  if (intent === 'COMPATIBILITY') return res.json({ type: 'text', message: KNOWLEDGE_BASE.COMPATIBILITY, products: [] });
 
-  } catch (err) {
-    console.error('[Chatbot] OpenAI Interpreter Error:', err.message);
-  }
-
-  // Use structured AI output
-  let intent = aiData?.intent || "SEARCH_PRODUCT";
-  const productId = aiData?.productId || null;
-  let requiresProducts = aiData?.requiresProducts ?? false;
-
-  // Manual refinement for high-priority intents
-  const lowerMsg = message.toLowerCase();
-  if (lowerMsg.includes('sucursal') || lowerMsg.includes('horario') || lowerMsg.includes('donde esta') || lowerMsg.includes('donde queda') || lowerMsg.includes('atencion')) {
-    intent = 'ASK_BUSINESS';
-  }
-
-  // Ensure ASK_BUSINESS and CONVERSATION don't show products unless explicitly requested
-  if (['CONVERSATION', 'ASK_BUSINESS', 'OTHER'].includes(intent)) {
-    requiresProducts = aiData?.requiresProducts || false;
-  }
-
-  // Extract keywords for search if needed
-  const keywords = aiData?.keywords || message
-    .toLowerCase()
-    .replace(/[^a-z0-9\s]/g, "")
-    .replace(/\b(quiero|busco|necesito|un|una|para|recomendar|buscar|agregar)\b/gi, "")
-    .split(" ")
-    .filter(w => w.length > 2);
-
-  console.log("[Chatbot] Final AI Interpretation: ", {
-    intent,
-    requiresProducts,
-    keywords,
-    reasoning: aiData?.reasoning
-  });
-
-  try {
-    // ==========================================
-    // 1. ADD TO CART FLOW
-    // ==========================================
-    if (intent === 'ADD_TO_CART') {
-      // (Keep existing add to cart logic)
-      let selectedProduct = null;
-      
-      if (lastProducts && lastProducts.length > 0) {
-        if (productId !== null) {
-          const index = parseInt(productId, 10) - 1;
-          if (index >= 0 && index < lastProducts.length) {
-            selectedProduct = lastProducts[index];
-          }
-        } 
-        
-        if (!selectedProduct && keywords.length > 0) {
-          selectedProduct = lastProducts.find(p => {
-             const lowerName = p.name.toLowerCase();
-             return keywords.every(kw => lowerName.includes(kw));
-          });
-        }
-        
-        if (!selectedProduct) selectedProduct = lastProducts[0];
+  // ADD TO CART logic (Improved)
+  if (intent === 'ADD_TO_CART') {
+    let target = null;
+    if (lastProducts?.length > 0) {
+      const numMatch = msg.match(/\b([1-9]|10)\b/);
+      if (numMatch) {
+        const idx = parseInt(numMatch[0]) - 1;
+        if (idx >= 0 && idx < lastProducts.length) target = lastProducts[idx];
       }
-      
-      if (selectedProduct) {
-        // Internal cart sync attempt
-        try {
-          await axios.post(`http://localhost:${process.env.PORT || 5000}/api/cart/add`, {
-            productId: selectedProduct.id
-          });
-        } catch (e) { }
-
-        // We only show related products IF specifically requested or for upsell, 
-        // but user asked to NOT respond with suggested products for everything.
-        // So for ADD_TO_CART, we just confirm.
-        
-        return res.json({
-          type: 'cart_action',
-          message: `✅ ¡Perfecto! He agregado **${selectedProduct.name}** a tu carrito.\n¿Deseas buscar algo más o ir a finalizar la compra?`,
-          products: [], // Empty products to avoid "suggested products for every single thing"
-          action: {
-            type: "add_to_cart",
-            productId: selectedProduct.id,
-            product: selectedProduct
-          }
-        });
-      } else {
-        return res.json({
-          type: 'text',
-          message: 'No identifiqué el producto exacto para agregar. ¿Podrías decirme el nombre o el número de la lista?',
-          products: []
-        });
+      if (!target) {
+        target = lastProducts.find(p => msg.includes(p.name.toLowerCase().split(' ')[0]));
       }
     }
+    if (target) {
+      try { await axios.post(`http://localhost:${process.env.PORT || 5000}/api/cart/add`, { productId: target.id }); } catch (e) {}
+      return res.json({
+        type: 'cart_action',
+        message: `✅ ¡Listo! He sumado **${target.name}** a tu carrito. ¿Quieres algo más?`,
+        products: [],
+        action: { type: "add_to_cart", productId: target.id, product: target }
+      });
+    }
+    return res.json({ type: 'text', message: "Dime qué producto de la lista anterior quieres agregar (puedes decir el número).", products: [] });
+  }
 
-    // ==========================================
-    // 2. PRODUCT SEARCH / RECOMMEND / STOCK FLOW
-    // ==========================================
-    if (requiresProducts || ['SEARCH_PRODUCT', 'RECOMMENDATION', 'ASK_STOCK'].includes(intent)) {
-      let dbProducts = [];
-      let whereClause = { stock: { [Op.gt]: 0 } };
+  // SEARCH / RECOMMEND logic (Database Access)
+  let searchKeywords = msg
+    .replace(/[^a-z0-9\s]/g, "")
+    .replace(/\b(busco|tenes|vendes|quiero|una|un|para|por|favor|recomenda|sugerime|mejor|sirve|jugar|gaming|productos|articulos)\b/g, "")
+    .split(" ")
+    .filter(w => w.length > 2 && isNaN(w)); // Filter out short words and numbers from keywords
 
-      const validKeywords = keywords.filter(k => k.length > 1);
+  // Extract numeric limit if present (e.g. "recomendame 3")
+  const limitMatch = msg.match(/\b([1-9]|10)\b/);
+  const resultLimit = limitMatch ? parseInt(limitMatch[0]) : 4;
 
-      if (validKeywords.length > 0) {
-        whereClause[Op.and] = validKeywords.map(kw => ({
+  // Expand keywords using synonyms
+  const expandedKeywords = [...searchKeywords];
+  searchKeywords.forEach(kw => {
+    for (const [key, list] of Object.entries(SYNONYMS)) {
+      if (list.includes(kw) || kw === key) {
+        expandedKeywords.push(key, ...list);
+      }
+    }
+  });
+  const uniqueKeywords = [...new Set(expandedKeywords)];
+
+  try {
+    let dbProducts = [];
+    if (uniqueKeywords.length > 0) {
+      const whereClause = {
+        stock: { [Op.gt]: 0 },
+        [Op.or]: uniqueKeywords.slice(0, 5).map(kw => ({
           [Op.or]: [
             { name: { [Op.like]: `%${kw}%` } },
             { description: { [Op.like]: `%${kw}%` } }
           ]
-        }));
+        }))
+      };
+      dbProducts = await Product.findAll({ where: whereClause, order: [['views', 'DESC']], limit: resultLimit, raw: true });
+    }
+
+    // Fallback if nothing found or no keywords
+    if (dbProducts.length === 0) {
+      dbProducts = await Product.findAll({ order: [['views', 'DESC']], limit: resultLimit, raw: true });
+      
+      let fallbackMsg = NOT_FOUND[Math.floor(Math.random()*NOT_FOUND.length)];
+      if (intent === 'RECOMMEND') {
+        fallbackMsg = `🚀 ¡Claro! Aquí tienes ${resultLimit} de nuestros productos más destacados en este momento:`;
+      } else if (uniqueKeywords.length === 0) {
+        fallbackMsg = `No especificaste qué buscas, pero aquí tienes lo más visto de la tienda:`;
       }
-
-      dbProducts = await Product.findAll({
-        where: whereClause,
-        limit: 10, // Increased limit
-        raw: true
-      });
-
-      if (!dbProducts || dbProducts.length === 0) {
-        if (validKeywords.length > 0) {
-          const fallbackWhere = {
-            [Op.or]: validKeywords.map(kw => ({
-              [Op.or]: [
-                { name: { [Op.like]: `%${kw}%` } },
-                { description: { [Op.like]: `%${kw}%` } }
-              ]
-            }))
-          };
-          dbProducts = await Product.findAll({
-            where: fallbackWhere,
-            limit: 10,
-            raw: true
-          });
-        }
-      }
-
-      // Final fallback to top products ONLY if searching but nothing found
-      if ((!dbProducts || dbProducts.length === 0) && intent !== 'CONVERSATION') {
-        dbProducts = await Product.findAll({
-          order: [['views', 'DESC']],
-          limit: 10,
-          raw: true
-        });
-      }
-
-      const safeProducts = Array.isArray(dbProducts) ? dbProducts : [];
-
-      let genreply = '';
-      if (intent === 'ASK_STOCK') genreply = `¡Verifiqué el stock! Estas son las opciones disponibles:`;
-      else if (intent === 'RECOMMENDATION') genreply = `Basado en lo que buscas, te sugiero estos componentes:`;
-      else genreply = `He encontrado estos productos para tu búsqueda:`;
 
       return res.json({
-        type: safeProducts.length > 0 ? 'products' : 'text',
-        message: safeProducts.length > 0 ? genreply : 'No encontré productos que coincidan exactamente con tu búsqueda en este momento.',
-        products: safeProducts
+        type: 'products',
+        message: `${fallbackMsg}\n\n${HELP_PROMPT}`,
+        products: dbProducts
       });
     }
 
-    // ==========================================
-    // 3. ASK BUSINESS / CONVERSATION / OTHER FLOW
-    // ==========================================
-    if (intent === 'ASK_BUSINESS' || intent === 'CONVERSATION' || intent === 'OTHER') {
-      const response = await openai.chat.completions.create({
-        model: "gpt-4o",
-        messages: [
-          { role: "system", content: `Eres el Asesor Experto de Hardware Haven.
-          Responde la consulta del usuario basándote en esta información:
-          ${HARDWARE_HAVEN_GUIDE}
-          
-          REGLAS:
-          - Sé amable, profesional y conciso.
-          - Responde en Español.
-          - Si la info no está, sugiere contactar a HardwareHaven@gmail.com.
-          - Agrega algún emoji pertinente.` },
-          { role: "user", content: message }
-        ],
-        temperature: 0.7
-      });
-
-      return res.json({
-        type: 'text',
-        message: response.choices[0].message.content,
-        products: []
-      });
-    }
-
-    return res.json({
-      type: 'text',
-      message: 'No estoy seguro de haber entendido bien. ¿Buscás algún componente específico o ayuda con tu compra?',
-      products: []
-    });
+    let responseMsg = `He encontrado estos ${dbProducts.length} productos para ti:`;
+    if (intent === 'RECOMMEND') responseMsg = `🚀 Basado en lo que buscas, te recomiendo estos ${dbProducts.length} componentes:`;
+    
+    return res.json({ type: 'products', message: responseMsg, products: dbProducts });
 
   } catch (err) {
-    console.error('Chatbot Server Error:', err);
-    res.status(500).json({ type: 'text', message: 'Ocurrió un error procesando tu solicitud.', products: [] });
+    console.error('Bot Database Error:', err);
+    return res.json({ type: 'text', message: "Tengo un problema técnico al buscar en mi base de datos. ¡Prueba de nuevo en un momento!", products: [] });
   }
 });
 

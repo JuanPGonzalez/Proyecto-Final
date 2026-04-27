@@ -23,12 +23,32 @@ router.post('/', authMiddleware, async (req, res) => {
 
 router.get('/', authMiddleware, async (req, res) => {
   try {
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const offset = (page - 1) * limit;
+
+    const statusFilter = req.query.status;
+    const sortBy = req.query.sortBy || 'date_desc';
+
     const where = isAdminRole(req.user.tipoUsuario) ? {} : { user_id: req.user.id };
-    const tickets = await SupportTicket.findAll({
+    if (statusFilter) where.status = statusFilter;
+
+    let orderArray = [['created_at', 'DESC']];
+    if (sortBy === 'date_asc') orderArray = [['created_at', 'ASC']];
+    
+    const { count, rows } = await SupportTicket.findAndCountAll({
       where,
-      order: [['created_at', 'DESC']]
+      order: orderArray,
+      limit,
+      offset
     });
-    res.json(tickets);
+
+    res.json({
+      tickets: rows,
+      totalPages: Math.ceil(count / limit),
+      currentPage: page,
+      totalTickets: count
+    });
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: 'Error al obtener reclamos' });
@@ -43,7 +63,8 @@ router.put('/:id/respond', authMiddleware, adminMiddleware, async (req, res) => 
 
     await ticket.update({
       status: status || ticket.status,
-      respuesta: respuesta || ticket.respuesta
+      respuesta: respuesta || ticket.respuesta,
+      admin_id: req.user.id
     });
 
     res.json(ticket);

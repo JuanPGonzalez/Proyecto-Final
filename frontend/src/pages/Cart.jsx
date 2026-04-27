@@ -30,39 +30,13 @@ export default function Cart() {
 
   const total = cartItems.reduce((acc, item) => acc + Number(item.price), 0);
 
-  const checkout = async () => {
+  const checkout = () => {
     const token = localStorage.getItem('token');
     if (!token) {
       alert('Debes iniciar sesión para finalizar la compra.');
       return navigate('/login');
     }
-
-    setIsProcessing(true);
-    try {
-      // Estructura para el backend (Order + OrderItems)
-      const orderData = {
-        total,
-        items: cartItems.map(item => ({
-          productId: item.id,
-          quantity: 1,
-          priceAtPurchase: item.price
-        }))
-      };
-
-      await axios.post('http://localhost:5000/api/orders', orderData, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-
-      localStorage.removeItem('cart');
-      setCartItems([]);
-      window.dispatchEvent(new Event('storage'));
-      navigate('/success');
-    } catch (err) {
-      console.error(err);
-      alert('Error al procesar la compra. Intenta de nuevo.');
-    } finally {
-      setIsProcessing(false);
-    }
+    navigate('/envio');
   };
 
   return (
@@ -108,21 +82,21 @@ export default function Cart() {
 
           <div className="card" style={{ padding: '32px', position: 'sticky', top: '100px' }}>
             <h3 style={{ fontSize: '1.2rem', fontWeight: 700, marginBottom: '24px' }}>Resumen</h3>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginBottom: '24px' }}>
-               <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--muted-foreground)' }}>
-                  <span>Subtotal</span>
-                  <span>${total.toLocaleString()}</span>
-               </div>
-               <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--muted-foreground)' }}>
-                  <span>Envío</span>
-                  <span style={{ color: 'var(--success)', fontWeight: 600 }}>Gratis</span>
-               </div>
-            </div>
-            
-            <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid var(--border)', paddingTop: '24px', marginBottom: '32px' }}>
-              <span style={{ fontWeight: 600 }}>Total</span>
-              <span style={{ fontSize: '1.75rem', fontWeight: 800 }}>${total.toLocaleString()}</span>
-            </div>
+             <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginBottom: '24px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--muted-foreground)' }}>
+                   <span>Subtotal</span>
+                   <span>${total.toLocaleString()}</span>
+                </div>
+                 <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--muted-foreground)' }}>
+                    <span>Envío</span>
+                    <span style={{ fontSize: '0.8rem' }}>Pendiente de selección</span>
+                 </div>
+              </div>
+              
+              <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid var(--border)', paddingTop: '24px', marginBottom: '32px' }}>
+                <span style={{ fontWeight: 600 }}>Subtotal Compra</span>
+                <span style={{ fontSize: '1.75rem', fontWeight: 800 }}>${total.toLocaleString()}</span>
+              </div>
 
             <button 
               className="btn" 
@@ -142,6 +116,49 @@ export default function Cart() {
           </div>
         </div>
       )}
+
+      {/* COMPATIBILITY RECOMMENDATIONS */}
+      {cartItems.length > 0 && <CartRecommendations cartItems={cartItems} />}
+    </div>
+  );
+}
+
+function CartRecommendations({ cartItems }) {
+  const [recommendations, setRecommendations] = useState([]);
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    const categoryIds = cartItems.map(i => i.categoria_id).join(',');
+    const productIds = cartItems.map(i => i.id).join(',');
+    
+    axios.get(`http://localhost:5000/api/products/recommendations/cart?categoryIds=${categoryIds}&productIds=${productIds}`)
+      .then(res => setRecommendations(res.data))
+      .catch(err => console.error(err));
+  }, [cartItems]);
+
+  const addToCart = (product) => {
+    const cart = JSON.parse(localStorage.getItem('cart') || '[]');
+    cart.push(product);
+    localStorage.setItem('cart', JSON.stringify(cart));
+    window.dispatchEvent(new Event('storage'));
+    window.location.reload(); // Refresh to update recommendations
+  };
+
+  if (recommendations.length === 0) return null;
+
+  return (
+    <div style={{ marginTop: '80px', borderTop: '1px solid var(--border)', paddingTop: '40px' }}>
+      <h3 style={{ fontSize: '1.5rem', fontWeight: 800, marginBottom: '24px' }}>Completa tu Setup</h3>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: '20px' }}>
+        {recommendations.map(p => (
+          <div key={p.id} className="card" style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            <img src={p.imgURL} alt="p" style={{ height: '120px', objectFit: 'contain' }} />
+            <div style={{ fontWeight: 700 }}>${Number(p.price).toLocaleString()}</div>
+            <div style={{ fontSize: '0.85rem', color: 'var(--muted-foreground)', flex: 1 }}>{p.name}</div>
+            <button className="btn btn-outline" style={{ fontSize: '0.8rem', padding: '8px' }} onClick={() => addToCart(p)}>Agregar</button>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

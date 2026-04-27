@@ -1,146 +1,201 @@
 const express = require('express');
 const router = express.Router();
 const axios = require('axios');
-const { Product } = require('../models');
+const { UserView, Order, OrderItem, User, Product } = require('../models');
 const { Op } = require('sequelize');
-const { adminMiddleware } = require('../middleware/roles');
+const { authMiddleware, optionalAuthMiddleware, adminMiddleware } = require('../middleware/roles');
+
+// Obtener todas las categorías
+router.get('/categories', async (req, res) => {
+  try {
+    const { Category } = require('../models');
+    const categories = await Category.findAll({ order: [['descripcion', 'ASC']] });
+    res.json(categories);
+  } catch (error) {
+    res.status(500).json({ error: 'Error al obtener categorías' });
+  }
+});
 
 // Obtener todos los productos
 router.get('/', async (req, res) => {
   try {
-    const products = await Product.findAll();
+    const { Category } = require('../models');
+    const products = await Product.findAll({
+      include: [{ model: Category, attributes: ['descripcion'] }]
+    });
     res.json(products);
   } catch (error) {
     res.status(500).json({ error: 'Error al obtener productos' });
   }
 });
 
-// Incrementar vistas
+// Incrementar vistas y guardar actividad de usuario
 router.post('/:id/view', async (req, res) => {
   try {
-    const product = await Product.findByPk(req.params.id);
+    const productId = req.params.id;
+    const userId = req.headers['user-id']; // Opcional, enviado desde el front si está logueado
+
+    const product = await Product.findByPk(productId);
     if(product) {
       product.views += 1;
       await product.save();
+
+      // Guardar en UserView si hay usuario
+      if (userId && !isNaN(userId)) {
+        const [userView, created] = await UserView.findOrCreate({
+          where: { user_id: userId, product_id: productId },
+          defaults: { count: 1 }
+        });
+        if (!created) {
+          userView.count += 1;
+          await userView.save();
+        }
+      }
     }
     res.json({ success: true });
   } catch (error) {
+    console.error(error);
     res.status(500).json({ error: 'Error al actualizar vistas' });
   }
 });
 
-// Recomendaciones
+// Recomendaciones Personalizadas
 router.get('/recommendations', async (req, res) => {
   try {
-    const { viewedIds, viewedCategories } = req.query;
+    const userId = req.query.userId;
+    const limit = parseInt(req.query.limit) || 8;
     
-    let parsedViewedIds = [];
-    if (viewedIds) parsedViewedIds = String(viewedIds).split(',').map(Number).filter(n => !isNaN(n) && n > 0);
-    
-    let parsedCategories = [];
-    if (viewedCategories) parsedCategories = String(viewedCategories).split(',').map(Number).filter(n => !isNaN(n) && n > 0);
+    let recommendedIds = new Set();
+    let sources = { userViews: [], userPurchases: [], globalTrends: [] };
 
-    const relatedMap = {
-      4: [1, 3, 6],     // GPU → CPU, Motherboard, Cooler
-      1: [3, 2],        // CPU → Motherboard, RAM
-      2: [3],           // RAM → Motherboard
-      3: [1, 2],        // Motherboard → CPU, RAM
-      27: [9],          // Keyboard → Peripherals
-      28: [23, 26],     // Camera → storage
-      5: [6],           // Case → cooler
-    };
-
-    let sameCategoryResults = [];
-    let relatedCategoryResults = [];
-
-    const orderLogic = [ ['stock', 'DESC'], ['views', 'DESC'] ];
-
-    if (parsedCategories.length > 0) {
-      // 1. Same Category Pool (3-4 items max)
-      sameCategoryResults = await Product.findAll({
-        where: {
-          categoria_id: { [Op.in]: parsedCategories },
-          ...(parsedViewedIds.length > 0 && { id: { [Op.notIn]: parsedViewedIds } })
-        },
-        order: orderLogic,
-        limit: 4,
-        raw: true
+    // 1. Basado en vistas del usuario
+    if (userId) {
+      const userViews = await UserView.findAll({
+        where: { user_id: userId },
+        order: [['count', 'DESC']],
+        limit: 10,
+        include: [Product]
       });
+      userViews.forEach(v => {
+        if (v.Product) sources.userViews.push(v.Product);
+      });
+    }
 
-      // 2. Related Category Pool
-      const relatedIds = new Set();
-      parsedCategories.forEach(cat => {
-        if (relatedMap[cat]) {
-          relatedMap[cat].forEach(rCat => relatedIds.add(rCat));
-        }
+    // 2. Basado en compras previas (categorías similares)
+    if (userId) {
+      const lastOrders = await Order.findAll({
+        where: { user_id: userId },
+        limit: 3,
+        include: [{ model: OrderItem, include: [Product] }]
       });
       
-      const relatedArray = Array.from(relatedIds);
-      if (relatedArray.length > 0) {
-        relatedCategoryResults = await Product.findAll({
-          where: {
-            categoria_id: { [Op.in]: relatedArray },
-            ...(parsedViewedIds.length > 0 && { id: { [Op.notIn]: parsedViewedIds } })
-          },
-          order: orderLogic,
-          limit: Math.max(1, 5 - sameCategoryResults.length),
-          raw: true
+      let boughtCategories = new Set();
+      lastOrders.forEach(o => o.OrderItems.forEach(oi => {
+        if (oi.Product) boughtCategories.add(oi.Product.categoria_id);
+      }));
+
+      if (boughtCategories.size > 0) {
+        const categoryProducts = await Product.findAll({
+          where: { categoria_id: { [Op.in]: Array.from(boughtCategories) } },
+          limit: 10
         });
+        sources.userPurchases = categoryProducts;
       }
     }
 
-    // Merge logic: ensure maximum 5 items and NO duplicates across arrays
-    let finalSame = sameCategoryResults;
-    let finalRelated = [];
-    const usedIds = new Set(parsedViewedIds);
-    finalSame.forEach(p => usedIds.add(p.id));
-
-    relatedCategoryResults.forEach(p => {
-       if (!usedIds.has(p.id) && finalSame.length + finalRelated.length < 5) {
-          finalRelated.push(p);
-          usedIds.add(p.id);
-       }
+    // 3. Tendencias globales (Más vistos)
+    const trends = await Product.findAll({
+      order: [['views', 'DESC']],
+      limit: 10
     });
+    sources.globalTrends = trends;
 
-    // Fallback Edge Case: if empty
-    if (finalSame.length === 0 && finalRelated.length === 0) {
-      const fallbackProducts = await Product.findAll({
-        where: parsedViewedIds.length > 0 ? { id: { [Op.notIn]: parsedViewedIds } } : {},
-        order: orderLogic,
-        limit: 5,
-        raw: true
+    // Mezclar resultados priorizando usuario
+    let finalProducts = [];
+    const addProducts = (list) => {
+      list.forEach(p => {
+        if (finalProducts.length < limit && !recommendedIds.has(p.id) && p.stock > 0) {
+          finalProducts.push(p);
+          recommendedIds.add(p.id);
+        }
       });
-      finalSame = fallbackProducts;
-    }
+    };
 
-    res.json({
-      ok: true,
-      groups: {
-        sameCategory: finalSame,
-        related: finalRelated
-      }
-    });
+    addProducts(sources.userViews);
+    addProducts(sources.userPurchases);
+    addProducts(sources.globalTrends);
+
+    res.json(finalProducts);
   } catch(error) {
     console.error("Recommendations Error:", error);
     res.status(500).json({ error: 'Error en recomendaciones' });
   }
 });
 
+// Recomendaciones de Carrito (Compatibilidad)
+router.get('/recommendations/cart', async (req, res) => {
+  try {
+    const { categoryIds, productIds } = req.query;
+    if (!categoryIds) return res.json([]);
+
+    const cats = String(categoryIds).split(',').map(Number);
+    const pids = String(productIds || '').split(',').map(Number);
+
+    // Lógica simple de compatibilidad
+    // Si hay Motherboard (3), sugerir CPU (1) y RAM (2)
+    // Si hay CPU (1), sugerir Cooler (6)
+    let searchCats = [];
+    if (cats.includes(3)) searchCats.push(1, 2);
+    if (cats.includes(1)) searchCats.push(6, 3);
+    if (cats.includes(4)) searchCats.push(5); // GPU -> Fuente/Gabinete
+
+    if (searchCats.length === 0) {
+      // Fallback: Accesorios generales (9)
+      searchCats.push(9);
+    }
+
+    const recommendations = await Product.findAll({
+      where: {
+        categoria_id: { [Op.in]: searchCats },
+        id: { [Op.notIn]: pids },
+        stock: { [Op.gt]: 0 }
+      },
+      limit: 4,
+      order: [['views', 'DESC']]
+    });
+
+    res.json(recommendations);
+  } catch (error) {
+    res.status(500).json({ error: 'Error en compatibilidad' });
+  }
+});
+
 
 router.post('/', adminMiddleware, async (req, res) => {
   try {
-    const { name, description, price, stock, imgURL, category } = req.body;
-    let categoria_id = 1;
-    if (category !== undefined && category !== null && category !== '') {
-      const parsedCategory = Number(category);
-      if (!Number.isNaN(parsedCategory) && parsedCategory > 0) {
-        categoria_id = parsedCategory;
-      }
+    const { name, description, price, stock, imgURL, categoryId, newCategoryName } = req.body;
+    const { Category } = require('../models');
+    
+    let finalCategoryId = categoryId;
+
+    if (newCategoryName) {
+      const [newCat] = await Category.findOrCreate({
+        where: { descripcion: newCategoryName }
+      });
+      finalCategoryId = newCat.id;
     }
 
-    const newProduct = await Product.create({ name, description, price, stock, imgURL, categoria_id });
+    const newProduct = await Product.create({ 
+      name, 
+      description, 
+      price, 
+      stock, 
+      imgURL, 
+      categoria_id: finalCategoryId || 1 
+    });
     res.status(201).json(newProduct);
   } catch (error) {
+    console.error(error);
     res.status(500).json({ error: 'Error al crear producto' });
   }
 });
@@ -149,22 +204,29 @@ router.post('/', adminMiddleware, async (req, res) => {
 // Actualizar producto
 router.put('/:id', adminMiddleware, async (req, res) => {
   try {
-    const { name, description, price, stock, imgURL, category } = req.body;
+    const { name, description, price, stock, imgURL, categoryId, newCategoryName } = req.body;
+    const { Category } = require('../models');
+    
     const product = await Product.findByPk(req.params.id);
     if (!product) return res.status(404).json({ error: 'Producto no encontrado' });
 
-    const updateData = { name, description, price, stock, imgURL };
-    if (category !== undefined && category !== null && category !== '') {
-      const parsedCategory = Number(category);
-      if (!Number.isNaN(parsedCategory) && parsedCategory > 0) {
-        updateData.categoria_id = parsedCategory;
-      }
+    let finalCategoryId = categoryId;
+
+    if (newCategoryName) {
+      const [newCat] = await Category.findOrCreate({
+        where: { descripcion: newCategoryName }
+      });
+      finalCategoryId = newCat.id;
     }
+
+    const updateData = { name, description, price, stock, imgURL };
+    if (finalCategoryId) updateData.categoria_id = finalCategoryId;
 
     await product.update(updateData);
     res.json(product);
   } catch (error) {
-    res.status(500).json({ error: 'Error al actualizar producto' });
+    console.error('Error in PUT /products/:id:', error);
+    res.status(500).json({ error: error.message || 'Error al actualizar producto' });
   }
 });
 
@@ -177,46 +239,11 @@ router.delete('/:id', adminMiddleware, async (req, res) => {
     await product.destroy();
     res.json({ success: true, message: 'Producto eliminado correctamente' });
   } catch (error) {
+    if (error.name === 'SequelizeForeignKeyConstraintError') {
+      return res.status(400).json({ error: 'No se puede eliminar un producto que ya tiene ventas registradas. Considera bajar su stock a cero para ocultarlo.' });
+    }
     res.status(500).json({ error: 'Error al eliminar producto' });
   }
-});
-
-// Endpoint de Análisis de IA para un producto específico
-router.get('/:id/ai-analysis', async (req, res) => {
-    try {
-        const product = await Product.findByPk(req.params.id);
-        if (!product) return res.status(404).json({ error: 'Producto no encontrado' });
-
-        const OpenAI = require('openai');
-        const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-
-        const prompt = `Analiza este componente de hardware y dame 3 campos cortos:
-        1. performance: Rendimiento esperado.
-        2. compatibility: Tips de compatibilidad.
-        3. tip: Un consejo experto.
-        
-        Producto: ${product.name}
-        Descripción: ${product.description}
-        
-        Responde estrictamente en formato JSON: {"performance": "...", "compatibility": "...", "tip": "..."}`;
-
-        const completion = await openai.chat.completions.create({
-            model: "gpt-4o",
-            messages: [{ role: "user", content: prompt }],
-            max_tokens: 400,
-            response_format: { type: "json_object" }
-        });
-
-        const analysis = JSON.parse(completion.choices[0].message.content);
-        res.json(analysis);
-    } catch (err) {
-        console.error('AI Analysis Error:', err);
-        res.json({ 
-            performance: "Alto rendimiento garantizado para gaming.", 
-            compatibility: "Compatible con la mayoría de setups modernos.", 
-            tip: "Asegúrate de tener una fuente de poder certificada." 
-        });
-    }
 });
 
 module.exports = router;

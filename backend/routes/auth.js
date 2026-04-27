@@ -22,12 +22,12 @@ router.post('/register', async (req, res) => {
       name,
       email,
       password: hashedPassword,
-      tipo_usuario: ROLES.CLIENT,
-      fecha_reg: new Date()
+      tipoUsuario: ROLES.CLIENT,
+      fechaReg: new Date()
     });
 
     const token = jwt.sign(
-      { id: user.id, tipo_usuario: user.tipo_usuario },
+      { id: user.id, tipo_usuario: user.tipoUsuario },
       process.env.JWT_SECRET || 'secret',
       { expiresIn: '1d' }
     );
@@ -38,7 +38,7 @@ router.post('/register', async (req, res) => {
         id: user.id,
         name: user.name,
         email: user.email,
-        tipo_usuario: user.tipo_usuario
+        tipo_usuario: user.tipoUsuario
       }
     });
   } catch (error) {
@@ -64,7 +64,7 @@ router.post('/login', async (req, res) => {
     if (!match) return res.status(400).json({ error: 'Credenciales inválidas' });
 
     const token = jwt.sign(
-      { id: user.id, tipo_usuario: user.tipo_usuario },
+      { id: user.id, tipo_usuario: user.tipoUsuario },
       process.env.JWT_SECRET || 'secret',
       { expiresIn: '1d' }
     );
@@ -75,7 +75,7 @@ router.post('/login', async (req, res) => {
         id: user.id,
         name: user.name,
         email: user.email,
-        tipo_usuario: user.tipo_usuario
+        tipo_usuario: user.tipoUsuario
       }
     });
   } catch (error) {
@@ -91,7 +91,7 @@ router.get('/profile', authMiddleware, async (req, res) => {
     if (!user) return res.status(404).json({ error: 'Usuario no encontrado' });
     res.json({
       ...user.toJSON(),
-      tipo_usuario: user.tipo_usuario
+      tipo_usuario: user.tipoUsuario
     });
   } catch (error) {
     res.status(500).json({ error: 'Error al obtener perfil' });
@@ -101,14 +101,14 @@ router.get('/profile', authMiddleware, async (req, res) => {
 // Profile - Actualizar
 router.put('/profile', authMiddleware, async (req, res) => {
   try {
-    const { name, sexo, direccion, fecha_nac } = req.body;
+    const { name, sexo, direccion, fechaNac } = req.body;
     const user = await User.findByPk(req.user.id);
     if (!user) return res.status(404).json({ error: 'Usuario no encontrado' });
 
     if (name) user.name = name;
     if (sexo) user.sexo = sexo;
     if (direccion) user.direccion = direccion;
-    if (fecha_nac) user.fecha_nac = fecha_nac;
+    if (fechaNac) user.fechaNac = fechaNac;
 
     await user.save();
     res.json({
@@ -117,10 +117,10 @@ router.put('/profile', authMiddleware, async (req, res) => {
         id: user.id,
         name: user.name,
         email: user.email,
-        tipo_usuario: user.tipo_usuario,
+        tipo_usuario: user.tipoUsuario,
         direccion: user.direccion,
         sexo: user.sexo,
-        fecha_nac: user.fecha_nac
+        fechaNac: user.fechaNac
       }
     });
   } catch (error) {

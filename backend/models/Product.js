@@ -6,6 +6,7 @@ const Product = sequelize.define('Product', {
   name: { type: DataTypes.STRING, allowNull: false },
   description: { type: DataTypes.TEXT, allowNull: false },
   price: { type: DataTypes.DECIMAL(10, 2), field: 'precio_actual', allowNull: true, defaultValue: 0 },
+  base_price: { type: DataTypes.DECIMAL(10, 2), field: 'precio_base', allowNull: true, defaultValue: 0 },
   stock: { type: DataTypes.INTEGER, field: 'stock', allowNull: true, defaultValue: 0 },
   views: { type: DataTypes.INTEGER, field: 'views', allowNull: true, defaultValue: 0 },
   imgURL: { type: DataTypes.STRING, field: 'img_url', allowNull: true },

@@ -1,6 +1,19 @@
 # Environment Variables
-backend/.env
 .env
+.env.*
+*.env
+*.env.*
+config.env
+.flaskenv
+
+# Secrets and Keys
+*.key
+*.pem
+*.cert
+*.p12
+*.pfx
+secrets.json
+auth_config.json
 
 # Dependencies
 node_modules/

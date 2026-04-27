@@ -10,8 +10,6 @@ const ITEMS_PER_PAGE = 12;
 export default function Home() {
   const [products, setProducts] = useState([]);
   const [selectedProduct, setSelectedProduct] = useState(null);
-  const [loadingModal, setLoadingModal] = useState(false);
-  const [aiData, setAiData] = useState(null);
   const [currentPage, setCurrentPage] = useState(1);
 
   const location = useLocation();
@@ -27,9 +25,17 @@ export default function Home() {
   const isAdmin = isAdminRole(user);
   const isClient = isClientRole(user);
 
+  const [recommendations, setRecommendations] = useState([]);
+
   useEffect(() => {
     axios.get('http://localhost:5000/api/products')
       .then(res => setProducts(res.data))
+      .catch(err => console.error(err));
+    
+    // Fetch recommendations
+    const userId = user.id;
+    axios.get(`http://localhost:5000/api/products/recommendations?userId=${userId || ''}&limit=4`)
+      .then(res => setRecommendations(res.data))
       .catch(err => console.error(err));
   }, []);
 
@@ -44,29 +50,16 @@ export default function Home() {
     window.scrollTo(0, 0);
   }, [currentPage]);
 
-  const openProductModal = async (product) => {
+  const openProductModal = (product) => {
     setSelectedProduct(product);
-    setLoadingModal(true);
-    axios.post(`http://localhost:5000/api/products/${product.id}/view`).catch(console.error);
-
-    try {
-      const res = await axios.get(`http://localhost:5000/api/products/${product.id}/ai-analysis`);
-      setAiData(res.data);
-    } catch (err) {
-      console.error(err);
-      setAiData({
-        performance: 'Error obteniendo datos.',
-        compatibility: 'Revisa manual del fabricante.',
-        aiTip: 'Intenta nuevamente más tarde.'
-      });
-    } finally {
-      setLoadingModal(false);
-    }
+    const userId = user.id;
+    axios.post(`http://localhost:5000/api/products/${product.id}/view`, {}, {
+      headers: { 'user-id': userId }
+    }).catch(console.error);
   };
 
   const closeModal = () => {
     setSelectedProduct(null);
-    setAiData(null);
   };
 
   const addToCart = (e, product) => {
@@ -97,7 +90,8 @@ export default function Home() {
   };
 
   const filteredProducts = useMemo(() => {
-    let result = products;
+    // FILTRO CRITICO: Solo productos con stock > 0
+    let result = products.filter(p => Number(p.stock) > 0);
 
     if (searchQuery) {
       const q = searchQuery.toLowerCase();
@@ -190,6 +184,24 @@ export default function Home() {
         </aside>
 
         <section>
+          {recommendations.length > 0 && !searchQuery && !quickFilter && (
+            <div style={{ marginBottom: '50px' }}>
+              <h2 style={{ fontSize: '1.4rem', fontWeight: 700, marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <div style={{ width: '8px', height: '24px', backgroundColor: 'var(--accent)', borderRadius: '4px' }}></div>
+                Recomendados para ti
+              </h2>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '20px' }}>
+                {recommendations.map(p => (
+                  <div key={`rec-${p.id}`} className="card" onClick={() => openProductModal(p)} style={{ cursor: 'pointer', padding: '15px' }}>
+                    <img src={fixImageUrl(p.imgURL) || placeholderImg} alt={p.name} style={{ width: '100%', height: '120px', objectFit: 'contain', marginBottom: '10px' }} />
+                    <div style={{ fontWeight: 700, fontSize: '1rem' }}>{formatCurrency(p.price)}</div>
+                    <div style={{ fontSize: '0.8rem', color: 'var(--muted-foreground)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.name}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px' }}>
              <div>
                <h2 style={{ fontSize: '1.5rem', fontWeight: 600 }}>
@@ -261,8 +273,13 @@ export default function Home() {
                           <button className="btn btn-outline" style={{ display:'flex', justifyContent:'center', alignItems:'center', gap:'8px' }} onClick={(e) => { e.stopPropagation(); openProductModal(product); }}>
                             Ver detalle
                           </button>
-                          <button className="btn" style={{ display:'flex', justifyContent:'center', alignItems:'center', gap:'8px' }} onClick={(e) => addToCart(e, product)}>
-                            <ShoppingCart size={16}/> Comprar
+                          <button 
+                            className="btn" 
+                            disabled={product.stock <= 0}
+                            style={{ display:'flex', justifyContent:'center', alignItems:'center', gap:'8px', opacity: product.stock <= 0 ? 0.5 : 1 }} 
+                            onClick={(e) => addToCart(e, product)}
+                          >
+                            <ShoppingCart size={16}/> {product.stock > 0 ? 'Comprar' : 'Agotado'}
                           </button>
                         </div>
                       )}
@@ -323,22 +340,14 @@ export default function Home() {
                 </div>
              </div>
 
-             <div style={{ backgroundColor: 'var(--background)', padding: '24px', borderRadius: 'var(--radius-lg)', border: '1px solid var(--border)' }}>
-                <h4 style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px', fontWeight: 600 }}>
-                   <span style={{ fontSize: '1.2rem' }}>✨</span> Insights del Componente
-                </h4>
-                {loadingModal ? (
-                  <p style={{ color: 'var(--muted-foreground)', animation: 'pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite' }}>Cargando heurísticas...</p>
-                ) : (
-                  <div style={{ fontSize: '0.95rem', lineHeight: '1.6', color: 'var(--muted-foreground)' }}>
-                    <p><strong style={{ color: 'var(--foreground)' }}>Rendimiento:</strong> {aiData?.performance}</p>
-                    <p style={{ marginTop: '10px' }}><strong style={{ color: 'var(--foreground)' }}>Sinergia:</strong> {aiData?.compatibility}</p>
-                    <div style={{ marginTop: '20px', padding: '16px', backgroundColor: 'var(--foreground)', color: 'var(--background)', borderRadius: 'var(--radius-md)', display: 'flex', gap: '10px' }}>
-                       <span>💡</span> <span style={{ flex: 1 }}>{aiData?.aiTip}</span>
-                    </div>
-                  </div>
-                )}
-             </div>
+              <div style={{ backgroundColor: 'var(--background)', padding: '24px', borderRadius: 'var(--radius-lg)', border: '1px solid var(--border)' }}>
+                 <h4 style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px', fontWeight: 600 }}>
+                    Descripción Técnica
+                 </h4>
+                 <div style={{ fontSize: '0.95rem', lineHeight: '1.6', color: 'var(--muted-foreground)' }}>
+                   <p>{selectedProduct.description || 'No hay descripción técnica detallada para este producto.'}</p>
+                 </div>
+              </div>
 
              <div style={{ display: 'flex', gap: '16px', marginTop: '24px' }}>
                 {isAdmin ? (
@@ -352,10 +361,20 @@ export default function Home() {
                   </>
                 ) : (
                   <>
-                    <button className="btn" style={{ flex: 1, padding: '14px' }} onClick={(e) => { addToCart(e, selectedProduct); closeModal(); }}>
-                      Agregar al Carrito
+                    <button 
+                      className="btn" 
+                      disabled={selectedProduct.stock <= 0}
+                      style={{ flex: 1, padding: '14px', opacity: selectedProduct.stock <= 0 ? 0.5 : 1 }} 
+                      onClick={(e) => { addToCart(e, selectedProduct); closeModal(); }}
+                    >
+                      {selectedProduct.stock > 0 ? 'Agregar al Carrito' : 'Agotado'}
                     </button>
-                    <button className="btn btn-outline" style={{ flex: '0 0 120px' }} onClick={(e) => { addToCart(e, selectedProduct); closeModal(); navigate('/cart'); }}>
+                    <button 
+                      className="btn btn-outline" 
+                      disabled={selectedProduct.stock <= 0}
+                      style={{ flex: '0 0 120px', opacity: selectedProduct.stock <= 0 ? 0.5 : 1 }} 
+                      onClick={(e) => { addToCart(e, selectedProduct); closeModal(); navigate('/cart'); }}
+                    >
                       Comprar
                     </button>
                   </>

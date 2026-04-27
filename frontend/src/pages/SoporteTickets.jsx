@@ -2,9 +2,12 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 import { isAdminRole } from '../constants/roles';
+import { ChevronLeft, ChevronRight, MessageSquare, Clock, CheckCircle, Send, AlertCircle } from 'lucide-react';
 
 export default function SoporteTickets() {
   const [tickets, setTickets] = useState([]);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
   const [form, setForm] = useState({ subject: '', desc: '' });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
@@ -18,15 +21,17 @@ export default function SoporteTickets() {
     const token = localStorage.getItem('token');
     if (!token) return navigate('/login');
     fetchTickets();
-  }, [navigate]);
+  }, [navigate, currentPage]);
 
   const fetchTickets = async () => {
     const token = localStorage.getItem('token');
     try {
-      const res = await axios.get('http://localhost:5000/api/tickets', {
+      setLoading(true);
+      const res = await axios.get(`http://localhost:5000/api/tickets?page=${currentPage}&limit=5`, {
         headers: { Authorization: `Bearer ${token}` }
       });
-      setTickets(res.data);
+      setTickets(res.data.tickets);
+      setTotalPages(res.data.totalPages);
     } catch (err) {
       console.error(err);
       setError('No se pudieron cargar los reclamos');
@@ -111,7 +116,13 @@ export default function SoporteTickets() {
                       <strong style={{ color: 'var(--foreground)' }}>{t.id}</strong> - {t.subject}
                       <div style={{ fontSize: '0.85rem', color: 'var(--muted-foreground)', marginTop: '6px' }}>{new Date(t.created_at || t.date || Date.now()).toLocaleDateString()}</div>
                     </div>
-                    <span style={{ padding: '6px 12px', borderRadius: '999px', fontSize: '0.8rem', fontWeight: 700, backgroundColor: t.status === 'Abierto' ? '#fff3cd' : t.status === 'En Proceso' ? '#d1ecf1' : '#d4edda', color: t.status === 'Abierto' ? '#856404' : t.status === 'En Proceso' ? '#0c5460' : '#155724' }}>{t.status}</span>
+                    <span style={{ 
+                      padding: '6px 12px', borderRadius: '999px', fontSize: '0.8rem', fontWeight: 700, 
+                      backgroundColor: t.status === 'Abierto' ? 'oklch(0.9 0.1 80 / 20%)' : t.status === 'Respondido' ? 'oklch(0.9 0.1 200 / 20%)' : 'oklch(0.9 0.1 140 / 20%)',
+                      color: t.status === 'Abierto' ? 'oklch(0.5 0.2 80)' : t.status === 'Respondido' ? 'oklch(0.5 0.2 200)' : 'oklch(0.5 0.2 140)'
+                    }}>
+                      {t.status}
+                    </span>
                   </div>
                   <p style={{ marginTop: '14px', color: 'var(--muted-foreground)' }}>{t.description}</p>
                   {t.respuesta && (
@@ -133,6 +144,19 @@ export default function SoporteTickets() {
                   )}
                 </div>
               ))}
+              
+              {/* Pagination */}
+              {totalPages > 1 && (
+                <div style={{ display: 'flex', justifyContent: 'center', gap: '10px', marginTop: '20px' }}>
+                  <button className="pagination-btn" disabled={currentPage === 1} onClick={() => setCurrentPage(p => p - 1)}>
+                    <ChevronLeft size={16} />
+                  </button>
+                  <span style={{ fontSize: '0.9rem', display: 'flex', alignItems: 'center' }}>{currentPage} / {totalPages}</span>
+                  <button className="pagination-btn" disabled={currentPage === totalPages} onClick={() => setCurrentPage(p => p + 1)}>
+                    <ChevronRight size={16} />
+                  </button>
+                </div>
+              )}
             </div>
           )}
         </div>
