@@ -6,6 +6,7 @@ const ComponenteML = require('./ComponenteML');
 const LogMotorPrecio = require('./LogMotorPrecio');
 const SupportTicket = require('./SupportTicket');
 const UserView = require('./UserView');
+const Notification = require('./Notification');
 
 const Category = require('./Category');
 
@@ -40,4 +41,8 @@ UserView.belongsTo(User, { foreignKey: 'user_id' });
 Product.hasMany(UserView, { foreignKey: 'product_id' });
 UserView.belongsTo(Product, { foreignKey: 'product_id' });
 
-module.exports = { sequelize, User, Product, Order, OrderItem, ComponenteML, LogMotorPrecio, SupportTicket, UserView, Category };
+// Notifications
+User.hasMany(Notification, { foreignKey: 'user_id', as: 'notifications' });
+Notification.belongsTo(User, { foreignKey: 'user_id', as: 'user' });
+
+module.exports = { sequelize, User, Product, Order, OrderItem, ComponenteML, LogMotorPrecio, SupportTicket, UserView, Category, Notification };

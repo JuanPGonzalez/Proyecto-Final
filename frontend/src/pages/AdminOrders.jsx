@@ -3,6 +3,7 @@ import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 import { Package, CheckCircle, XCircle, Clock, ChevronLeft, ChevronRight, User, MapPin } from 'lucide-react';
 import { isAdminRole } from '../constants/roles';
+import { showToast, showAlert, showConfirm } from '../utils/swal';
 
 export default function AdminOrders() {
   const [orders, setOrders] = useState([]);
@@ -39,15 +40,16 @@ export default function AdminOrders() {
   };
 
   const updateStatus = async (id, status) => {
-    if (!window.confirm(`¿Estás seguro de marcar esta orden como ${status.toUpperCase()}?`)) return;
+    const confirm = await showConfirm(`¿Estás seguro?`, `¿Deseas marcar esta orden como ${status.toUpperCase()}?`, `Sí, ${status}`);
+    if (!confirm.isConfirmed) return;
     try {
       await axios.put(`http://localhost:5000/api/orders/${id}/status`, { status }, {
         headers: { Authorization: `Bearer ${token}` }
       });
       fetchOrders();
-      alert('Estado actualizado');
+      showToast('Estado actualizado');
     } catch (err) {
-      alert('Error al actualizar estado');
+      showAlert('Error', 'No se pudo actualizar el estado', 'error');
     }
   };
 
@@ -135,9 +137,9 @@ export default function AdminOrders() {
             <button className="pagination-btn" disabled={currentPage === 1} onClick={() => setCurrentPage(p => p - 1)}>
               <ChevronLeft size={18} />
             </button>
-            <span style={{ display: 'flex', alignItems: 'center', fontSize: '0.9rem' }}>Página {currentPage} de {totalPages}</span>
-            <button className="pagination-btn" disabled={currentPage === totalPages} onClick={() => setCurrentPage(p => p + 1)}>
-              <ChevronRight size={18} />
+            <span style={{ fontSize: '0.9rem', display: 'flex', alignItems: 'center' }}>{currentPage} / {totalPages}</span>
+            <button className="pagination-btn" disabled={currentPage >= totalPages || totalPages === 0} onClick={() => setCurrentPage(p => p + 1)}>
+              <ChevronRight size={16} />
             </button>
           </div>
         )}

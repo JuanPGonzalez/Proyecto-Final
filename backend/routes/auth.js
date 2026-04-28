@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
-const { User } = require('../models');
+const { User, Notification } = require('../models');
 const { Op } = require('sequelize');
 const { authMiddleware, adminMiddleware, ROLES, isAdminRole, isClientRole } = require('../middleware/roles');
 
@@ -25,6 +25,24 @@ router.post('/register', async (req, res) => {
       tipoUsuario: ROLES.CLIENT,
       fechaReg: new Date()
     });
+
+    // Welcome Notification for new user
+    await Notification.create({
+      user_id: user.id,
+      message: `¡Bienvenido a Hardware Haven, ${user.name}! Gracias por registrarte.`,
+      type: 'AUTH'
+    });
+
+    // Notify all admins about new registration
+    const admins = await User.findAll({ where: { tipoUsuario: ROLES.ADMIN } });
+    const adminNotifications = admins.map(admin => ({
+      user_id: admin.id,
+      message: `Nuevo usuario registrado: ${user.name} (${user.email}).`,
+      type: 'SYSTEM'
+    }));
+    if (adminNotifications.length > 0) {
+      await Notification.bulkCreate(adminNotifications);
+    }
 
     const token = jwt.sign(
       { id: user.id, tipo_usuario: user.tipoUsuario },

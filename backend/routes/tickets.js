@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { SupportTicket, User } = require('../models');
+const { SupportTicket, User, Notification } = require('../models');
 const { authMiddleware, adminMiddleware, ROLES, isAdminRole } = require('../middleware/roles');
 
 router.post('/', authMiddleware, async (req, res) => {
@@ -13,6 +13,21 @@ router.post('/', authMiddleware, async (req, res) => {
       subject,
       description
     });
+
+    // Notify admins
+    try {
+      const admins = await User.findAll({ where: { tipoUsuario: ROLES.ADMIN } });
+      const adminNotifications = admins.map(admin => ({
+        user_id: admin.id,
+        message: `Nuevo ticket de soporte #${ticket.id} creado por el usuario ID: ${req.user.id}. Asunto: ${subject}`,
+        type: 'TICKET'
+      }));
+      if (adminNotifications.length > 0) {
+        await Notification.bulkCreate(adminNotifications);
+      }
+    } catch (e) {
+      console.error('Error notifying admins about new ticket:', e);
+    }
 
     res.status(201).json(ticket);
   } catch (error) {
@@ -66,6 +81,17 @@ router.put('/:id/respond', authMiddleware, adminMiddleware, async (req, res) => 
       respuesta: respuesta || ticket.respuesta,
       admin_id: req.user.id
     });
+
+    // Notify user
+    try {
+      await Notification.create({
+        user_id: ticket.user_id,
+        message: `Tu ticket de soporte #${ticket.id} ha recibido una actualización. Estado: ${status || ticket.status}.`,
+        type: 'TICKET'
+      });
+    } catch (e) {
+      console.error('Error notifying user about ticket response:', e);
+    }
 
     res.json(ticket);
   } catch (error) {

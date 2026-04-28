@@ -2,7 +2,8 @@ const express = require('express');
 const router = express.Router();
 const { authMiddleware, clientMiddleware, isAdminRole } = require('../middleware/roles');
 const sequelize = require('../config/database');
-const { Order, OrderItem, Product, User } = require('../models');
+const { Order, OrderItem, Product, User, Notification } = require('../models');
+const { ROLES } = require('../middleware/roles');
 
 const { sendOrderConfirmation } = require('../services/emailService');
 
@@ -39,7 +40,8 @@ router.get('/', authMiddleware, async (req, res) => {
       include,
       order: orderArray,
       limit,
-      offset
+      offset,
+      distinct: true
     });
 
     res.json({
@@ -57,7 +59,7 @@ router.get('/', authMiddleware, async (req, res) => {
 // Crear nueva orden
 router.post('/', authMiddleware, clientMiddleware, async (req, res) => {
   try {
-    const { items, shippingAddress, shippingMethod } = req.body;
+    const { items, shippingAddress, localidad, codigoPostal, shippingMethod } = req.body;
     if (!items || items.length === 0) return res.status(400).json({ error: 'No hay productos' });
 
     // Calcular total real en el backend para seguridad
@@ -84,6 +86,8 @@ router.post('/', authMiddleware, clientMiddleware, async (req, res) => {
       fecha_compra: new Date(),
       status: 'Pendiente',
       shipping_address: shippingAddress,
+      localidad: localidad,
+      codigo_postal: codigoPostal,
       shipping_method: shippingMethod,
       shipping_cost: shippingCost
     });
@@ -95,12 +99,6 @@ router.post('/', authMiddleware, clientMiddleware, async (req, res) => {
         compra_id: order.id,
         componente_id: item.productId
       });
-
-      // DECREMENTO AUTOMÁTICO DE STOCK
-      const product = await Product.findByPk(item.productId);
-      if (product) {
-        await product.decrement('stock', { by: item.quantity });
-      }
     }
 
     // ENVIAR EMAIL DE CONFIRMACIÓN AL COMPLETAR COMPRA
@@ -112,6 +110,29 @@ router.post('/', authMiddleware, clientMiddleware, async (req, res) => {
       }
     } catch (e) {
       console.error('Error triggering email on checkout:', e);
+    }
+
+    // Notificaciones de nueva orden
+    try {
+      // Para el cliente
+      await Notification.create({
+        user_id: req.user.id,
+        message: `Tu orden #${order.id} ha sido recibida con éxito y está en estado Pendiente.`,
+        type: 'ORDER'
+      });
+
+      // Para todos los admins
+      const admins = await User.findAll({ where: { tipoUsuario: ROLES.ADMIN } });
+      const adminNotifications = admins.map(admin => ({
+        user_id: admin.id,
+        message: `Nueva orden #${order.id} creada por el usuario ID: ${req.user.id}. Total: $${finalTotal}.`,
+        type: 'ORDER'
+      }));
+      if (adminNotifications.length > 0) {
+        await Notification.bulkCreate(adminNotifications);
+      }
+    } catch (e) {
+      console.error('Error creating order notifications:', e);
     }
 
     res.status(201).json(order);
@@ -135,13 +156,32 @@ router.put('/:id/status', authMiddleware, async (req, res) => {
 
     await order.update({ status });
 
-    // Si se cierra, enviar email
-    if (status === 'Cerrada') {
+    // Si se cierra, descontar stock y enviar email
+    if (status === 'Cerrada' && order.status !== 'Cerrada') {
       const items = order.OrderItems.map(oi => ({
         name: oi.Product.name,
         priceAtPurchase: oi.priceAtPurchase
       }));
+      
+      // Descontar stock al cerrar el pedido
+      for (const oi of order.OrderItems) {
+        if (oi.Product) {
+          await oi.Product.decrement('stock', { by: oi.quantity });
+        }
+      }
+
       await sendOrderConfirmation(order.User.email, order, items);
+    }
+
+    // Notificación para el cliente por cambio de estado
+    try {
+      await Notification.create({
+        user_id: order.user_id,
+        message: `El estado de tu orden #${order.id} ha sido actualizado a: ${status}.`,
+        type: 'ORDER'
+      });
+    } catch (e) {
+      console.error('Error creating status notification:', e);
     }
 
     res.json(order);

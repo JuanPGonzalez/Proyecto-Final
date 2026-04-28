@@ -3,6 +3,7 @@ import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 import { MessageSquare, Clock, CheckCircle, Send, User, ChevronLeft, ChevronRight } from 'lucide-react';
 import { isAdminRole } from '../constants/roles';
+import { showToast, showAlert, showConfirm } from '../utils/swal';
 
 export default function AdminTickets() {
   const [tickets, setTickets] = useState([]);
@@ -49,11 +50,27 @@ export default function AdminTickets() {
       setReply('');
       setSelectedTicket(null);
       fetchTickets();
-      alert('Respuesta enviada con éxito');
+      showToast('Respuesta enviada');
     } catch (err) {
-      alert('Error al enviar respuesta');
+      showAlert('Error', 'No se pudo enviar la respuesta', 'error');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleClose = async () => {
+    const confirm = await showConfirm('¿Deseas cerrar este ticket?', 'El usuario ya no podrá responder.');
+    if (!confirm.isConfirmed) return;
+    try {
+      await axios.put(`http://localhost:5000/api/tickets/${selectedTicket.id}/respond`, 
+        { status: 'Cerrado' },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      setSelectedTicket(null);
+      fetchTickets();
+      showToast('Ticket cerrado');
+    } catch (err) {
+      showAlert('Error', 'No se pudo cerrar el ticket', 'error');
     }
   };
 
@@ -113,9 +130,9 @@ export default function AdminTickets() {
               <button className="pagination-btn" disabled={currentPage === 1} onClick={() => setCurrentPage(p => p - 1)}>
                 <ChevronLeft size={16} />
               </button>
-              <span style={{ fontSize: '0.8rem', display: 'flex', alignItems: 'center' }}>{currentPage} / {totalPages}</span>
-              <button className="pagination-btn" disabled={currentPage === totalPages} onClick={() => setCurrentPage(p => p + 1)}>
-                <ChevronRight size={16} />
+              <span style={{ fontSize: '0.9rem', display: 'flex', alignItems: 'center' }}>{currentPage} / {totalPages}</span>
+            <button className="pagination-btn" disabled={currentPage >= totalPages || totalPages === 0} onClick={() => setCurrentPage(p => p + 1)}>
+              <ChevronRight size={16} />
               </button>
             </div>
           )}
@@ -158,9 +175,14 @@ export default function AdminTickets() {
                     onChange={e => setReply(e.target.value)}
                     required
                   />
-                  <button className="btn" type="submit" disabled={loading} style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                    {loading ? 'Enviando...' : <><Send size={18} /> Enviar Respuesta</>}
-                  </button>
+                  <div style={{ display: 'flex', gap: '10px' }}>
+                    <button className="btn" type="submit" disabled={loading} style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '10px', justifyContent: 'center' }}>
+                      {loading ? 'Enviando...' : <><Send size={18} /> Enviar Respuesta</>}
+                    </button>
+                    <button className="btn btn-outline" type="button" onClick={handleClose} style={{ color: 'var(--destructive)', borderColor: 'var(--destructive)' }}>
+                      Cerrar Ticket
+                    </button>
+                  </div>
                 </form>
               )}
             </div>
@@ -178,12 +200,14 @@ export default function AdminTickets() {
 }
 
 function StatusBadge({ status }) {
-  const isResolved = status === 'Respondido' || status === 'Cerrado';
+  const isResolved = status === 'Respondido';
+  const isClosed = status === 'Cerrado';
+  
   return (
     <span style={{ 
       fontSize: '0.7rem', fontWeight: 800, padding: '4px 8px', borderRadius: '4px',
-      backgroundColor: isResolved ? 'oklch(0.627 0.194 149.214 / 15%)' : 'oklch(0.6 0.118 266.355 / 15%)',
-      color: isResolved ? 'var(--success)' : 'var(--primary)'
+      backgroundColor: isClosed ? 'rgba(0,0,0,0.1)' : (isResolved ? 'oklch(0.627 0.194 149.214 / 15%)' : 'oklch(0.6 0.118 266.355 / 15%)'),
+      color: isClosed ? 'var(--muted-foreground)' : (isResolved ? 'var(--success)' : 'var(--primary)')
     }}>
       {status.toUpperCase()}
     </span>

@@ -36,7 +36,7 @@ export default function CompraExitosa() {
            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', fontSize: '0.9rem' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                  <MapPin size={16} color="var(--muted-foreground)" />
-                 <span><strong>Envío:</strong> {shipping.method === 'tienda' ? 'Retiro en Zeballos 1315' : shipping.address}</span>
+                 <span><strong>Envío:</strong> {shipping.method === 'tienda' ? 'Retiro en Zeballos 1315' : `${shipping.address}, ${shipping.localidad || ''} ${shipping.codigoPostal || ''}`}</span>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                  <CreditCard size={16} color="var(--muted-foreground)" />

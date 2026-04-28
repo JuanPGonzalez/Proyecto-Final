@@ -6,6 +6,8 @@ import { getStorageItem, setStorageItem } from '../utils/storage';
 export default function Envios() {
   const navigate = useNavigate();
   const [address, setAddress] = useState('');
+  const [localidad, setLocalidad] = useState('');
+  const [codigoPostal, setCodigoPostal] = useState('');
   const [method, setMethod] = useState('standard');
   const [cost, setCost] = useState(0);
   const cart = getStorageItem('cart', []);
@@ -27,10 +29,16 @@ export default function Envios() {
   }, [address, method]);
 
   const handleContinue = () => {
-    if (method !== 'tienda' && !address) return alert('Por favor ingresa una dirección de envío.');
+    if (method !== 'tienda') {
+      if (!address || !localidad || !codigoPostal) {
+        return alert('Por favor ingresa todos los datos de envío (dirección, localidad, código postal).');
+      }
+    }
     
     setStorageItem('last_shipping', {
       address,
+      localidad,
+      codigoPostal,
       method,
       cost
     });
@@ -43,20 +51,34 @@ export default function Envios() {
         <h2 style={{ fontSize: '2rem', fontWeight: 800, marginBottom: '10px', textAlign: 'center' }}>Configuración de Envío</h2>
         <p style={{ color: 'var(--muted-foreground)', marginBottom: '40px', textAlign: 'center' }}>Calculamos el costo basado en la distancia desde Zeballos 1315, Rosario.</p>
         
-        <div className="card" style={{ padding: '30px', marginBottom: '30px' }}>
-          <label style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--muted-foreground)', marginBottom: '8px', display: 'block' }}>Dirección de Entrega</label>
-          <div style={{ position: 'relative' }}>
-             <MapPin size={18} style={{ position: 'absolute', left: '15px', top: '12px', color: 'var(--muted-foreground)' }} />
-             <input 
-               type="text" 
-               className="input-field" 
-               placeholder="Ej: Av. Pellegrini 1500, Rosario" 
-               style={{ paddingLeft: '45px' }}
-               value={address}
-               onChange={e => setAddress(e.target.value)}
-             />
+        {method !== 'tienda' && (
+          <div className="card" style={{ padding: '30px', marginBottom: '30px', display: 'flex', flexDirection: 'column', gap: '15px' }}>
+            <div>
+              <label style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--muted-foreground)', marginBottom: '8px', display: 'block' }}>Dirección de Entrega</label>
+              <div style={{ position: 'relative' }}>
+                 <MapPin size={18} style={{ position: 'absolute', left: '15px', top: '12px', color: 'var(--muted-foreground)' }} />
+                 <input 
+                   type="text" 
+                   className="input-field" 
+                   placeholder="Ej: Av. Pellegrini 1500, Rosario" 
+                   style={{ paddingLeft: '45px' }}
+                   value={address}
+                   onChange={e => setAddress(e.target.value)}
+                 />
+              </div>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
+              <div>
+                <label style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--muted-foreground)', marginBottom: '8px', display: 'block' }}>Localidad</label>
+                <input type="text" className="input-field" placeholder="Ej: Rosario" value={localidad} onChange={e => setLocalidad(e.target.value)} />
+              </div>
+              <div>
+                <label style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--muted-foreground)', marginBottom: '8px', display: 'block' }}>Código Postal</label>
+                <input type="text" className="input-field" placeholder="Ej: 2000" value={codigoPostal} onChange={e => setCodigoPostal(e.target.value)} />
+              </div>
+            </div>
           </div>
-        </div>
+        )}
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '20px', marginBottom: '40px' }}>
           <ShipOption 

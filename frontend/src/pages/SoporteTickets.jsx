@@ -3,6 +3,7 @@ import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 import { isAdminRole } from '../constants/roles';
 import { ChevronLeft, ChevronRight, MessageSquare, Clock, CheckCircle, Send, AlertCircle } from 'lucide-react';
+import { showToast, showAlert } from '../utils/swal';
 
 export default function SoporteTickets() {
   const [tickets, setTickets] = useState([]);
@@ -58,9 +59,11 @@ export default function SoporteTickets() {
       });
       setTickets([res.data, ...tickets]);
       setForm({ subject: '', desc: '' });
+      showToast('Reclamo generado con éxito');
     } catch (err) {
       console.error(err);
       setError('No se pudo crear el reclamo.');
+      showAlert('Error', 'No se pudo crear el reclamo', 'error');
     }
   };
 
@@ -76,9 +79,11 @@ export default function SoporteTickets() {
       setTickets(tickets.map(t => t.id === res.data.id ? res.data : t));
       setResponseText('');
       setStatusSelect('');
+      showToast('Reclamo actualizado');
     } catch (err) {
       console.error(err);
       setError('No se pudo actualizar el reclamo.');
+      showAlert('Error', 'No se pudo actualizar el reclamo', 'error');
     }
   };
 
@@ -152,7 +157,7 @@ export default function SoporteTickets() {
                     <ChevronLeft size={16} />
                   </button>
                   <span style={{ fontSize: '0.9rem', display: 'flex', alignItems: 'center' }}>{currentPage} / {totalPages}</span>
-                  <button className="pagination-btn" disabled={currentPage === totalPages} onClick={() => setCurrentPage(p => p + 1)}>
+                  <button className="pagination-btn" disabled={currentPage >= totalPages || totalPages === 0} onClick={() => setCurrentPage(p => p + 1)}>
                     <ChevronRight size={16} />
                   </button>
                 </div>

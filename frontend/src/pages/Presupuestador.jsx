@@ -24,7 +24,18 @@ export default function Presupuestador() {
     
     setIsAdding(true);
     const cart = JSON.parse(localStorage.getItem('cart') || '[]');
-    cart.push(...items);
+    
+    items.forEach(product => {
+        const existingItem = cart.find(item => item.id === product.id);
+        if (existingItem) {
+            if (existingItem.quantity < product.stock) {
+                existingItem.quantity = (existingItem.quantity || 1) + 1;
+            }
+        } else {
+            cart.push({ ...product, quantity: 1 });
+        }
+    });
+
     localStorage.setItem('cart', JSON.stringify(cart));
     
     // Trigger navbar update

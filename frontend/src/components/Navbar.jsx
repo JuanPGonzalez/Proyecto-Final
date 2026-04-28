@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { Search, ShoppingCart, User, Settings, Database, Headphones, Cpu, HelpCircle, Sun, Moon, AlertCircle, Package } from 'lucide-react';
+import { Search, ShoppingCart, User, Settings, Database, Headphones, Cpu, HelpCircle, Sun, Moon, AlertCircle, Package, Bell, X, Check } from 'lucide-react';
+import axios from 'axios';
 import { isAdminRole } from '../constants/roles';
 import { getStorageItem, setStorageItem } from '../utils/storage';
 
@@ -14,6 +15,51 @@ export default function Navbar() {
   const [cartCount, setCartCount] = useState(0);
   const [searchTerm, setSearchTerm] = useState('');
   const [isDarkMode, setIsDarkMode] = useState(localStorage.getItem('theme') === 'dark');
+
+  // Notifications State
+  const [notifications, setNotifications] = useState([]);
+  const [showNotifications, setShowNotifications] = useState(false);
+  const unreadCount = notifications.filter(n => !n.is_read).length;
+
+  const fetchNotifications = async () => {
+    if (!token) return;
+    try {
+      const res = await axios.get('http://localhost:5000/api/notifications', {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setNotifications(res.data);
+    } catch (error) {
+      console.error('Error fetching notifications:', error);
+    }
+  };
+
+  useEffect(() => {
+    fetchNotifications();
+    const interval = setInterval(fetchNotifications, 30000); // Poll every 30s
+    return () => clearInterval(interval);
+  }, [token]);
+
+  const markAsRead = async (id) => {
+    try {
+      await axios.put(`http://localhost:5000/api/notifications/${id}/read`, {}, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      fetchNotifications();
+    } catch (error) {
+      console.error('Error marking as read:', error);
+    }
+  };
+
+  const markAllAsRead = async () => {
+    try {
+      await axios.put(`http://localhost:5000/api/notifications/read-all`, {}, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      fetchNotifications();
+    } catch (error) {
+      console.error('Error marking all as read:', error);
+    }
+  };
 
   // Aplicar tema
   useEffect(() => {
@@ -121,6 +167,50 @@ export default function Navbar() {
               <span style={{ fontSize: '0.9rem', fontWeight: 500 }}>{token ? (user?.name?.split(' ')[0] || 'Usuario') : 'Ingresar'}</span>
             </Link>
 
+            {token && (
+              <div style={{ position: 'relative' }}>
+                <button 
+                  onClick={() => setShowNotifications(!showNotifications)} 
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--foreground)', display: 'flex', alignItems: 'center', position: 'relative' }}
+                >
+                  <Bell size={22} />
+                  {unreadCount > 0 && (
+                    <span style={{ position: 'absolute', top: '-8px', right: '-8px', background: 'var(--destructive)', color: 'white', borderRadius: '50%', padding: '2px 6px', fontSize: '0.7rem', fontWeight: 'bold' }}>
+                      {unreadCount}
+                    </span>
+                  )}
+                </button>
+
+                {showNotifications && (
+                  <div className="card animate-fade-in" style={{ position: 'absolute', top: '40px', right: '-50px', width: '320px', maxHeight: '400px', overflowY: 'auto', zIndex: 100, padding: '0', boxShadow: '0 10px 25px rgba(0,0,0,0.1)' }}>
+                    <div style={{ padding: '15px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', position: 'sticky', top: 0, backgroundColor: 'var(--card)', zIndex: 2 }}>
+                      <h4 style={{ margin: 0, fontSize: '1rem' }}>Notificaciones</h4>
+                      {unreadCount > 0 && (
+                        <button onClick={markAllAsRead} style={{ background: 'none', border: 'none', color: 'var(--primary)', fontSize: '0.8rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                          <Check size={14} /> Marcar todo
+                        </button>
+                      )}
+                    </div>
+                    <div style={{ padding: '0' }}>
+                      {notifications.length === 0 ? (
+                        <p style={{ padding: '20px', textAlign: 'center', color: 'var(--muted-foreground)', fontSize: '0.9rem', margin: 0 }}>No tienes notificaciones.</p>
+                      ) : (
+                        notifications.map(n => (
+                          <div key={n.id} onClick={() => !n.is_read && markAsRead(n.id)} style={{ padding: '15px', borderBottom: '1px solid var(--border)', backgroundColor: n.is_read ? 'transparent' : 'var(--secondary)', cursor: n.is_read ? 'default' : 'pointer', transition: 'background 0.2s' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '5px' }}>
+                              <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--accent)', textTransform: 'uppercase' }}>{n.type}</span>
+                              <span style={{ fontSize: '0.75rem', color: 'var(--muted-foreground)' }}>{new Date(n.created_at).toLocaleDateString()}</span>
+                            </div>
+                            <p style={{ margin: 0, fontSize: '0.85rem', color: n.is_read ? 'var(--muted-foreground)' : 'var(--foreground)', lineHeight: 1.4 }}>{n.message}</p>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
             {!isAdmin && (
               <Link to="/cart" title="Mi Carrito" style={{ color:'var(--foreground)', position: 'relative', marginLeft: '10px' }}>
                 <ShoppingCart size={22} />
@@ -138,9 +228,11 @@ export default function Navbar() {
       {/* Riel secundario corporativo */}
       <nav style={{ backgroundColor: 'var(--background)', padding: '12px 0', borderBottom: '1px solid var(--border)', fontSize: '0.85rem' }}>
          <div className="container flex gap-6" style={{ justifyContent: 'center', flexWrap: 'wrap' }}>
-            <Link to="/presupuestador" style={{ display: 'flex', alignItems:'center', gap:'5px', color:'var(--foreground)', fontWeight:500 }}>
-              <Cpu size={16} color="var(--accent)"/> Armá tu PC
-            </Link>
+            {!isAdmin && (
+              <Link to="/presupuestador" style={{ display: 'flex', alignItems:'center', gap:'5px', color:'var(--foreground)', fontWeight:500 }}>
+                <Cpu size={16} color="var(--accent)"/> Armá tu PC
+              </Link>
+            )}
             
             {!isAdmin && (
               <Link to="/soporte" style={{ display: 'flex', alignItems:'center', gap:'5px', color:'var(--foreground)', fontWeight:500 }}>
@@ -148,9 +240,11 @@ export default function Navbar() {
               </Link>
             )}
 
-            <Link to="/ayuda" style={{ display: 'flex', alignItems:'center', gap:'5px', color:'var(--foreground)', fontWeight:500 }}>
-              <HelpCircle size={16} color="var(--accent)"/> Centro de Ayuda
-            </Link>
+            {!isAdmin && (
+              <Link to="/ayuda" style={{ display: 'flex', alignItems:'center', gap:'5px', color:'var(--foreground)', fontWeight:500 }}>
+                <HelpCircle size={16} color="var(--accent)"/> Centro de Ayuda
+              </Link>
+            )}
          </div>
       </nav>
     </>

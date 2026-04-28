@@ -3,6 +3,7 @@ import axios from 'axios';
 import { Trash2, CreditCard, ShoppingBag, ArrowRight } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { isAdminRole } from '../constants/roles';
+import { showToast, showAlert } from '../utils/swal';
 
 export default function Cart() {
   const [cartItems, setCartItems] = useState([]);
@@ -28,12 +29,25 @@ export default function Cart() {
     window.dispatchEvent(new Event('storage')); // Notificar al Navbar
   };
 
-  const total = cartItems.reduce((acc, item) => acc + Number(item.price), 0);
+  const updateQuantity = (idx, newQuantity) => {
+    const newItems = [...cartItems];
+    if (newQuantity < 1) return;
+    if (newQuantity > newItems[idx].stock) {
+      showAlert('Stock máximo alcanzado', 'No hay más unidades disponibles de este producto.', 'warning');
+      return;
+    }
+    newItems[idx].quantity = newQuantity;
+    setCartItems(newItems);
+    localStorage.setItem('cart', JSON.stringify(newItems));
+    window.dispatchEvent(new Event('storage'));
+  };
+
+  const total = cartItems.reduce((acc, item) => acc + (Number(item.price) * (item.quantity || 1)), 0);
 
   const checkout = () => {
     const token = localStorage.getItem('token');
     if (!token) {
-      alert('Debes iniciar sesión para finalizar la compra.');
+      showAlert('Acceso Restringido', 'Debes iniciar sesión para finalizar la compra.', 'info');
       return navigate('/login');
     }
     navigate('/envio');
@@ -68,11 +82,18 @@ export default function Cart() {
                   <h4 style={{ fontSize: '1.1rem', fontWeight: 600, marginBottom: '4px' }}>{item.name}</h4>
                   <p style={{ color: 'var(--muted-foreground)', fontSize: '0.9rem' }}>Hardware Garantizado</p>
                 </div>
-                <div style={{ textAlign: 'right' }}>
-                  <span style={{ fontSize: '1.25rem', fontWeight: 800, display: 'block', marginBottom: '8px' }}>
-                    ${Number(item.price).toLocaleString()}
+                <div style={{ textAlign: 'right', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '10px' }}>
+                  <span style={{ fontSize: '1.25rem', fontWeight: 800, display: 'block' }}>
+                    ${(Number(item.price) * (item.quantity || 1)).toLocaleString()}
                   </span>
-                  <button onClick={() => removeFromCart(idx)} style={{ background:'none', border:'none', color:'var(--destructive)', cursor:'pointer', display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.85rem', marginLeft: 'auto' }}>
+                  
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', backgroundColor: 'var(--background)', borderRadius: 'var(--radius-sm)', padding: '4px 8px' }}>
+                    <button onClick={() => updateQuantity(idx, (item.quantity || 1) - 1)} style={{ border: 'none', background: 'none', cursor: 'pointer', fontSize: '1.2rem', padding: '0 5px', color: 'var(--foreground)' }}>-</button>
+                    <span style={{ fontWeight: 600, minWidth: '20px', textAlign: 'center' }}>{item.quantity || 1}</span>
+                    <button onClick={() => updateQuantity(idx, (item.quantity || 1) + 1)} style={{ border: 'none', background: 'none', cursor: 'pointer', fontSize: '1.2rem', padding: '0 5px', color: 'var(--foreground)' }}>+</button>
+                  </div>
+
+                  <button onClick={() => removeFromCart(idx)} style={{ background:'none', border:'none', color:'var(--destructive)', cursor:'pointer', display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.85rem' }}>
                     <Trash2 size={14} /> Quitar
                   </button>
                 </div>
@@ -138,7 +159,19 @@ function CartRecommendations({ cartItems }) {
 
   const addToCart = (product) => {
     const cart = JSON.parse(localStorage.getItem('cart') || '[]');
-    cart.push(product);
+    const existingItem = cart.find(item => item.id === product.id);
+    if (existingItem) {
+        if (existingItem.quantity < product.stock) {
+            existingItem.quantity = (existingItem.quantity || 1) + 1;
+            showToast('Cantidad actualizada');
+        } else {
+            showAlert('Sin stock', 'No hay más unidades disponibles.', 'warning');
+            return;
+        }
+    } else {
+        cart.push({ ...product, quantity: 1 });
+        showToast('Añadido al carrito');
+    }
     localStorage.setItem('cart', JSON.stringify(cart));
     window.dispatchEvent(new Event('storage'));
     window.location.reload(); // Refresh to update recommendations

@@ -4,6 +4,7 @@ import { ShoppingCart, Filter, SlidersHorizontal, ChevronLeft, ChevronRight } fr
 import { useLocation, useNavigate } from 'react-router-dom';
 import { isAdminRole, isClientRole } from '../constants/roles';
 import { formatCurrency, fixImageUrl } from '../utils';
+import { showToast, showConfirm, showAlert } from '../utils/swal';
 
 const ITEMS_PER_PAGE = 12;
 
@@ -65,7 +66,19 @@ export default function Home() {
   const addToCart = (e, product) => {
     e.stopPropagation();
     const cart = JSON.parse(localStorage.getItem('cart') || '[]');
-    cart.push(product);
+    const existingItem = cart.find(item => item.id === product.id);
+    if (existingItem) {
+        if (existingItem.quantity < product.stock) {
+            existingItem.quantity = (existingItem.quantity || 1) + 1;
+            showToast('Cantidad actualizada en el carrito');
+        } else {
+            showAlert('Sin stock suficiente', 'No hay más unidades disponibles de este producto.', 'warning');
+            return;
+        }
+    } else {
+        cart.push({ ...product, quantity: 1 });
+        showToast('Producto añadido al carrito');
+    }
     localStorage.setItem('cart', JSON.stringify(cart));
     window.dispatchEvent(new Event('storage'));
   };
@@ -76,16 +89,18 @@ export default function Home() {
     if (!token) {
       return alert('Necesitas permisos de administrador para eliminar productos');
     }
-    if (!window.confirm('¿Deseas eliminar este producto?')) return;
+    const confirm = await showConfirm('¿Deseas eliminar este producto?', 'Esta acción no se puede deshacer.', 'Eliminar');
+    if (!confirm.isConfirmed) return;
 
     try {
       await axios.delete(`http://localhost:5000/api/products/${productId}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
+      showToast('Producto eliminado');
       setProducts(products.filter(p => p.id !== productId));
     } catch (err) {
       console.error(err);
-      alert('Error al eliminar producto');
+      showAlert('Error', 'No se pudo eliminar el producto', 'error');
     }
   };
 
@@ -166,7 +181,8 @@ export default function Home() {
                       placeholder="Mín" 
                       className="input-field" 
                       value={minPrice} 
-                      onChange={e => setMinPrice(e.target.value)}
+                      min="0"
+                      onChange={e => setMinPrice(Math.max(0, parseInt(e.target.value) || ''))}
                       style={{ padding: '8px', fontSize: '0.9rem' }}
                     />
                     <span style={{ color: 'var(--muted-foreground)' }}>-</span>
@@ -175,7 +191,8 @@ export default function Home() {
                       placeholder="Máx" 
                       className="input-field" 
                       value={maxPrice} 
-                      onChange={e => setMaxPrice(e.target.value)}
+                      min="0"
+                      onChange={e => setMaxPrice(Math.max(0, parseInt(e.target.value) || ''))}
                       style={{ padding: '8px', fontSize: '0.9rem' }}
                     />
                  </div>
@@ -310,7 +327,7 @@ export default function Home() {
                   <button 
                     className="pagination-btn" 
                     onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                    disabled={currentPage === totalPages}
+                    disabled={currentPage >= totalPages || totalPages === 0}
                   >
                     <ChevronRight size={18} />
                   </button>
@@ -348,6 +365,21 @@ export default function Home() {
                    <p>{selectedProduct.description || 'No hay descripción técnica detallada para este producto.'}</p>
                  </div>
               </div>
+
+              {products.filter(p => p.categoria_id === selectedProduct.categoria_id && p.id !== selectedProduct.id).slice(0, 3).length > 0 && (
+                <div style={{ marginTop: '24px' }}>
+                  <h4 style={{ fontSize: '1.1rem', fontWeight: 600, marginBottom: '16px' }}>Productos Similares</h4>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: '15px' }}>
+                    {products.filter(p => p.categoria_id === selectedProduct.categoria_id && p.id !== selectedProduct.id).slice(0, 3).map(sim => (
+                      <div key={sim.id} className="card" onClick={() => setSelectedProduct(sim)} style={{ cursor: 'pointer', padding: '10px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                         <img src={fixImageUrl(sim.imgURL) || placeholderImg} alt={sim.name} style={{ width: '100%', height: '80px', objectFit: 'contain' }} />
+                         <span style={{ fontSize: '0.9rem', fontWeight: 700 }}>{formatCurrency(sim.price)}</span>
+                         <span style={{ fontSize: '0.75rem', color: 'var(--muted-foreground)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{sim.name}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
 
              <div style={{ display: 'flex', gap: '16px', marginTop: '24px' }}>
                 {isAdmin ? (

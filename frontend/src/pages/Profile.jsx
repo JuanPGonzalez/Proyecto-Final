@@ -3,10 +3,11 @@ import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 import { isAdminRole } from '../constants/roles';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { showToast, showAlert } from '../utils/swal';
 
 export default function Profile() {
   const [user, setUser] = useState(null);
-  const [formData, setFormData] = useState({ name: '', direccion: '', sexo: '', fecha_nac: '' });
+  const [formData, setFormData] = useState({ name: '', direccion: '', sexo: '', fechaNac: '' });
   const navigate = useNavigate();
 
   const [orders, setOrders] = useState([]);
@@ -26,7 +27,7 @@ export default function Profile() {
           name: res.data.name || '',
           direccion: res.data.direccion || '',
           sexo: res.data.sexo || '',
-          fecha_nac: res.data.fecha_nac ? res.data.fecha_nac.split('T')[0] : ''
+          fechaNac: res.data.fechaNac ? res.data.fechaNac.split('T')[0] : ''
         });
 
         if (!isAdminRole(res.data)) {
@@ -54,10 +55,10 @@ export default function Profile() {
       const res = await axios.put('http://localhost:5000/api/auth/profile', formData, {
         headers: { Authorization: `Bearer ${token}` }
       });
-      alert('Perfil actualizado correctamente');
+      showToast('Perfil actualizado');
       localStorage.setItem('user', JSON.stringify(res.data.user));
     } catch (err) {
-      alert('Error actualizando perfil');
+      showAlert('Error', 'No se pudo actualizar el perfil', 'error');
     }
   };
 
@@ -101,7 +102,7 @@ export default function Profile() {
                 </div>
                 <div>
                   <label style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--muted-foreground)', marginBottom: '8px', display: 'block' }}>Nacimiento</label>
-                  <input type="date" className="input-field" value={formData.fecha_nac} onChange={e => setFormData({...formData, fecha_nac: e.target.value})} />
+                  <input type="date" className="input-field" value={formData.fechaNac} onChange={e => setFormData({...formData, fechaNac: e.target.value})} />
                 </div>
               </div>
               <button type="submit" className="btn" style={{ marginTop: '10px' }}>Actualizar Perfil</button>
@@ -118,6 +119,7 @@ export default function Profile() {
               <button className="btn btn-outline" style={{ padding:'12px' }} onClick={() => navigate('/admin/productos')}>📦 Inventario</button>
               <button className="btn btn-outline" style={{ padding:'12px' }} onClick={() => navigate('/admin/pedidos')}>📝 Pedidos</button>
               <button className="btn btn-outline" style={{ padding:'12px' }} onClick={() => navigate('/admin/reclamos')}>🎧 Reclamos</button>
+              <button className="btn btn-outline" style={{ padding:'12px' }} onClick={() => navigate('/admin/usuarios')}>👥 Usuarios</button>
             </div>
           </div>
         )}
@@ -172,7 +174,7 @@ export default function Profile() {
                           link.click();
                           link.remove();
                         } catch (err) {
-                          alert('Error al descargar el comprobante');
+                          showAlert('Error', 'No se pudo descargar el comprobante', 'error');
                         }
                       }}
                     >
@@ -191,7 +193,7 @@ export default function Profile() {
                   <ChevronLeft size={16} />
                 </button>
                 <span style={{ fontSize: '0.9rem', display: 'flex', alignItems: 'center' }}>{currentPage} / {totalPages}</span>
-                <button className="pagination-btn" disabled={currentPage === totalPages} onClick={() => setCurrentPage(p => p + 1)}>
+                <button className="pagination-btn" disabled={currentPage >= totalPages || totalPages === 0} onClick={() => setCurrentPage(p => p + 1)}>
                   <ChevronRight size={16} />
                 </button>
               </div>

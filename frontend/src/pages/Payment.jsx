@@ -11,7 +11,7 @@ export default function Payment() {
   const cart = getStorageItem('cart', []);
   const shippingInfo = getStorageItem('last_shipping', { cost: 0, address: '' });
   
-  const subtotal = cart.reduce((acc, p) => acc + Number(p.price), 0);
+  const subtotal = cart.reduce((acc, p) => acc + (Number(p.price) * (p.quantity || 1)), 0);
   const total = subtotal + shippingInfo.cost;
 
   useEffect(() => {
@@ -27,10 +27,12 @@ export default function Payment() {
       const orderData = {
         items: cart.map(item => ({
           productId: item.id,
-          quantity: 1,
+          quantity: item.quantity || 1,
           priceAtPurchase: item.price
         })),
-        shippingAddress: shippingInfo.address,
+        shippingAddress: shippingInfo.method === 'tienda' ? null : shippingInfo.address,
+        localidad: shippingInfo.method === 'tienda' ? null : shippingInfo.localidad,
+        codigoPostal: shippingInfo.method === 'tienda' ? null : shippingInfo.codigoPostal,
         shippingMethod: shippingInfo.method
       };
 

@@ -1,7 +1,8 @@
 const express = require('express');
 const router = express.Router();
-const { User, Product, Order, OrderItem, Category, SupportTicket, sequelize } = require('../models');
+const { User, Product, Order, OrderItem, Category, SupportTicket, sequelize, Notification } = require('../models');
 const { authMiddleware, adminMiddleware } = require('../middleware/roles');
+const bcrypt = require('bcrypt');
 
 router.use(authMiddleware, adminMiddleware);
 
@@ -238,7 +239,8 @@ router.get('/purchase-history', async (req, res) => {
       ],
       order: [['fecha_compra', 'DESC']],
       limit: parseInt(limit),
-      offset: parseInt(offset)
+      offset: parseInt(offset),
+      distinct: true
     });
 
     res.json({
@@ -251,6 +253,101 @@ router.get('/purchase-history', async (req, res) => {
   } catch (error) {
     console.error('Purchase History Error:', error);
     res.status(500).json({ error: 'Error al obtener historial de compras' });
+  }
+});
+
+// --- User Management ---
+
+// List users
+router.get('/users', async (req, res) => {
+  try {
+    const users = await User.findAll({
+      attributes: { exclude: ['password'] },
+      order: [['fechaReg', 'DESC']]
+    });
+    res.json(users);
+  } catch (error) {
+    console.error('Error fetching users:', error);
+    res.status(500).json({ error: 'Error al obtener usuarios' });
+  }
+});
+
+// Create user manual
+router.post('/users', async (req, res) => {
+  try {
+    const { name, email, password, tipoUsuario } = req.body;
+    const existingUser = await User.findOne({ where: { email } });
+    if (existingUser) return res.status(400).json({ error: 'El email ya está registrado' });
+    
+    const hashedPassword = await bcrypt.hash(password, 10);
+    const newUser = await User.create({
+      name,
+      email,
+      password: hashedPassword,
+      tipoUsuario: tipoUsuario || 'cliente'
+    });
+    
+    // Notification for new user
+    await Notification.create({
+      user_id: newUser.id,
+      message: `¡Bienvenido a Hardware Haven, ${newUser.name}! Tu cuenta ha sido creada por un administrador.`,
+      type: 'SYSTEM'
+    });
+    
+    const userToReturn = newUser.toJSON();
+    delete userToReturn.password;
+    res.json(userToReturn);
+  } catch (error) {
+    console.error('Error creating user:', error);
+    res.status(500).json({ error: 'Error al crear usuario' });
+  }
+});
+
+// Update user (including role)
+router.put('/users/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { name, email, tipoUsuario } = req.body;
+    const user = await User.findByPk(id);
+    if (!user) return res.status(404).json({ error: 'Usuario no encontrado' });
+
+    const roleChanged = user.tipoUsuario !== tipoUsuario && tipoUsuario;
+
+    if (name) user.name = name;
+    if (email) user.email = email;
+    if (tipoUsuario) user.tipoUsuario = tipoUsuario;
+
+    await user.save();
+
+    if (roleChanged) {
+      await Notification.create({
+        user_id: user.id,
+        message: `Tu rol en la plataforma ha sido actualizado a: ${tipoUsuario}.`,
+        type: 'SYSTEM'
+      });
+    }
+
+    const userToReturn = user.toJSON();
+    delete userToReturn.password;
+    res.json(userToReturn);
+  } catch (error) {
+    console.error('Error updating user:', error);
+    res.status(500).json({ error: 'Error al actualizar usuario' });
+  }
+});
+
+// Delete user
+router.delete('/users/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const user = await User.findByPk(id);
+    if (!user) return res.status(404).json({ error: 'Usuario no encontrado' });
+    
+    await user.destroy();
+    res.json({ message: 'Usuario eliminado exitosamente' });
+  } catch (error) {
+    console.error('Error deleting user:', error);
+    res.status(500).json({ error: 'Error al eliminar usuario' });
   }
 });
 

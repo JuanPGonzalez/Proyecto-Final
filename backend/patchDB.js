@@ -20,6 +20,10 @@ async function patchDatabase() {
     await runQuery('ALTER TABLE componente ADD COLUMN stock INTEGER DEFAULT 0;');
     await runQuery('ALTER TABLE componente ADD COLUMN views INTEGER DEFAULT 0;');
     await runQuery('ALTER TABLE componente ADD COLUMN categoria_id INT UNSIGNED;');
+    
+    console.log('Aplicando patch de columnas a compra...');
+    await runQuery('ALTER TABLE compra ADD COLUMN localidad VARCHAR(255);');
+    await runQuery('ALTER TABLE compra ADD COLUMN codigo_postal VARCHAR(255);');
     console.log('✅ Patch finalizado.');
   } catch(e) {
     console.error('Error general en patch', e);

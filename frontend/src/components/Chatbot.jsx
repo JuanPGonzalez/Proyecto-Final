@@ -92,12 +92,12 @@ export default function Chatbot({ standalone = false }) {
     }
   };
 
-  const addToCart = async (productId) => {
+  const addToCart = async (product) => {
     try {
-      const userMsg = { type: 'text', message: `Agregar producto ${productId}`, sender: 'user' };
+      const userMsg = { type: 'text', message: `Agregar producto ${product.name}`, sender: 'user' };
       setMessages(prev => [...prev, userMsg]);
 
-      const res = await axios.post('http://localhost:5000/api/cart/add', { productId });
+      const res = await axios.post('http://localhost:5000/api/cart/add', { productId: product.id });
       if (res.data && res.data.ok && res.data.product) {
         const botResponse = {
           type: 'cart_action',
@@ -108,7 +108,12 @@ export default function Chatbot({ standalone = false }) {
         };
 
         const cart = JSON.parse(localStorage.getItem('cart') || '[]');
-        cart.push(res.data.product);
+        const existingItem = cart.find(item => item.id === res.data.product.id);
+        if (existingItem) {
+            existingItem.quantity = (existingItem.quantity || 1) + 1;
+        } else {
+            cart.push({ ...res.data.product, quantity: 1 });
+        }
         localStorage.setItem('cart', JSON.stringify(cart));
         window.dispatchEvent(new Event('storage'));
 
@@ -242,7 +247,7 @@ export default function Chatbot({ standalone = false }) {
                                 </div>
                               </div>
                               <button
-                                onClick={() => addToCart(prod.id)}
+                                onClick={() => addToCart(prod)}
                                 style={{
                                   marginTop: '5px', width: '100%', padding: '8px',
                                   backgroundColor: 'var(--accent)', color: 'white',

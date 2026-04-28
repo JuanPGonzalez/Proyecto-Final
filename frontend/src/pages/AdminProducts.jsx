@@ -3,6 +3,7 @@ import axios from 'axios';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Edit2, Trash2, Search, AlertTriangle, Filter, Activity } from 'lucide-react';
 import { isAdminRole } from '../constants/roles';
+import { showToast, showConfirm, showAlert } from '../utils/swal';
 
 export default function AdminProducts() {
   const [products, setProducts] = useState([]);
@@ -92,18 +93,18 @@ export default function AdminProducts() {
         await axios.put(`http://localhost:5000/api/products/${editingId}`, dataToSend, {
           headers: { Authorization: `Bearer ${token}` }
         });
-        alert('Producto actualizado');
+        showToast('Producto actualizado');
       } else {
         await axios.post('http://localhost:5000/api/products', dataToSend, {
           headers: { Authorization: `Bearer ${token}` }
         });
-        alert('Producto creado');
+        showToast('Producto creado');
       }
       resetForm();
       fetchProducts();
       fetchCategories();
     } catch (err) {
-      alert(err.response?.data?.error || 'Error al guardar producto');
+      showAlert('Error', err.response?.data?.error || 'Error al guardar producto', 'error');
     }
   };
 
@@ -123,14 +124,16 @@ export default function AdminProducts() {
   };
 
   const handleDelete = async (id) => {
-    if (!window.confirm('¿Estás seguro de eliminar este componente del inventario?')) return;
+    const confirm = await showConfirm('¿Estás seguro?', '¿Deseas eliminar este componente del inventario?', 'Sí, eliminar');
+    if (!confirm.isConfirmed) return;
     try {
       await axios.delete(`http://localhost:5000/api/products/${id}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
+      showToast('Producto eliminado');
       fetchProducts();
     } catch (err) {
-      alert(err.response?.data?.error || 'Error al eliminar');
+      showAlert('Error', err.response?.data?.error || 'Error al eliminar', 'error');
     }
   };
 
@@ -237,7 +240,8 @@ export default function AdminProducts() {
               placeholder="Stock exacto" 
               style={{ paddingLeft: '35px' }}
               value={stockExact}
-              onChange={e => { setStockExact(e.target.value); setCurrentPage(1); }}
+              min="0"
+              onChange={e => { setStockExact(Math.max(0, parseInt(e.target.value) || '')); setCurrentPage(1); }}
             />
          </div>
 
@@ -374,7 +378,7 @@ export default function AdminProducts() {
             <div style={{ padding: '15px', borderTop: '1px solid var(--border)', display: 'flex', justifyContent: 'center', gap: '10px' }}>
               <button className="pagination-btn" onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1}>Anterior</button>
               <span style={{ padding: '8px' }}>Página {currentPage} de {totalPages}</span>
-              <button className="pagination-btn" onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages}>Siguiente</button>
+              <button className="pagination-btn" onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage >= totalPages || totalPages === 0}>Siguiente</button>
             </div>
           )}
         </div>

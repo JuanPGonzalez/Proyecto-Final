@@ -17,6 +17,7 @@ const componenteRoutes = require('./routes/Componente');
 const pricingRoutes = require('./routes/pricing');
 const mlRoutes = require('./routes/ml');
 const cartRoutes = require('./routes/cart');
+const notificationsRoutes = require('./routes/notifications');
 
 const app = express();
 app.use(cors());
@@ -52,6 +53,7 @@ app.use('/api/componentes', componenteRoutes);
 app.use('/api/pricing', pricingRoutes);
 app.use('/api/ml', mlRoutes);
 app.use('/api/cart', cartRoutes);
+app.use('/api/notifications', notificationsRoutes);
 
 const PORT = process.env.PORT || 5000;
 

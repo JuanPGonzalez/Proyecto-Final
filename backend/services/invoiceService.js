@@ -50,7 +50,7 @@ async function generateInvoicePDF(order, items) {
          .font('Helvetica').text(order.User?.email || '-', 100, 175);
          
       doc.font('Helvetica-Bold').text('Entrega:', 50, 190)
-         .font('Helvetica').text(`${order.shipping_method?.toUpperCase()} - ${order.shipping_address || 'Retiro en sucursal'}`, 100, 190);
+         .font('Helvetica').text(`${order.shipping_method?.toUpperCase()} - ${order.shipping_method === 'tienda' ? 'Retiro en sucursal' : (order.shipping_address + ' ' + (order.localidad || '') + ' ' + (order.codigo_postal || ''))}`, 100, 190);
 
       // --- ITEMS TABLE HEADER ---
       const tableTop = 240;
