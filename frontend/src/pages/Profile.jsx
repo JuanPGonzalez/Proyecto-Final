@@ -102,7 +102,17 @@ export default function Profile() {
                 </div>
                 <div>
                   <label style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--muted-foreground)', marginBottom: '8px', display: 'block' }}>Nacimiento</label>
-                  <input type="date" className="input-field" value={formData.fechaNac} onChange={e => setFormData({...formData, fechaNac: e.target.value})} />
+                  <input 
+                    type="date" 
+                    className="input-field" 
+                    value={formData.fechaNac} 
+                    onChange={e => setFormData({...formData, fechaNac: e.target.value})} 
+                    onBlur={() => {
+                       if (!formData.fechaNac && user.fechaNac) {
+                          setFormData(prev => ({ ...prev, fechaNac: user.fechaNac.split('T')[0] }));
+                       }
+                    }}
+                  />
                 </div>
               </div>
               <button type="submit" className="btn" style={{ marginTop: '10px' }}>Actualizar Perfil</button>

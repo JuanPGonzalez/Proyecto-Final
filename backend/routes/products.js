@@ -40,15 +40,18 @@ router.post('/:id/view', async (req, res) => {
       product.views += 1;
       await product.save();
 
-      // Guardar en UserView si hay usuario
+      // Guardar en UserView si hay usuario y existe en la DB
       if (userId && !isNaN(userId)) {
-        const [userView, created] = await UserView.findOrCreate({
-          where: { user_id: userId, product_id: productId },
-          defaults: { count: 1 }
-        });
-        if (!created) {
-          userView.count += 1;
-          await userView.save();
+        const userExists = await User.findByPk(userId);
+        if (userExists) {
+          const [userView, created] = await UserView.findOrCreate({
+            where: { user_id: userId, product_id: productId },
+            defaults: { count: 1 }
+          });
+          if (!created) {
+            userView.count += 1;
+            await userView.save();
+          }
         }
       }
     }

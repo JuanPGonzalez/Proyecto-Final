@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import axios from 'axios';
 import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, LineElement, PointElement, Title, Tooltip, Legend, ArcElement } from 'chart.js';
 import { Bar, Line, Pie, Doughnut } from 'react-chartjs-2';
-import { Users, ShoppingBag, DollarSign, Activity, AlertTriangle, Calendar, Award, ChevronLeft, ChevronRight, Search } from 'lucide-react';
+import { Users, ShoppingBag, DollarSign, Activity, AlertTriangle, Calendar, Award, ChevronLeft, ChevronRight, Search, Plus } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { isAdminRole } from '../constants/roles';
 
@@ -164,7 +164,7 @@ export default function AdminDashboard() {
   };
 
   const shippingChartData = {
-    labels: shippingMethods?.map(s => s.method) || [],
+    labels: shippingMethods?.map(s => s.method === 'tienda' ? 'Retiro en Tienda' : s.method.charAt(0).toUpperCase() + s.method.slice(1)) || [],
     datasets: [{
       data: shippingMethods?.map(s => s.count) || [],
       backgroundColor: ['#3b82f6', '#f59e0b', '#10b981', '#8b5cf6'],
@@ -203,9 +203,19 @@ export default function AdminDashboard() {
   const onShippingClick = (event, elements) => {
     if (elements.length > 0) {
       const idx = elements[0].index;
-      const method = shippingChartData.labels[idx];
-      setHistoryFilters(prev => ({ ...prev, shippingMethod: method, page: 1 }));
+      // Use the raw method name for filtering, not the display label
+      const rawMethod = shippingMethods[idx].method;
+      setHistoryFilters(prev => ({ ...prev, shippingMethod: rawMethod, page: 1 }));
       window.scrollTo({ top: document.getElementById('history-section').offsetTop - 50, behavior: 'smooth' });
+    }
+  };
+
+  const onTicketClick = (event, elements) => {
+    if (elements.length > 0) {
+      const idx = elements[0].index;
+      const adminName = adminChartData.labels[idx];
+      // Filter or show alert with admin details
+      showAlert(`Tickets de ${adminName}`, `Este administrador ha resuelto ${adminPerformance[idx].resolved} tickets en el período seleccionado.`, 'info');
     }
   };
 
@@ -251,14 +261,14 @@ export default function AdminDashboard() {
           <p style={{ color: 'var(--muted-foreground)' }}>Reportes Históricos y Métricas de Rendimiento</p>
         </div>
         
-        <form onSubmit={handleFilter} className="card" style={{ display: 'flex', gap: '15px', alignItems: 'flex-end', padding: '15px' }}>
+        <form onSubmit={handleFilter} className="card" style={{ display: 'flex', gap: '15px', alignItems: 'flex-end', padding: '15px', border: '1px solid var(--border)' }}>
           <div>
             <label style={{ fontSize: '0.8rem', color: 'var(--muted-foreground)', display: 'block', marginBottom: '5px' }}>Desde</label>
-            <input type="date" className="input-field" value={startDate} onChange={e => setStartDate(e.target.value)} />
+            <input type="date" className="input-field" value={startDate} onChange={e => setStartDate(e.target.value)} style={{ borderColor: 'var(--border)' }} />
           </div>
           <div>
             <label style={{ fontSize: '0.8rem', color: 'var(--muted-foreground)', display: 'block', marginBottom: '5px' }}>Hasta</label>
-            <input type="date" className="input-field" value={endDate} onChange={e => setEndDate(e.target.value)} />
+            <input type="date" className="input-field" value={endDate} onChange={e => setEndDate(e.target.value)} style={{ borderColor: 'var(--border)' }} />
           </div>
           <button type="submit" className="btn" style={{ height: '42px', display: 'flex', alignItems: 'center', gap: '5px' }}>
             <Calendar size={18}/> Filtrar
@@ -271,12 +281,19 @@ export default function AdminDashboard() {
         </form>
       </div>
       
-      {/* TARJETAS DE MÉTRICAS - FILA 1 */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '20px', marginBottom: '30px' }}>
-        <StatCard title="Ingresos Totales" value={`$${Number(stats?.revenue || 0).toLocaleString('es-AR')}`} icon={<DollarSign size={24} />} bg="rgba(16, 185, 129, 0.1)" color="#10b981" />
-        <StatCard title="Órdenes" value={stats?.totalOrders || 0} icon={<ShoppingBag size={24} />} bg="rgba(56, 189, 248, 0.1)" color="#38bdf8" />
-        <StatCard title="Usuarios" value={stats?.totalUsers || 0} icon={<Users size={24} />} bg="rgba(139, 92, 246, 0.1)" color="#8b5cf6" />
-        <StatCard title="Productos" value={stats?.totalProducts || 0} icon={<Activity size={24} />} bg="rgba(245, 158, 11, 0.1)" color="#f59e0b" />
+      {/* TARJETAS DE MÉTRICAS - FILA 1 (HISTÓRICO / TOTAL) y FILA 2 (FILTRADO / PERIODO) */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '20px', marginBottom: '30px' }}>
+        {/* FILA 1: DESDE EL INICIO / AL DÍA DE HOY */}
+        <StatCard title="Ingresos Históricos" subtitle="Desde el inicio" value={`$${Number(stats?.revenue || 0).toLocaleString('es-AR')}`} icon={<DollarSign size={24} />} bg="rgba(16, 185, 129, 0.1)" color="#10b981" />
+        <StatCard title="Órdenes Totales" subtitle="Desde el inicio" value={stats?.totalOrders || 0} icon={<ShoppingBag size={24} />} bg="rgba(56, 189, 248, 0.1)" color="#38bdf8" />
+        <StatCard title="Total Usuarios" subtitle="Al día de hoy" value={stats?.totalUsers || 0} icon={<Users size={24} />} bg="rgba(139, 92, 246, 0.1)" color="#8b5cf6" />
+        <StatCard title="Total Productos" subtitle="Al día de hoy" value={stats?.totalProducts || 0} icon={<Activity size={24} />} bg="rgba(245, 158, 11, 0.1)" color="#f59e0b" />
+        
+        {/* FILA 2: DEL PERIODO FILTRADO */}
+        <StatCard title="Ingresos Periodo" subtitle="Del periodo filtrado" value={`$${Number(stats?.periodRevenue || 0).toLocaleString('es-AR')}`} icon={<DollarSign size={24} />} bg="rgba(16, 185, 129, 0.1)" color="#10b981" />
+        <StatCard title="Órdenes Periodo" subtitle="Del periodo filtrado" value={stats?.periodOrders || 0} icon={<ShoppingBag size={24} />} bg="rgba(56, 189, 248, 0.1)" color="#38bdf8" />
+        <StatCard title="Nuevos Usuarios" subtitle="Del periodo filtrado" value={stats?.newUsers || 0} icon={<Plus size={24} />} bg="rgba(236, 72, 153, 0.1)" color="#ec4899" />
+        <StatCard title="Nuevos Productos" subtitle="Del periodo filtrado" value={stats?.newProducts || 0} icon={<Plus size={24} />} bg="rgba(6, 182, 212, 0.1)" color="#06b6d4" />
       </div>
 
       {/* TENDENCIAS PRINCIPALES - FILA 2 */}
@@ -379,7 +396,12 @@ export default function AdminDashboard() {
           <div style={{ height: '350px' }}>
             <Bar 
               data={adminChartData} 
-              options={{ responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }} 
+              options={{ 
+                responsive: true, 
+                maintainAspectRatio: false, 
+                plugins: { legend: { display: false } },
+                onClick: onTicketClick
+              }} 
             />
           </div>
         </div>
@@ -416,6 +438,48 @@ export default function AdminDashboard() {
 
       </div>
 
+      {/* HISTORIAL DE TICKETS - SEGUIMIENTO DE ADMINS */}
+      <section className="card" style={{ padding: '30px', marginBottom: '30px' }}>
+        <h3 style={{ fontSize: '1.5rem', fontWeight: 700, marginBottom: '20px' }}>Seguimiento de Tickets (Soporte)</h3>
+        
+        <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1.8fr', gap: '30px', alignItems: 'start' }}>
+          <div>
+            <h4 style={{ fontSize: '1.1rem', marginBottom: '15px' }}>Resolución por Administrador</h4>
+            <div style={{ height: '300px' }}>
+              <Bar 
+                data={adminChartData} 
+                options={{ 
+                  responsive: true, 
+                  maintainAspectRatio: false, 
+                  plugins: { legend: { display: false } },
+                  scales: { y: { beginAtZero: true } }
+                }} 
+              />
+            </div>
+          </div>
+          
+          <div style={{ overflowX: 'auto' }}>
+            <h4 style={{ fontSize: '1.1rem', marginBottom: '15px' }}>Actividad Detallada</h4>
+            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <thead>
+                <tr style={{ borderBottom: '1px solid var(--border)', textAlign: 'left' }}>
+                  <th style={{ padding: '12px', color: 'var(--muted-foreground)' }}>Administrador</th>
+                  <th style={{ padding: '12px', color: 'var(--muted-foreground)', textAlign: 'center' }}>Tickets Resueltos</th>
+                </tr>
+              </thead>
+              <tbody>
+                {adminPerformance?.map((a, i) => (
+                  <tr key={i} style={{ borderBottom: '1px solid var(--border)' }}>
+                    <td style={{ padding: '12px', fontWeight: 600 }}>{a.admin_name}</td>
+                    <td style={{ padding: '12px', textAlign: 'center' }}>{a.resolved}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
       {/* HISTORIAL DE COMPRAS */}
       <section id="history-section" className="card" style={{ padding: '30px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '15px' }}>
@@ -426,6 +490,7 @@ export default function AdminDashboard() {
                <option value="">Cualquier Envío</option>
                <option value="express">Express</option>
                <option value="normal">Normal</option>
+               <option value="tienda">Retiro en Tienda</option>
              </select>
              {(historyFilters.shippingMethod) && (
                <button className="btn btn-outline" onClick={() => setHistoryFilters({ page: 1, shippingMethod: '' })}>Limpiar</button>
@@ -453,7 +518,7 @@ export default function AdminDashboard() {
                     <td style={{ padding: '12px', fontWeight: 600 }}>#{o.id}</td>
                     <td style={{ padding: '12px' }}>{new Date(o.fecha_compra).toLocaleDateString('es-AR')}</td>
                     <td style={{ padding: '12px' }}>{o.User?.name} <br/><span style={{ fontSize: '0.8rem', color: 'var(--muted-foreground)' }}>{o.User?.email}</span></td>
-                    <td style={{ padding: '12px', textTransform: 'capitalize' }}>{o.shipping_method}</td>
+                    <td style={{ padding: '12px', textTransform: 'capitalize' }}>{o.shipping_method === 'tienda' ? 'Retiro en Tienda' : o.shipping_method}</td>
                     <td style={{ padding: '12px', fontWeight: 700, color: 'var(--primary)' }}>${Number(o.total).toLocaleString('es-AR')}</td>
                   </tr>
                 )) : (
@@ -488,14 +553,15 @@ export default function AdminDashboard() {
   );
 }
 
-function StatCard({ title, value, icon, bg, color }) {
+function StatCard({ title, subtitle, value, icon, bg, color }) {
   return (
     <div className="card" style={{ padding: '24px', display: 'flex', alignItems: 'center', gap: '20px', transition: 'transform 0.2s', cursor: 'default' }} onMouseOver={e => e.currentTarget.style.transform = 'translateY(-2px)'} onMouseOut={e => e.currentTarget.style.transform = 'translateY(0)'}>
       <div style={{ backgroundColor: bg, color: color, padding: '16px', borderRadius: 'var(--radius-md)', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
         {icon}
       </div>
       <div>
-        <h4 style={{ color: 'var(--muted-foreground)', fontSize: '0.85rem', fontWeight: 600, marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{title}</h4>
+        <h4 style={{ color: 'var(--muted-foreground)', fontSize: '0.85rem', fontWeight: 600, marginBottom: '2px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{title}</h4>
+        {subtitle && <p style={{ fontSize: '0.7rem', color: 'var(--muted-foreground)', margin: '0 0 4px 0', opacity: 0.8 }}>{subtitle}</p>}
         <span style={{ fontSize: '1.8rem', fontWeight: 800, color: 'var(--foreground)' }}>{value}</span>
       </div>
     </div>

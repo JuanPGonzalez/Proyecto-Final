@@ -3,7 +3,7 @@ import axios from 'axios';
 import { Trash2, CreditCard, ShoppingBag, ArrowRight } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { isAdminRole } from '../constants/roles';
-import { showToast, showAlert } from '../utils/swal';
+import { showToast, showAlert, showConfirm } from '../utils/swal';
 
 export default function Cart() {
   const [cartItems, setCartItems] = useState([]);
@@ -53,13 +53,38 @@ export default function Cart() {
     navigate('/envio');
   };
 
+  const vaciarCarrito = async () => {
+    const confirm = await showConfirm('¿Vaciar el carrito?', 'Se eliminarán todos los productos seleccionados.', 'Sí, vaciar');
+    if (!confirm.isConfirmed) return;
+    
+    setCartItems([]);
+    localStorage.removeItem('cart');
+    window.dispatchEvent(new Event('storage'));
+    showToast('Carrito vaciado');
+  };
+
   return (
     <div className="container animate-fade-in" style={{ marginTop: '60px', maxWidth: '1000px' }}>
-      <header style={{ marginBottom: '40px', display: 'flex', alignItems: 'center', gap: '15px' }}>
-        <div style={{ backgroundColor: 'var(--secondary)', padding: '12px', borderRadius: '50%' }}>
-           <ShoppingBag size={24} />
+      <header style={{ marginBottom: '40px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+          <div style={{ backgroundColor: 'var(--secondary)', padding: '12px', borderRadius: '50%' }}>
+             <ShoppingBag size={24} />
+          </div>
+          <h2 style={{ fontSize: '2rem', fontWeight: 800, letterSpacing: '-1px' }}>Tu Carrito</h2>
         </div>
-        <h2 style={{ fontSize: '2rem', fontWeight: 800, letterSpacing: '-1px' }}>Tu Carrito</h2>
+        
+        {cartItems.length > 0 && (
+          <button 
+            onClick={vaciarCarrito}
+            style={{ 
+              background: 'none', border: 'none', color: 'var(--destructive)', 
+              cursor: 'pointer', display: 'flex', alignItems: 'center', 
+              gap: '8px', fontWeight: 600, fontSize: '0.9rem' 
+            }}
+          >
+            <Trash2 size={18} /> Vaciar Carrito
+          </button>
+        )}
       </header>
       
       {cartItems.length === 0 ? (

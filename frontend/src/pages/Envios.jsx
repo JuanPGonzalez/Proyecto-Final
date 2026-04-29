@@ -4,6 +4,7 @@ import axios from 'axios';
 import Select from 'react-select';
 import { MapPin, Truck, Store, Calculator, ChevronRight } from 'lucide-react';
 import { getStorageItem, setStorageItem } from '../utils/storage';
+import { showAlert } from '../utils/swal';
 
 export default function Envios() {
   const navigate = useNavigate();
@@ -71,7 +72,7 @@ export default function Envios() {
   const handleContinue = () => {
     if (method !== 'tienda') {
       if (!address || !selectedProvincia || !selectedLocalidad) {
-        return alert('Por favor ingresa todos los datos de envío (dirección, provincia, localidad).');
+        return showAlert('Datos incompletos', 'Por favor ingresa todos los datos de envío (dirección, provincia, localidad).', 'warning');
       }
     }
 
@@ -117,12 +118,18 @@ export default function Envios() {
     }),
     option: (base, state) => ({
       ...base,
-      backgroundColor: state.isFocused ? 'var(--secondary)' : 'transparent',
-      color: 'var(--foreground)'
+      backgroundColor: state.isFocused ? 'var(--accent)' : 'transparent',
+      color: state.isFocused ? '#ffffff' : 'var(--foreground)',
+      cursor: 'pointer'
     }),
     singleValue: (base) => ({
       ...base,
-      color: 'var(--foreground)'
+      color: 'var(--foreground)',
+      fontWeight: 600
+    }),
+    placeholder: (base) => ({
+      ...base,
+      color: 'var(--muted-foreground)'
     })
   };
 
@@ -189,12 +196,15 @@ export default function Envios() {
                       menu: (base) => ({ ...base, zIndex: 9999 })
                     }}
                     isLoading={loadingProvinces}
-                    onChange={(selected) => {
-                      if (!selected) {
-                        setSelectedProvincia('');
-                        setLocalidades([]);
-                        return;
-                      }
+                      onChange={(selected) => {
+                        if (!selected) {
+                          setSelectedProvincia('');
+                          setSelectedLocalidad('');
+                          setCodigoPostal('');
+                          setPrecioEnvio(0);
+                          setLocalidades([]);
+                          return;
+                        }
                       setSelectedProvincia(selected.value);
                       setSelectedLocalidad('');
                       setCodigoPostal('');

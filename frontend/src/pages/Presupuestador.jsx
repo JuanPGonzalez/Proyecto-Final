@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { formatCurrency } from '../utils';
 import { Cpu, Monitor, Zap, Layout } from 'lucide-react';
+import { showAlert } from '../utils/swal';
 
 export default function Presupuestador() {
   const [products, setProducts] = useState([]);
@@ -20,7 +21,7 @@ export default function Presupuestador() {
 
   const agregarAlCarrito = () => {
     const items = Object.values(budget).filter(p => p !== null);
-    if(items.length === 0) return alert('Por favor selecciona al menos un componente.');
+    if(items.length === 0) return showAlert('Presupuesto vacío', 'Por favor selecciona al menos un componente.', 'info');
     
     setIsAdding(true);
     const cart = JSON.parse(localStorage.getItem('cart') || '[]');
@@ -46,8 +47,8 @@ export default function Presupuestador() {
     }, 500);
   };
 
-  const OptionSelect = ({ category, categoryId, label, icon, filter }) => {
-    let filteredList = products.filter(p => p.categoria_id === categoryId);
+  const OptionSelect = ({ category, categoryName, label, icon, filter }) => {
+    let filteredList = products.filter(p => p.Category?.descripcion === categoryName);
     
     if (filter) {
       filteredList = filteredList.filter(filter);
@@ -93,14 +94,27 @@ export default function Presupuestador() {
     );
   };
 
+  const limpiarPresupuesto = () => {
+    setBudget({ CPU: null, GPU: null, RAM: null, MOBO: null });
+  };
+
   return (
     <div className="container animate-fade-in" style={{ marginTop: '60px', paddingBottom: '80px' }}>
-      <header style={{ marginBottom: '50px', maxWidth: '700px' }}>
-        <h2 style={{ fontSize: '2.5rem', fontWeight: 800, letterSpacing: '-1px', marginBottom: '15px' }}>Configurador de PC Expert</h2>
-        <p style={{ color: 'var(--muted-foreground)', fontSize: '1.1rem' }}>
-          Armá tu setup ideal con componentes seleccionados por rendimiento. 
-          Hardware Haven garantiza la compatibilidad de las piezas listadas.
-        </p>
+      <header style={{ marginBottom: '50px', maxWidth: '700px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
+        <div>
+          <h2 style={{ fontSize: '2.5rem', fontWeight: 800, letterSpacing: '-1px', marginBottom: '15px' }}>Configurador de PC Expert</h2>
+          <p style={{ color: 'var(--muted-foreground)', fontSize: '1.1rem' }}>
+            Armá tu setup ideal con componentes seleccionados por rendimiento. 
+            Hardware Haven garantiza la compatibilidad de las piezas listadas.
+          </p>
+        </div>
+        <button 
+          className="btn btn-outline" 
+          onClick={limpiarPresupuesto}
+          style={{ marginBottom: '5px', padding: '10px 20px', fontSize: '0.9rem', color: 'var(--destructive)', borderColor: 'var(--destructive)' }}
+        >
+          Limpiar Selección
+        </button>
       </header>
 
       <div style={{ display: 'grid', gridTemplateColumns: '1.3fr 1fr', gap: '50px', alignItems: 'start' }}>
@@ -108,14 +122,14 @@ export default function Presupuestador() {
         <div className="card" style={{ padding: '40px' }}>
           <OptionSelect 
             category="CPU" 
-            categoryId={1} 
+            categoryName="Procesadores" 
             label="Procesador" 
             icon={<Cpu size={18} />} 
           />
           
           <OptionSelect 
             category="MOBO" 
-            categoryId={3} 
+            categoryName="Motherboards" 
             label="Motherboard" 
             icon={<Layout size={18} />} 
             filter={(p) => !budget.CPU || p.socket === budget.CPU.socket}
@@ -123,7 +137,7 @@ export default function Presupuestador() {
           
           <OptionSelect 
             category="RAM" 
-            categoryId={2} 
+            categoryName="Memorias RAM" 
             label="Memoria RAM" 
             icon={<Zap size={18} />} 
             filter={(p) => !budget.MOBO || p.memoryType === budget.MOBO.memoryType}
@@ -131,7 +145,7 @@ export default function Presupuestador() {
           
           <OptionSelect 
             category="GPU" 
-            categoryId={4} 
+            categoryName="Placas de Video" 
             label="Placa de Video" 
             icon={<Monitor size={18} />} 
           />

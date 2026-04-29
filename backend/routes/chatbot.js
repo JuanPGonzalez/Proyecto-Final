@@ -150,10 +150,8 @@ router.post('/message', async (req, res) => {
   // --- 3. SEARCH LOGIC (STRICT & RELEVANT) ---
   const normalize = (text) =>
     text.toLowerCase()
-      .replace(/placa de video|gpu|grafica/g, 'gpu')
-      .replace(/procesador|cpu|intel|amd/g, 'cpu')
       .replace(/[^a-z0-9\s]/g, "")
-      .replace(/\b(busco|tenes|vendes|quiero|una|un|para|por|favor|recomenda|sugerime|mejor|sirve|jugar|gaming|productos|articulos)\b/g, "")
+      .replace(/\b(busco|tenes|vendes|quiero|una|un|para|por|favor|recomenda|sugerime|mejor|sirve|jugar|gaming|productos|articulos|hola|che)\b/g, "")
       .trim();
 
   const keyword = normalize(msg);
@@ -168,20 +166,22 @@ router.post('/message', async (req, res) => {
       });
     }
 
+    const { Category } = require('../models');
     const dbProducts = await Product.findAll({
       where: {
         stock: { [Op.gt]: 0 },
         [Op.or]: [
-          { name: { [Op.iLike]: `%${keyword}%` } },
-          { description: { [Op.iLike]: `%${keyword}%` } }
+          { name: { [Op.like]: `%${keyword}%` } },
+          { description: { [Op.like]: `%${keyword}%` } },
+          { '$Category.descripcion$': { [Op.like]: `%${keyword}%` } }
         ]
       },
+      include: [{ model: Category, attributes: ['descripcion'] }],
       order: [
         ['stock', 'DESC'],
         ['price', 'ASC']
       ],
-      limit: 4,
-      raw: true
+      limit: 4
     });
 
     if (dbProducts.length === 0) {

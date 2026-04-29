@@ -25,6 +25,7 @@ export default function Home() {
   const user = JSON.parse(localStorage.getItem('user') || '{}');
   const isAdmin = isAdminRole(user);
   const isClient = isClientRole(user);
+  const isLoggedIn = !!user.id;
 
   const [recommendations, setRecommendations] = useState([]);
 
@@ -33,12 +34,13 @@ export default function Home() {
       .then(res => setProducts(res.data))
       .catch(err => console.error(err));
     
-    // Fetch recommendations
-    const userId = user.id;
-    axios.get(`http://localhost:5000/api/products/recommendations?userId=${userId || ''}&limit=4`)
-      .then(res => setRecommendations(res.data))
-      .catch(err => console.error(err));
-  }, []);
+    // Always fetch recommendations if someone is logged in
+    if (user.id) {
+      axios.get(`http://localhost:5000/api/products/recommendations?userId=${user.id}&limit=4`)
+        .then(res => setRecommendations(res.data))
+        .catch(err => console.error(err));
+    }
+  }, [user.id]);
 
   // Reset page when filters change and scroll to top
   useEffect(() => {
@@ -87,7 +89,7 @@ export default function Home() {
     e.stopPropagation();
     const token = localStorage.getItem('token');
     if (!token) {
-      return alert('Necesitas permisos de administrador para eliminar productos');
+      return showAlert('Acceso restringido', 'Necesitas permisos de administrador para eliminar productos', 'warning');
     }
     const confirm = await showConfirm('¿Deseas eliminar este producto?', 'Esta acción no se puede deshacer.', 'Eliminar');
     if (!confirm.isConfirmed) return;
@@ -201,7 +203,7 @@ export default function Home() {
         </aside>
 
         <section>
-          {recommendations.length > 0 && !searchQuery && !quickFilter && (
+          {isLoggedIn && !isAdmin && recommendations.length > 0 && !searchQuery && !quickFilter && (
             <div style={{ marginBottom: '50px' }}>
               <h2 style={{ fontSize: '1.4rem', fontWeight: 700, marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '10px' }}>
                 <div style={{ width: '8px', height: '24px', backgroundColor: 'var(--accent)', borderRadius: '4px' }}></div>
@@ -366,15 +368,15 @@ export default function Home() {
                  </div>
               </div>
 
-              {products.filter(p => p.categoria_id === selectedProduct.categoria_id && p.id !== selectedProduct.id).slice(0, 3).length > 0 && (
+              {isLoggedIn && !isAdmin && recommendations.length > 0 && (
                 <div style={{ marginTop: '24px' }}>
-                  <h4 style={{ fontSize: '1.1rem', fontWeight: 600, marginBottom: '16px' }}>Productos Similares</h4>
+                  <h4 style={{ fontSize: '1.1rem', fontWeight: 600, marginBottom: '16px' }}>Recomendaciones para ti</h4>
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: '15px' }}>
-                    {products.filter(p => p.categoria_id === selectedProduct.categoria_id && p.id !== selectedProduct.id).slice(0, 3).map(sim => (
-                      <div key={sim.id} className="card" onClick={() => setSelectedProduct(sim)} style={{ cursor: 'pointer', padding: '10px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                         <img src={fixImageUrl(sim.imgURL) || placeholderImg} alt={sim.name} style={{ width: '100%', height: '80px', objectFit: 'contain' }} />
-                         <span style={{ fontSize: '0.9rem', fontWeight: 700 }}>{formatCurrency(sim.price)}</span>
-                         <span style={{ fontSize: '0.75rem', color: 'var(--muted-foreground)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{sim.name}</span>
+                    {recommendations.filter(p => p.id !== selectedProduct.id).slice(0, 3).map(rec => (
+                      <div key={rec.id} className="card" onClick={() => setSelectedProduct(rec)} style={{ cursor: 'pointer', padding: '10px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                         <img src={fixImageUrl(rec.imgURL) || placeholderImg} alt={rec.name} style={{ width: '100%', height: '80px', objectFit: 'contain' }} />
+                         <span style={{ fontSize: '0.9rem', fontWeight: 700 }}>{formatCurrency(rec.price)}</span>
+                         <span style={{ fontSize: '0.75rem', color: 'var(--muted-foreground)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{rec.name}</span>
                       </div>
                     ))}
                   </div>

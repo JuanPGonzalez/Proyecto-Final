@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
+import { showAlert } from '../utils/swal';
 
 export default function Login({ initialMode = 'login' }) {
   const [isLogin, setIsLogin] = useState(initialMode === 'login');
@@ -38,11 +39,14 @@ export default function Login({ initialMode = 'login' }) {
           {!isLogin && (
             <input 
               type="text" 
-              placeholder="Nombre completo" 
+              placeholder="Nombre de usuario (sin espacios)" 
               className="input-field" 
               required
               value={formData.name}
-              onChange={e => setFormData({ ...formData, name: e.target.value })}
+              onChange={e => {
+                const value = e.target.value.replace(/\s/g, '');
+                setFormData({ ...formData, name: value });
+              }}
             />
           )}
           <input 

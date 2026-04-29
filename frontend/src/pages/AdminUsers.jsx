@@ -3,6 +3,7 @@ import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 import { Edit2, Trash2, Plus, X } from 'lucide-react';
 import { isAdminRole } from '../constants/roles';
+import { showAlert, showConfirm, showToast } from '../utils/swal';
 
 export default function AdminUsers() {
   const [users, setUsers] = useState([]);
@@ -61,30 +62,35 @@ export default function AdminUsers() {
           email: formData.email,
           tipoUsuario: formData.tipoUsuario
         }, { headers: { Authorization: `Bearer ${token}` } });
+        showToast('Usuario actualizado');
       } else {
         await axios.post('http://localhost:5000/api/admin/users', formData, {
           headers: { Authorization: `Bearer ${token}` }
         });
+        showToast('Usuario creado');
       }
       setShowModal(false);
       setEditingUser(null);
       setFormData({ name: '', email: '', password: '', tipoUsuario: 'cliente' });
       fetchUsers();
     } catch (error) {
-      alert(error.response?.data?.error || 'Error al guardar usuario');
+      showAlert('Error', error.response?.data?.error || 'Error al guardar usuario', 'error');
     }
   };
 
   const handleDelete = async (id) => {
-    if (!window.confirm('¿Estás seguro de eliminar este usuario?')) return;
+    const confirm = await showConfirm('¿Eliminar usuario?', 'Esta acción no se puede deshacer.', 'Eliminar');
+    if (!confirm.isConfirmed) return;
+
     const token = localStorage.getItem('token');
     try {
       await axios.delete(`http://localhost:5000/api/admin/users/${id}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
+      showToast('Usuario eliminado');
       fetchUsers();
     } catch (error) {
-      alert('Error al eliminar usuario');
+      showAlert('Error', 'Error al eliminar usuario', 'error');
     }
   };
 
@@ -172,7 +178,16 @@ export default function AdminUsers() {
             <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
               <div>
                 <label className="input-field" style={{ border: 'none', padding: 0, fontWeight: 600, display: 'block', marginBottom: '5px' }}>Nombre</label>
-                <input type="text" className="input-field" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} required />
+                <input 
+                  type="text" 
+                  className="input-field" 
+                  value={formData.name} 
+                  onChange={e => {
+                    const value = e.target.value.replace(/\s/g, '');
+                    setFormData({...formData, name: value});
+                  }} 
+                  required 
+                />
               </div>
               <div>
                 <label className="input-field" style={{ border: 'none', padding: 0, fontWeight: 600, display: 'block', marginBottom: '5px' }}>Email</label>

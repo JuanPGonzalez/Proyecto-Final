@@ -53,6 +53,50 @@ export default function AdminOrders() {
     }
   };
 
+  const viewDetails = async (order) => {
+    try {
+      const res = await axios.get(`http://localhost:5000/api/orders/${order.id}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const details = res.data;
+      
+      const html = `
+        <div style="text-align: left; font-size: 0.9rem;">
+          <p><strong>Cliente:</strong> ${details.User?.name} (${details.User?.email})</p>
+          <p><strong>Fecha:</strong> ${new Date(details.fecha_compra).toLocaleString()}</p>
+          <p><strong>Estado:</strong> ${details.status}</p>
+          <p><strong>Dirección:</strong> ${details.shipping_address || 'Retiro en local'}</p>
+          <hr/>
+          <table style="width: 100%; border-collapse: collapse;">
+            <thead>
+              <tr style="border-bottom: 1px solid #eee;">
+                <th style="padding: 8px; text-align: left;">Producto</th>
+                <th style="padding: 8px; text-align: center;">Cant.</th>
+                <th style="padding: 8px; text-align: right;">Subtotal</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${details.OrderItems?.map(l => `
+                <tr style="border-bottom: 1px solid #f9f9f9;">
+                  <td style="padding: 8px;">${l.Product?.name || 'Producto'}</td>
+                  <td style="padding: 8px; text-align: center;">${l.quantity}</td>
+                  <td style="padding: 8px; text-align: right;">$${Number(l.priceAtPurchase * l.quantity).toLocaleString()}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+          <div style="text-align: right; margin-top: 15px; font-size: 1.1rem; font-weight: 800; color: var(--primary);">
+            TOTAL: $${Number(details.total).toLocaleString()}
+          </div>
+        </div>
+      `;
+
+      showAlert(`Orden #${order.id}`, html, 'info', { width: '600px' });
+    } catch (err) {
+      showAlert('Error', 'No se pudieron cargar los detalles', 'error');
+    }
+  };
+
   return (
     <div className="container animate-fade-in" style={{ marginTop: '40px', paddingBottom: '60px' }}>
       <header style={{ marginBottom: '30px' }}>
@@ -65,6 +109,7 @@ export default function AdminOrders() {
           <option value="">Todos los estados</option>
           <option value="Pendiente">Pendiente</option>
           <option value="Cerrada">Cerrada</option>
+          <option value="Cancelada">Cancelada</option>
         </select>
         <select className="input-field" value={sortBy} onChange={e => { setSortBy(e.target.value); setCurrentPage(1); }} style={{ width: '200px' }}>
           <option value="date_desc">Más recientes</option>
@@ -112,6 +157,9 @@ export default function AdminOrders() {
                     </td>
                     <td style={{ padding: '16px' }}>
                       <div style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
+                        <button className="btn btn-outline" onClick={() => viewDetails(o)} style={{ padding: '6px 12px', fontSize: '0.8rem' }}>
+                          Detalles
+                        </button>
                         {o.status === 'Pendiente' && (
                           <>
                             <button className="btn btn-outline" onClick={() => updateStatus(o.id, 'Cerrada')} style={{ padding: '6px 12px', fontSize: '0.8rem', color: 'var(--success)', borderColor: 'var(--success)' }}>

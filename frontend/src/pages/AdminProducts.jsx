@@ -288,7 +288,7 @@ export default function AdminProducts() {
               </div>
               <div>
                 <label style={{ fontSize: '0.85rem', color: 'var(--muted-foreground)', marginBottom: '5px', display: 'block' }}>Stock</label>
-                <input type="number" className="input-field" placeholder="Cant." value={formData.stock} onChange={e=>setFormData({...formData, stock:e.target.value})} required />
+                <input type="number" className="input-field" placeholder="Cant." value={formData.stock} onChange={e=>setFormData({...formData, stock: Math.max(0, parseInt(e.target.value) || 0)})} required />
               </div>
             </div>
 
@@ -301,7 +301,7 @@ export default function AdminProducts() {
 
             <div>
               <label style={{ fontSize: '0.85rem', color: 'var(--muted-foreground)', marginBottom: '5px', display: 'block' }}>Precio Base ($)</label>
-              <input type="number" step="0.01" className="input-field" placeholder="0.00" value={formData.price} onChange={e=>setFormData({...formData, price:e.target.value})} required />
+              <input type="number" step="0.01" className="input-field" placeholder="0.00" value={formData.price} onChange={e=>setFormData({...formData, price: Math.max(0, parseFloat(e.target.value) || 0)})} required />
             </div>
 
             <div>

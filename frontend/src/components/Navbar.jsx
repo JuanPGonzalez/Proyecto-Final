@@ -19,6 +19,7 @@ export default function Navbar() {
   // Notifications State
   const [notifications, setNotifications] = useState([]);
   const [showNotifications, setShowNotifications] = useState(false);
+  const notificationRef = React.useRef(null);
   const unreadCount = notifications.filter(n => !n.is_read).length;
 
   const fetchNotifications = async () => {
@@ -36,7 +37,18 @@ export default function Navbar() {
   useEffect(() => {
     fetchNotifications();
     const interval = setInterval(fetchNotifications, 30000); // Poll every 30s
-    return () => clearInterval(interval);
+    
+    const handleClickOutside = (event) => {
+      if (notificationRef.current && !notificationRef.current.contains(event.target)) {
+        setShowNotifications(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
   }, [token]);
 
   const markAsRead = async (id) => {
@@ -168,7 +180,7 @@ export default function Navbar() {
             </Link>
 
             {token && (
-              <div style={{ position: 'relative' }}>
+              <div ref={notificationRef} style={{ position: 'relative', marginLeft: '15px' }}>
                 <button 
                   onClick={() => setShowNotifications(!showNotifications)} 
                   style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--foreground)', display: 'flex', alignItems: 'center', position: 'relative' }}

@@ -56,6 +56,32 @@ router.get('/', authMiddleware, async (req, res) => {
   }
 });
 
+// Obtener detalles de una orden específica
+router.get('/:id', authMiddleware, async (req, res) => {
+  try {
+    const order = await Order.findByPk(req.params.id, {
+      include: [
+        { model: User, attributes: ['id', 'name', 'email', 'tipoUsuario'] },
+        { 
+          model: OrderItem, 
+          include: [Product] 
+        }
+      ]
+    });
+    if (!order) return res.status(404).json({ error: 'Orden no encontrada' });
+    
+    // Verificar permisos: ser admin o dueño de la orden
+    if (!isAdminRole(req.user.tipoUsuario) && order.user_id !== req.user.id) {
+      return res.status(403).json({ error: 'No tienes permiso para ver esta orden' });
+    }
+    
+    res.json(order);
+  } catch (error) {
+    console.error('Error fetching order details:', error);
+    res.status(500).json({ error: 'Error al obtener detalles de la orden' });
+  }
+});
+
 // Crear nueva orden
 router.post('/', authMiddleware, clientMiddleware, async (req, res) => {
   try {

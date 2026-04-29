@@ -101,7 +101,7 @@ export default function Chatbot({ standalone = false }) {
       if (res.data && res.data.ok && res.data.product) {
         const botResponse = {
           type: 'cart_action',
-          message: `Producto agregado al carrito exitosamente.`,
+          message: `"${res.data.product.name}" agregado al carrito exitosamente.`,
           products: [],
           action: { type: "add_to_cart", productId: res.data.product.id, product: res.data.product },
           sender: 'bot'

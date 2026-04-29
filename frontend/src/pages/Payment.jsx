@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { CreditCard, Wallet, Banknote, ShieldCheck, ChevronRight } from 'lucide-react';
 import { getStorageItem } from '../utils/storage';
+import { showAlert } from '../utils/swal';
 
 export default function Payment() {
   const navigate = useNavigate();

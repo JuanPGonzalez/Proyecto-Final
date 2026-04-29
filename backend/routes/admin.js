@@ -19,21 +19,36 @@ router.get('/dashboard-data', async (req, res) => {
     if (startDate && endDate) {
       orderDateFilter = {
         fecha_compra: {
-          [Op.between]: [new Date(startDate), new Date(endDate)]
+          [Op.between]: [new Date(`${startDate}T00:00:00`), new Date(`${endDate}T23:59:59`)]
         }
       };
       ticketDateFilter = {
         created_at: {
-          [Op.between]: [new Date(startDate), new Date(endDate)]
+          [Op.between]: [new Date(`${startDate}T00:00:00`), new Date(`${endDate}T23:59:59`)]
         }
       };
     }
 
-    // 1. Stats Generales
+    // 1. Stats Generales (Métricas Históricas y del Periodo)
     const totalUsers = await User.count();
     const totalProducts = await Product.count();
-    const totalOrders = await Order.count({ where: orderDateFilter });
-    const sumOrders = await Order.sum('total', { where: orderDateFilter }) || 0;
+    const totalOrders = await Order.count();
+    const sumOrders = await Order.sum('total') || 0;
+
+    // Métricas del periodo filtrado (Nuevos registros y Ventas)
+    const userDateFilter = {};
+    if (startDate && endDate) {
+      userDateFilter.fechaReg = {
+        [Op.between]: [new Date(`${startDate}T00:00:00`), new Date(`${endDate}T23:59:59`)]
+      };
+    }
+    const newUsers = await User.count({ where: userDateFilter });
+    
+    // El modelo Product (tabla componente) no tiene campos de fecha de creación (timestamps: false)
+    const newProducts = 0;
+
+    const periodOrders = await Order.count({ where: orderDateFilter });
+    const periodRevenue = await Order.sum('total', { where: orderDateFilter }) || 0;
 
     // 2. Alerta de Stock (Productos < 5)
     const lowStockProducts = await Product.findAll({
@@ -146,27 +161,37 @@ router.get('/dashboard-data', async (req, res) => {
       include: [
         {
           model: Product,
-          attributes: ['categoria_id'],
-          include: [{ model: Category, attributes: ['descripcion'] }]
+          attributes: [],
+          include: [{ model: Category, attributes: ['id', 'descripcion'] }]
         },
         { model: Order, attributes: [], where: orderDateFilter }
       ],
-      group: ['Product.id', 'Product.categoria_id', 'Product->Category.id', 'Product->Category.descripcion']
+      group: ['Product->Category.id', 'Product->Category.descripcion'],
+      raw: true
     });
 
-    // 11. Registros de Usuarios (Tendencia)
+    // Reformatear respuesta para el gráfico
+    const revenueByCategory = revenueByCategoryQuery.map(r => ({
+      category: r['Product.Category.descripcion'] || 'Sin Categoría',
+      revenue: parseFloat(r.totalRevenue || 0)
+    }));
+
+    // 11. Registros de Usuarios (Tendencia) - Reacciona al filtro de fechas (usa userDateFilter definido arriba)
     const userRegistrationsQuery = await User.findAll({
       attributes: [
         [sequelize.fn('DATE', sequelize.col('fecha_reg')), 'date'],
         [sequelize.fn('COUNT', sequelize.col('id')), 'count']
       ],
+      where: userDateFilter,
       group: [sequelize.fn('DATE', sequelize.col('fecha_reg'))],
-      order: [[sequelize.fn('DATE', sequelize.col('fecha_reg')), 'ASC']],
-      limit: 30
+      order: [[sequelize.fn('DATE', sequelize.col('fecha_reg')), 'ASC']]
     });
 
     res.json({
-      stats: { totalUsers, totalProducts, totalOrders, revenue: sumOrders },
+      stats: { 
+        totalUsers, totalProducts, totalOrders, revenue: sumOrders,
+        newUsers, newProducts, periodRevenue, periodOrders
+      },
       lowStockProducts,
       outOfStockProducts,
       topUsers: topUsersQuery.map(u => ({
@@ -195,10 +220,7 @@ router.get('/dashboard-data', async (req, res) => {
         category: c.Category?.descripcion || 'Sin Categoría',
         count: c.get('count')
       })),
-      revenueByCategory: revenueByCategoryQuery.map(r => ({
-        category: r.Product?.Category?.descripcion || 'Sin Categoría',
-        revenue: r.get('totalRevenue')
-      })),
+      revenueByCategory,
       userRegistrations: userRegistrationsQuery.map(u => ({
         date: u.get('date'),
         count: u.get('count')
@@ -224,7 +246,7 @@ router.get('/purchase-history', async (req, res) => {
 
     if (startDate && endDate) {
       whereClause.fecha_compra = {
-        [Op.between]: [new Date(startDate), new Date(endDate)]
+        [Op.between]: [new Date(`${startDate}T00:00:00`), new Date(`${endDate}T23:59:59`)]
       };
     }
 

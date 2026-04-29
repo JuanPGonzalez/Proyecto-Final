@@ -123,8 +123,8 @@ export default function SoporteTickets() {
                     </div>
                     <span style={{ 
                       padding: '6px 12px', borderRadius: '999px', fontSize: '0.8rem', fontWeight: 700, 
-                      backgroundColor: t.status === 'Abierto' ? 'oklch(0.9 0.1 80 / 20%)' : t.status === 'Respondido' ? 'oklch(0.9 0.1 200 / 20%)' : 'oklch(0.9 0.1 140 / 20%)',
-                      color: t.status === 'Abierto' ? 'oklch(0.5 0.2 80)' : t.status === 'Respondido' ? 'oklch(0.5 0.2 200)' : 'oklch(0.5 0.2 140)'
+                      backgroundColor: t.status === 'Pendiente' ? 'oklch(0.6 0.118 266.355 / 15%)' : t.status === 'Respondido' ? 'oklch(0.627 0.194 149.214 / 15%)' : 'oklch(0.637 0.237 25.331 / 15%)',
+                      color: t.status === 'Pendiente' ? 'var(--primary)' : t.status === 'Respondido' ? 'var(--success)' : 'var(--destructive)'
                     }}>
                       {t.status}
                     </span>

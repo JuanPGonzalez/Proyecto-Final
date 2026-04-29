@@ -206,8 +206,8 @@ function StatusBadge({ status }) {
   return (
     <span style={{ 
       fontSize: '0.7rem', fontWeight: 800, padding: '4px 8px', borderRadius: '4px',
-      backgroundColor: isClosed ? 'rgba(0,0,0,0.1)' : (isResolved ? 'oklch(0.627 0.194 149.214 / 15%)' : 'oklch(0.6 0.118 266.355 / 15%)'),
-      color: isClosed ? 'var(--muted-foreground)' : (isResolved ? 'var(--success)' : 'var(--primary)')
+      backgroundColor: isClosed ? 'oklch(0.637 0.237 25.331 / 15%)' : (isResolved ? 'oklch(0.627 0.194 149.214 / 15%)' : 'oklch(0.6 0.118 266.355 / 15%)'),
+      color: isClosed ? 'var(--destructive)' : (isResolved ? 'var(--success)' : 'var(--primary)')
     }}>
       {status.toUpperCase()}
     </span>

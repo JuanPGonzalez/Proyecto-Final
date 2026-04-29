@@ -12,14 +12,16 @@ const Toast = Swal.mixin({
   }
 });
 
-export const showAlert = (title, text, icon = 'info') => {
+export const showAlert = (title, content, icon = 'info', options = {}) => {
+  const isHtml = content.trim().startsWith('<');
   return Swal.fire({
     title,
-    text,
+    [isHtml ? 'html' : 'text']: content,
     icon,
     confirmButtonColor: 'var(--primary)',
     background: 'var(--card)',
-    color: 'var(--foreground)'
+    color: 'var(--foreground)',
+    ...options
   });
 };
 
