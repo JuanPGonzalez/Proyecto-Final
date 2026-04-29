@@ -37,6 +37,7 @@ function App() {
             <Route path="/presupuestador" element={<Presupuestador />} />
             <Route path="/envio" element={<Envios />} />
             <Route path="/pago" element={<Payment />} />
+            <Route path="/checkout/summary" element={<CompraExitosa />} />
             <Route path="/success" element={<CompraExitosa />} />
             <Route path="/cancel-purchase" element={<CancelPurchase />} />
             <Route path="/soporte" element={<SoporteTickets />} />

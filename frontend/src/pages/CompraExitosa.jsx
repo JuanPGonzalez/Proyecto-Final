@@ -1,27 +1,32 @@
 import React, { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { CheckCircle, Mail, Package, MapPin, CreditCard } from 'lucide-react';
-import { getStorageItem } from '../utils/storage';
 
 export default function CompraExitosa() {
   const navigate = useNavigate();
-  const [orderId] = useState(Math.floor(Math.random() * 90000) + 10000);
-  const cart = getStorageItem('cart', []);
-  const shipping = getStorageItem('last_shipping', { address: 'Retiro en Tienda', cost: 0, method: 'tienda' });
-  const paymentMethod = localStorage.getItem('last_payment_method') || 'Tarjeta';
+  const location = useLocation();
   
-  const subtotal = cart.reduce((acc, p) => acc + Number(p.price), 0);
-  const total = subtotal + shipping.cost;
+  // Read order from state or localStorage fallback
+  const order = location.state || JSON.parse(localStorage.getItem('lastOrder') || 'null');
+  
+  const [orderId] = useState(Math.floor(Math.random() * 90000) + 10000);
 
   useEffect(() => {
-    // Limpiar carrito después de una compra exitosa
-    if (cart.length > 0) {
-      setTimeout(() => {
-        localStorage.removeItem('cart');
-        window.dispatchEvent(new Event('storage'));
-      }, 500);
-    }
+    // Limpiar carrito después de renderizar el resumen
+    localStorage.removeItem('cart');
+    window.dispatchEvent(new Event('storage'));
   }, []);
+
+  if (!order || !order.items) {
+    return (
+      <div className="container" style={{ marginTop: '100px', textAlign: 'center' }}>
+        <h2>Error: No se encontraron datos del pedido.</h2>
+        <button className="btn" onClick={() => navigate('/')} style={{ marginTop: '20px' }}>Volver al Inicio</button>
+      </div>
+    );
+  }
+
+  const { items, shipping, total, paymentMethod } = order;
 
   return (
     <div className="container animate-fade-in" style={{ marginTop: '50px', paddingBottom: '80px', maxWidth: '700px' }}>
@@ -44,7 +49,7 @@ export default function CompraExitosa() {
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                  <Package size={16} color="var(--muted-foreground)" />
-                 <span><strong>Productos:</strong> {cart.length} artículos</span>
+                 <span><strong>Productos:</strong> {items.length} artículos</span>
               </div>
               <div style={{ marginTop: '10px', paddingTop: '10px', borderTop: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', fontSize: '1.1rem', fontWeight: 800 }}>
                  <span>Total Abonado</span>

@@ -15,7 +15,9 @@ const Order = sequelize.define('Order', {
   localidad: { type: DataTypes.STRING, allowNull: true },
   codigo_postal: { type: DataTypes.STRING, allowNull: true },
   shipping_method: { type: DataTypes.STRING, allowNull: true },
-  shipping_cost: { type: DataTypes.DECIMAL(10, 2), defaultValue: 5000 }
+  shipping_cost: { type: DataTypes.DECIMAL(10, 2), defaultValue: 0 },
+  provincia: { type: DataTypes.STRING, allowNull: true },
+  payment_method: { type: DataTypes.STRING, allowNull: true }
 }, {
   tableName: 'compra',
   timestamps: false

@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { User, Product, Order, OrderItem, Category, SupportTicket, sequelize, Notification } = require('../models');
 const { authMiddleware, adminMiddleware } = require('../middleware/roles');
-const bcrypt = require('bcrypt');
+const bcrypt = require('bcryptjs');
 
 router.use(authMiddleware, adminMiddleware);
 
@@ -12,7 +12,7 @@ const { Op } = require('sequelize');
 router.get('/dashboard-data', async (req, res) => {
   try {
     const { startDate, endDate } = req.query;
-    
+
     // Filtro de fecha para órdenes
     let orderDateFilter = {};
     let ticketDateFilter = {};
@@ -34,7 +34,7 @@ router.get('/dashboard-data', async (req, res) => {
     const totalProducts = await Product.count();
     const totalOrders = await Order.count({ where: orderDateFilter });
     const sumOrders = await Order.sum('total', { where: orderDateFilter }) || 0;
-    
+
     // 2. Alerta de Stock (Productos < 5)
     const lowStockProducts = await Product.findAll({
       where: { stock: { [Op.gt]: 0, [Op.lt]: 5 } },
@@ -144,8 +144,8 @@ router.get('/dashboard-data', async (req, res) => {
         [sequelize.fn('SUM', sequelize.literal('OrderItem.cantidad * OrderItem.sub_total')), 'totalRevenue']
       ],
       include: [
-        { 
-          model: Product, 
+        {
+          model: Product,
           attributes: ['categoria_id'],
           include: [{ model: Category, attributes: ['descripcion'] }]
         },
@@ -232,8 +232,8 @@ router.get('/purchase-history', async (req, res) => {
       where: whereClause,
       include: [
         { model: User, attributes: ['name', 'email'] },
-        { 
-          model: OrderItem, 
+        {
+          model: OrderItem,
           include: [{ model: Product, attributes: ['name'] }]
         }
       ],
@@ -278,7 +278,7 @@ router.post('/users', async (req, res) => {
     const { name, email, password, tipoUsuario } = req.body;
     const existingUser = await User.findOne({ where: { email } });
     if (existingUser) return res.status(400).json({ error: 'El email ya está registrado' });
-    
+
     const hashedPassword = await bcrypt.hash(password, 10);
     const newUser = await User.create({
       name,
@@ -286,14 +286,14 @@ router.post('/users', async (req, res) => {
       password: hashedPassword,
       tipoUsuario: tipoUsuario || 'cliente'
     });
-    
+
     // Notification for new user
     await Notification.create({
       user_id: newUser.id,
       message: `¡Bienvenido a Hardware Haven, ${newUser.name}! Tu cuenta ha sido creada por un administrador.`,
       type: 'SYSTEM'
     });
-    
+
     const userToReturn = newUser.toJSON();
     delete userToReturn.password;
     res.json(userToReturn);
@@ -342,7 +342,7 @@ router.delete('/users/:id', async (req, res) => {
     const { id } = req.params;
     const user = await User.findByPk(id);
     if (!user) return res.status(404).json({ error: 'Usuario no encontrado' });
-    
+
     await user.destroy();
     res.json({ message: 'Usuario eliminado exitosamente' });
   } catch (error) {

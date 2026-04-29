@@ -59,7 +59,7 @@ router.get('/', authMiddleware, async (req, res) => {
 // Crear nueva orden
 router.post('/', authMiddleware, clientMiddleware, async (req, res) => {
   try {
-    const { items, shippingAddress, localidad, codigoPostal, shippingMethod } = req.body;
+    const { items, shippingAddress, provincia, localidad, localidadId, codigoPostal, shippingMethod, shippingCost: frontendShippingCost, paymentMethod } = req.body;
     if (!items || items.length === 0) return res.status(400).json({ error: 'No hay productos' });
 
     // Calcular total real en el backend para seguridad
@@ -77,8 +77,26 @@ router.post('/', authMiddleware, clientMiddleware, async (req, res) => {
       });
     }
 
-    const shippingCost = shippingMethod === 'tienda' ? 0 : (shippingMethod === 'express' ? 5000 : 3000);
-    const finalTotal = calculatedTotal + shippingCost;
+    // Calcular costo de envío dinámico
+    let finalShippingCost = 0;
+    if (shippingMethod === 'tienda') {
+      finalShippingCost = 0;
+    } else {
+      // Intentamos validar con la base de datos si tenemos localidadId
+      if (localidadId) {
+        const { Locality } = require('../models');
+        const loc = await Locality.findByPk(localidadId);
+        if (loc) {
+          finalShippingCost = Number(loc.shipping_price);
+        } else {
+          finalShippingCost = Number(frontendShippingCost) || 0;
+        }
+      } else {
+        finalShippingCost = Number(frontendShippingCost) || 0;
+      }
+    }
+
+    const finalTotal = calculatedTotal + finalShippingCost;
 
     const order = await Order.create({
       total: finalTotal,
@@ -86,10 +104,12 @@ router.post('/', authMiddleware, clientMiddleware, async (req, res) => {
       fecha_compra: new Date(),
       status: 'Pendiente',
       shipping_address: shippingAddress,
+      provincia: provincia,
       localidad: localidad,
       codigo_postal: codigoPostal,
       shipping_method: shippingMethod,
-      shipping_cost: shippingCost
+      shipping_cost: finalShippingCost,
+      payment_method: paymentMethod
     });
 
     for (const item of itemsWithNames) {

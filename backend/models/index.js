@@ -9,6 +9,8 @@ const UserView = require('./UserView');
 const Notification = require('./Notification');
 
 const Category = require('./Category');
+const Province = require('./Province');
+const Locality = require('./Locality');
 
 User.hasMany(Order, { foreignKey: 'user_id' });
 Order.belongsTo(User, { foreignKey: 'user_id' });
@@ -45,4 +47,8 @@ UserView.belongsTo(Product, { foreignKey: 'product_id' });
 User.hasMany(Notification, { foreignKey: 'user_id', as: 'notifications' });
 Notification.belongsTo(User, { foreignKey: 'user_id', as: 'user' });
 
-module.exports = { sequelize, User, Product, Order, OrderItem, ComponenteML, LogMotorPrecio, SupportTicket, UserView, Category, Notification };
+// Province and Locality relationships
+Province.hasMany(Locality, { foreignKey: 'provincia_id', as: 'localities' });
+Locality.belongsTo(Province, { foreignKey: 'provincia_id', as: 'province' });
+
+module.exports = { sequelize, User, Product, Order, OrderItem, ComponenteML, LogMotorPrecio, SupportTicket, UserView, Category, Notification, Province, Locality };

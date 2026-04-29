@@ -1,127 +1,278 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import axios from 'axios';
+import Select from 'react-select';
 import { MapPin, Truck, Store, Calculator, ChevronRight } from 'lucide-react';
 import { getStorageItem, setStorageItem } from '../utils/storage';
 
 export default function Envios() {
   const navigate = useNavigate();
   const [address, setAddress] = useState('');
-  const [localidad, setLocalidad] = useState('');
+  const [selectedProvincia, setSelectedProvincia] = useState('');
+  const [selectedLocalidad, setSelectedLocalidad] = useState('');
   const [codigoPostal, setCodigoPostal] = useState('');
+  const [precioEnvio, setPrecioEnvio] = useState(0);
   const [method, setMethod] = useState('standard');
-  const [cost, setCost] = useState(0);
+
+  const [provinces, setProvinces] = useState(null);
+  const [localidades, setLocalidades] = useState([]);
+  const [loadingProvinces, setLoadingProvinces] = useState(false);
+  const [loadingLocalities, setLoadingLocalities] = useState(false);
+  const [error, setError] = useState(null);
+
   const cart = getStorageItem('cart', []);
 
   useEffect(() => {
-    if (cart.length === 0) navigate('/cart');
-    const user = getStorageItem('user', {});
-    if (user.direccion) setAddress(user.direccion);
-  }, [cart, navigate]);
+    if (cart.length === 0) {
+      navigate('/cart');
+      return;
+    }
 
-  const calculateCost = () => {
-    if (method === 'tienda') return 0;
-    if (method === 'express') return 5000;
-    return 3000;
+    const fetchProvinces = async () => {
+      setLoadingProvinces(true);
+      try {
+        const res = await axios.get('http://localhost:5000/api/shipping/provinces');
+        console.log('PROVINCES RESPONSE:', res.data);
+        if (res.data?.ok) {
+          setProvinces(res.data?.provinces || []);
+        } else {
+          setError('Error al cargar provincias');
+        }
+      } catch (err) {
+        console.error('FETCH PROVINCES ERROR:', err);
+        setError('Error al cargar provincias');
+      } finally {
+        setLoadingProvinces(false);
+      }
+    };
+
+    fetchProvinces();
+  }, []); // Empty dependency array to run once on mount
+
+  const fetchLocalidades = async (provinciaId) => {
+    if (!provinciaId) {
+      setLocalidades([]);
+      return;
+    }
+    setLoadingLocalities(true);
+    try {
+      const res = await axios.get(`http://localhost:5000/api/shipping/localidades/${provinciaId}`);
+      console.log('LOCALIDADES RESPONSE:', res.data);
+      if (res.data?.ok) {
+        setLocalidades(res.data?.localidades || []);
+      }
+    } catch (err) {
+      console.error('FETCH LOCALIDADES ERROR:', err);
+    } finally {
+      setLoadingLocalities(false);
+    }
   };
-
-  useEffect(() => {
-    setCost(calculateCost());
-  }, [address, method]);
 
   const handleContinue = () => {
     if (method !== 'tienda') {
-      if (!address || !localidad || !codigoPostal) {
-        return alert('Por favor ingresa todos los datos de envío (dirección, localidad, código postal).');
+      if (!address || !selectedProvincia || !selectedLocalidad) {
+        return alert('Por favor ingresa todos los datos de envío (dirección, provincia, localidad).');
       }
     }
-    
+
+    const provName = Array.isArray(provinces) ? provinces.find(p => Number(p.id) === Number(selectedProvincia))?.nombre : '';
+    const locName = Array.isArray(localidades) ? localidades.find(l => Number(l.id) === Number(selectedLocalidad))?.nombre : '';
+
     setStorageItem('last_shipping', {
       address,
-      localidad,
+      provincia: provName || '',
+      localidad: locName || '',
+      localidadId: selectedLocalidad,
       codigoPostal,
       method,
-      cost
+      cost: method === 'tienda' ? 0 : precioEnvio
     });
     navigate('/pago');
+  };
+
+  if (!provinces) return <div style={{ padding: '50px', textAlign: 'center' }}>Cargando sistema de envío...</div>;
+
+  const provinciaOptions = Array.isArray(provinces) ? provinces.map(p => ({
+    value: p.id,
+    label: p.nombre
+  })) : [];
+
+  const localidadOptions = Array.isArray(localidades) ? localidades.map(l => ({
+    value: l.id,
+    label: `${l.nombre} (${l.codigo_postal})`
+  })) : [];
+
+  const customStyles = {
+    control: (base) => ({
+      ...base,
+      backgroundColor: 'var(--card)',
+      borderColor: 'var(--border)',
+      color: 'var(--foreground)',
+      padding: '5px'
+    }),
+    menu: (base) => ({
+      ...base,
+      backgroundColor: 'var(--card)',
+      zIndex: 9999
+    }),
+    option: (base, state) => ({
+      ...base,
+      backgroundColor: state.isFocused ? 'var(--secondary)' : 'transparent',
+      color: 'var(--foreground)'
+    }),
+    singleValue: (base) => ({
+      ...base,
+      color: 'var(--foreground)'
+    })
   };
 
   return (
     <div className="container animate-fade-in" style={{ marginTop: '50px', paddingBottom: '80px' }}>
       <div style={{ maxWidth: '800px', margin: '0 auto' }}>
         <h2 style={{ fontSize: '2rem', fontWeight: 800, marginBottom: '10px', textAlign: 'center' }}>Configuración de Envío</h2>
-        <p style={{ color: 'var(--muted-foreground)', marginBottom: '40px', textAlign: 'center' }}>Calculamos el costo basado en la distancia desde Zeballos 1315, Rosario.</p>
-        
-        {method !== 'tienda' && (
-          <div className="card" style={{ padding: '30px', marginBottom: '30px', display: 'flex', flexDirection: 'column', gap: '15px' }}>
-            <div>
-              <label style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--muted-foreground)', marginBottom: '8px', display: 'block' }}>Dirección de Entrega</label>
-              <div style={{ position: 'relative' }}>
-                 <MapPin size={18} style={{ position: 'absolute', left: '15px', top: '12px', color: 'var(--muted-foreground)' }} />
-                 <input 
-                   type="text" 
-                   className="input-field" 
-                   placeholder="Ej: Av. Pellegrini 1500, Rosario" 
-                   style={{ paddingLeft: '45px' }}
-                   value={address}
-                   onChange={e => setAddress(e.target.value)}
-                 />
-              </div>
-            </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
-              <div>
-                <label style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--muted-foreground)', marginBottom: '8px', display: 'block' }}>Localidad</label>
-                <input type="text" className="input-field" placeholder="Ej: Rosario" value={localidad} onChange={e => setLocalidad(e.target.value)} />
-              </div>
-              <div>
-                <label style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--muted-foreground)', marginBottom: '8px', display: 'block' }}>Código Postal</label>
-                <input type="text" className="input-field" placeholder="Ej: 2000" value={codigoPostal} onChange={e => setCodigoPostal(e.target.value)} />
-              </div>
-            </div>
-          </div>
-        )}
+        <p style={{ color: 'var(--muted-foreground)', marginBottom: '40px', textAlign: 'center' }}>Selecciona tu ubicación para calcular el costo de envío.</p>
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '20px', marginBottom: '40px' }}>
-          <ShipOption 
-            id="standard" 
-            title="Envío Estándar" 
-            desc="3-5 días hábiles" 
-            icon={<Truck size={24} />} 
-            selected={method === 'standard'} 
-            onClick={() => setMethod('standard')} 
-          />
-          <ShipOption 
-            id="express" 
-            title="Envío Express" 
-            desc="Llega en 24hs" 
-            icon={<Truck size={24} color="var(--accent)" />} 
-            selected={method === 'express'} 
-            onClick={() => setMethod('express')} 
-          />
-          <ShipOption 
-            id="tienda" 
-            title="Retiro en Tienda" 
-            desc="Zeballos 1315, Rosario" 
-            icon={<Store size={24} />} 
-            selected={method === 'tienda'} 
-            onClick={() => setMethod('tienda')} 
-          />
+        {error && <div style={{ color: 'var(--error)', textAlign: 'center', marginBottom: '20px', fontWeight: 600 }}>{error}</div>}
+
+        <div className="card" style={{ padding: '30px', marginBottom: '30px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '20px', marginBottom: '10px' }}>
+            <ShipOption
+              id="standard"
+              title="Envío a Domicilio"
+              desc="Cálculo dinámico"
+              icon={<Truck size={24} />}
+              selected={method === 'standard'}
+              onClick={() => setMethod('standard')}
+            />
+            <ShipOption
+              id="tienda"
+              title="Retiro en Tienda"
+              desc="Zeballos 1315, Rosario"
+              icon={<Store size={24} />}
+              selected={method === 'tienda'}
+              onClick={() => setMethod('tienda')}
+            />
+          </div>
+
+          {method !== 'tienda' && (
+            <div className="animate-slide-up" style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+              <div>
+                <label style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--muted-foreground)', marginBottom: '8px', display: 'block' }}>Dirección de Entrega</label>
+                <div style={{ position: 'relative' }}>
+                  <MapPin size={18} style={{ position: 'absolute', left: '15px', top: '12px', color: 'var(--muted-foreground)' }} />
+                  <input
+                    type="text"
+                    className="input-field"
+                    placeholder="Calle y número, Piso, Depto"
+                    style={{ paddingLeft: '45px' }}
+                    value={address}
+                    onChange={e => setAddress(e.target.value)}
+                  />
+                </div>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
+                <div>
+                  <label style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--muted-foreground)', marginBottom: '8px', display: 'block' }}>Provincia</label>
+                  <Select
+                    options={provinciaOptions}
+                    placeholder="Buscar provincia..."
+                    isSearchable={true}
+                    isClearable={true}
+                    menuPlacement="auto"
+                    menuPosition="fixed"
+                    menuPortalTarget={document.body}
+                    maxMenuHeight={250}
+                    styles={{
+                      ...customStyles,
+                      menuPortal: (base) => ({ ...base, zIndex: 9999 }),
+                      menu: (base) => ({ ...base, zIndex: 9999 })
+                    }}
+                    isLoading={loadingProvinces}
+                    onChange={(selected) => {
+                      if (!selected) {
+                        setSelectedProvincia('');
+                        setLocalidades([]);
+                        return;
+                      }
+                      setSelectedProvincia(selected.value);
+                      setSelectedLocalidad('');
+                      setCodigoPostal('');
+                      setPrecioEnvio(0);
+                      fetchLocalidades(selected.value);
+                    }}
+                  />
+                </div>
+                <div>
+                  <label style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--muted-foreground)', marginBottom: '8px', display: 'block' }}>Localidad</label>
+                  <Select
+                    options={localidadOptions}
+                    placeholder="Buscar localidad..."
+                    isSearchable={true}
+                    isClearable={true}
+                    menuPlacement="auto"
+                    menuPosition="fixed"
+                    menuPortalTarget={document.body}
+                    maxMenuHeight={250}
+                    styles={{
+                      ...customStyles,
+                      menuPortal: (base) => ({ ...base, zIndex: 9999 }),
+                      menu: (base) => ({ ...base, zIndex: 9999 })
+                    }}
+                    isDisabled={!selectedProvincia}
+                    isLoading={loadingLocalities}
+                    onChange={(selected) => {
+                      if (!selected) {
+                        setSelectedLocalidad('');
+                        setCodigoPostal('');
+                        setPrecioEnvio(0);
+                        return;
+                      }
+
+                      const loc = Array.isArray(localidades)
+                        ? localidades.find(l => Number(l.id) === Number(selected.value))
+                        : null;
+
+                      if (!loc) return;
+
+                      setSelectedLocalidad(loc.id);
+                      setCodigoPostal(loc.codigo_postal || '');
+                      setPrecioEnvio(Number(loc.precio_envio || 0));
+                    }}
+                  />
+                </div>
+              </div>
+
+              <div style={{ width: '100%' }}>
+                <label style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--muted-foreground)', marginBottom: '8px', display: 'block' }}>Código Postal</label>
+                <input
+                  type="text"
+                  className="input-field"
+                  placeholder="Se autocompleta al elegir localidad"
+                  value={codigoPostal}
+                  readOnly
+                  style={{ backgroundColor: 'var(--secondary)', cursor: 'not-allowed' }}
+                />
+              </div>
+            </div>
+          )}
         </div>
 
         <div className="card" style={{ padding: '24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: 'var(--secondary)' }}>
-           <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
-              <Calculator size={20} color="var(--primary)" />
-              <div>
-                <div style={{ fontSize: '0.85rem', color: 'var(--muted-foreground)' }}>Costo estimado de envío</div>
-                <div style={{ fontSize: '1.2rem', fontWeight: 800, color: cost === 0 ? 'var(--success)' : 'var(--foreground)' }}>
-                  {cost === 0 ? '¡Gratis!' : `$${cost.toLocaleString()}`}
-                </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+            <Calculator size={20} color="var(--primary)" />
+            <div>
+              <div style={{ fontSize: '0.85rem', color: 'var(--muted-foreground)' }}>Costo de envío</div>
+              <div style={{ fontSize: '1.2rem', fontWeight: 800, color: (method === 'tienda' || precioEnvio === 0) && method !== 'standard' ? 'var(--success)' : 'var(--foreground)' }}>
+                {method === 'tienda' ? '¡Gratis!' : (precioEnvio === 0 && method === 'standard' ? '$0.00' : `$${precioEnvio.toLocaleString()}`)}
               </div>
-           </div>
-           <button className="btn" style={{ padding: '12px 30px', display: 'flex', alignItems: 'center', gap: '8px' }} onClick={handleContinue}>
-             Continuar al Pago <ChevronRight size={18} />
-           </button>
+            </div>
+          </div>
+          <button className="btn" style={{ padding: '12px 30px', display: 'flex', alignItems: 'center', gap: '8px' }} onClick={handleContinue}>
+            Continuar al Pago <ChevronRight size={18} />
+          </button>
         </div>
-        
+
         <div style={{ textAlign: 'center', marginTop: '30px' }}>
           <button onClick={() => navigate('/cart')} style={{ background: 'none', border: 'none', color: 'var(--muted-foreground)', cursor: 'pointer' }}>Volver al carrito</button>
         </div>
@@ -132,10 +283,10 @@ export default function Envios() {
 
 function ShipOption({ title, desc, icon, selected, onClick }) {
   return (
-    <div 
-      className="card" 
+    <div
+      className="card"
       onClick={onClick}
-      style={{ 
+      style={{
         padding: '24px', cursor: 'pointer', textAlign: 'center', transition: 'all 0.2s',
         border: selected ? '2px solid var(--accent)' : '2px solid transparent',
         backgroundColor: selected ? 'oklch(0.627 0.194 259.215 / 5%)' : 'var(--card)'
