@@ -147,58 +147,48 @@ router.post('/message', async (req, res) => {
     return res.json({ type: 'text', message: "Dime qué producto de la lista anterior quieres agregar (puedes decir el número).", products: [] });
   }
 
-  // SEARCH / RECOMMEND logic (Database Access)
-  let searchKeywords = msg
-    .replace(/[^a-z0-9\s]/g, "")
-    .replace(/\b(busco|tenes|vendes|quiero|una|un|para|por|favor|recomenda|sugerime|mejor|sirve|jugar|gaming|productos|articulos)\b/g, "")
-    .split(" ")
-    .filter(w => w.length > 2 && isNaN(w)); // Filter out short words and numbers from keywords
+  // --- 3. SEARCH LOGIC (STRICT & RELEVANT) ---
+  const normalize = (text) =>
+    text.toLowerCase()
+      .replace(/placa de video|gpu|grafica/g, 'gpu')
+      .replace(/procesador|cpu|intel|amd/g, 'cpu')
+      .replace(/[^a-z0-9\s]/g, "")
+      .replace(/\b(busco|tenes|vendes|quiero|una|un|para|por|favor|recomenda|sugerime|mejor|sirve|jugar|gaming|productos|articulos)\b/g, "")
+      .trim();
 
-  // Extract numeric limit if present (e.g. "recomendame 3")
-  const limitMatch = msg.match(/\b([1-9]|10)\b/);
-  const resultLimit = limitMatch ? parseInt(limitMatch[0]) : 4;
-
-  // Expand keywords using synonyms
-  const expandedKeywords = [...searchKeywords];
-  searchKeywords.forEach(kw => {
-    for (const [key, list] of Object.entries(SYNONYMS)) {
-      if (list.includes(kw) || kw === key) {
-        expandedKeywords.push(key, ...list);
-      }
-    }
-  });
-  const uniqueKeywords = [...new Set(expandedKeywords)];
+  const keyword = normalize(msg);
+  console.log(`[Chatbot] Keyword extracted: "${keyword}"`);
 
   try {
-    let dbProducts = [];
-    if (uniqueKeywords.length > 0) {
-      const whereClause = {
-        stock: { [Op.gt]: 0 },
-        [Op.or]: uniqueKeywords.slice(0, 5).map(kw => ({
-          [Op.or]: [
-            { name: { [Op.like]: `%${kw}%` } },
-            { description: { [Op.like]: `%${kw}%` } }
-          ]
-        }))
-      };
-      dbProducts = await Product.findAll({ where: whereClause, order: [['views', 'DESC']], limit: resultLimit, raw: true });
+    if (!keyword) {
+      return res.json({ 
+        type: 'text', 
+        message: "No entendí qué producto buscas. ¿Podrías ser más específico? Por ejemplo: 'Procesador Intel' o 'Placa de video RTX'.", 
+        products: [] 
+      });
     }
 
-    // Fallback if nothing found or no keywords
-    if (dbProducts.length === 0) {
-      dbProducts = await Product.findAll({ order: [['views', 'DESC']], limit: resultLimit, raw: true });
-      
-      let fallbackMsg = NOT_FOUND[Math.floor(Math.random()*NOT_FOUND.length)];
-      if (intent === 'RECOMMEND') {
-        fallbackMsg = `🚀 ¡Claro! Aquí tienes ${resultLimit} de nuestros productos más destacados en este momento:`;
-      } else if (uniqueKeywords.length === 0) {
-        fallbackMsg = `No especificaste qué buscas, pero aquí tienes lo más visto de la tienda:`;
-      }
+    const dbProducts = await Product.findAll({
+      where: {
+        stock: { [Op.gt]: 0 },
+        [Op.or]: [
+          { name: { [Op.iLike]: `%${keyword}%` } },
+          { description: { [Op.iLike]: `%${keyword}%` } }
+        ]
+      },
+      order: [
+        ['stock', 'DESC'],
+        ['price', 'ASC']
+      ],
+      limit: 4,
+      raw: true
+    });
 
+    if (dbProducts.length === 0) {
       return res.json({
-        type: 'products',
-        message: `${fallbackMsg}\n\n${HELP_PROMPT}`,
-        products: dbProducts
+        type: "text",
+        message: "No encontré productos con stock para lo que buscás. ¿Querés que te recomiende algo similar?",
+        products: []
       });
     }
 
