@@ -11,10 +11,21 @@ export default function AdminOrders() {
   const [totalPages, setTotalPages] = useState(1);
   const [loading, setLoading] = useState(false);
   const [statusFilter, setStatusFilter] = useState('');
+  const [typeFilter, setTypeFilter] = useState('');
+  const [userSearch, setUserSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [sortBy, setSortBy] = useState('date_desc');
   
   const navigate = useNavigate();
   const token = localStorage.getItem('token');
+
+  // Debounce para búsqueda de usuario
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(userSearch);
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [userSearch]);
 
   useEffect(() => {
     const user = JSON.parse(localStorage.getItem('user') || '{}');
@@ -22,12 +33,12 @@ export default function AdminOrders() {
       return navigate('/forbidden');
     }
     fetchOrders();
-  }, [currentPage, navigate, statusFilter, sortBy]);
+  }, [currentPage, navigate, statusFilter, sortBy, typeFilter, debouncedSearch]);
 
   const fetchOrders = async () => {
     setLoading(true);
     try {
-      const res = await axios.get(`http://localhost:5000/api/orders?page=${currentPage}&limit=8&status=${statusFilter}&sortBy=${sortBy}`, {
+      const res = await axios.get(`http://localhost:5000/api/orders?page=${currentPage}&limit=8&status=${statusFilter}&sortBy=${sortBy}&type=${typeFilter}&user=${debouncedSearch}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       setOrders(res.data.orders);
@@ -100,23 +111,39 @@ export default function AdminOrders() {
   return (
     <div className="container animate-fade-in" style={{ marginTop: '40px', paddingBottom: '60px' }}>
       <header style={{ marginBottom: '30px' }}>
-        <h2 style={{ fontSize: '2.2rem', fontWeight: 800 }}>Gestión de Pedidos</h2>
-        <p style={{ color: 'var(--muted-foreground)' }}>Administra las compras de los usuarios y actualiza sus estados.</p>
+        <h2 style={{ fontSize: '2.2rem', fontWeight: 800 }}>Gestión de Compras</h2>
+        <p style={{ color: 'var(--muted-foreground)' }}>Administra las ventas de los usuarios y actualiza sus estados.</p>
       </header>
 
-      <div style={{ display: 'flex', gap: '15px', marginBottom: '20px' }}>
-        <select className="input-field" value={statusFilter} onChange={e => { setStatusFilter(e.target.value); setCurrentPage(1); }} style={{ width: '200px' }}>
+      <div style={{ display: 'flex', gap: '15px', marginBottom: '20px', flexWrap: 'wrap' }}>
+        <select className="input-field" value={statusFilter} onChange={e => { setStatusFilter(e.target.value); setCurrentPage(1); }} style={{ width: '180px' }}>
           <option value="">Todos los estados</option>
           <option value="Pendiente">Pendiente</option>
           <option value="Cerrada">Cerrada</option>
           <option value="Cancelada">Cancelada</option>
         </select>
-        <select className="input-field" value={sortBy} onChange={e => { setSortBy(e.target.value); setCurrentPage(1); }} style={{ width: '200px' }}>
+
+        <select className="input-field" value={typeFilter} onChange={e => { setTypeFilter(e.target.value); setCurrentPage(1); }} style={{ width: '180px' }}>
+          <option value="">Todos los tipos</option>
+          <option value="pedido">Pedidos (En envío)</option>
+          <option value="compra">Compras (Finalizadas/Retiro)</option>
+        </select>
+
+        <select className="input-field" value={sortBy} onChange={e => { setSortBy(e.target.value); setCurrentPage(1); }} style={{ width: '180px' }}>
           <option value="date_desc">Más recientes</option>
           <option value="date_asc">Más antiguos</option>
           <option value="total_desc">Mayor total</option>
           <option value="total_asc">Menor total</option>
         </select>
+
+        <input 
+          type="text" 
+          className="input-field" 
+          placeholder="Buscar por usuario..." 
+          value={userSearch} 
+          onChange={e => { setUserSearch(e.target.value); setCurrentPage(1); }} 
+          style={{ width: '250px' }} 
+        />
       </div>
 
       <div className="card" style={{ padding: '0', overflow: 'hidden' }}>

@@ -177,26 +177,43 @@ export default function Home() {
 
               <div style={{ marginBottom: '24px' }}>
                  <h4 style={{ fontSize: '0.9rem', color: 'var(--muted-foreground)', marginBottom: '12px' }}>Rango de Precio</h4>
-                 <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-                    <input 
-                      type="number" 
-                      placeholder="Mín" 
-                      className="input-field" 
-                      value={minPrice} 
-                      min="0"
-                      onChange={e => setMinPrice(Math.max(0, parseInt(e.target.value) || ''))}
-                      style={{ padding: '8px', fontSize: '0.9rem' }}
-                    />
-                    <span style={{ color: 'var(--muted-foreground)' }}>-</span>
-                    <input 
-                      type="number" 
-                      placeholder="Máx" 
-                      className="input-field" 
-                      value={maxPrice} 
-                      min="0"
-                      onChange={e => setMaxPrice(Math.max(0, parseInt(e.target.value) || ''))}
-                      style={{ padding: '8px', fontSize: '0.9rem' }}
-                    />
+                 <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+                      <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--muted-foreground)', marginLeft: '4px' }}>Precio Mínimo</label>
+                      <input 
+                        type="number" 
+                        placeholder="0" 
+                        className="input-field" 
+                        value={minPrice} 
+                        min="0"
+                        onChange={e => {
+                          const val = e.target.value === '' ? '' : Math.max(0, parseInt(e.target.value));
+                          setMinPrice(val);
+                          if (val !== '' && maxPrice !== '' && val > maxPrice) {
+                            setMaxPrice(val);
+                          }
+                        }}
+                        style={{ padding: '12px', fontSize: '1rem', width: '100%' }}
+                      />
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+                      <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--muted-foreground)', marginLeft: '4px' }}>Precio Máximo</label>
+                      <input 
+                        type="number" 
+                        placeholder="Cualquiera" 
+                        className="input-field" 
+                        value={maxPrice} 
+                        min="0"
+                        onChange={e => {
+                          const val = e.target.value === '' ? '' : Math.max(0, parseInt(e.target.value));
+                          setMaxPrice(val);
+                          if (val !== '' && minPrice !== '' && val < minPrice) {
+                            setMinPrice(val);
+                          }
+                        }}
+                        style={{ padding: '12px', fontSize: '1rem', width: '100%' }}
+                      />
+                    </div>
                  </div>
               </div>
            </div>

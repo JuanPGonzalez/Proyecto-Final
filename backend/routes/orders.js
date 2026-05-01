@@ -4,6 +4,7 @@ const { authMiddleware, clientMiddleware, isAdminRole } = require('../middleware
 const sequelize = require('../config/database');
 const { Order, OrderItem, Product, User, Notification } = require('../models');
 const { ROLES } = require('../middleware/roles');
+const { Op } = require('sequelize');
 
 const { sendOrderConfirmation } = require('../services/emailService');
 
@@ -14,11 +15,21 @@ router.get('/', authMiddleware, async (req, res) => {
     const limit = parseInt(req.query.limit) || 5;
     const offset = (page - 1) * limit;
     
-    const statusFilter = req.query.status;
-    const sortBy = req.query.sortBy || 'date_desc';
+    const { status: statusFilter, sortBy = 'date_desc', type: typeFilter, user: userSearch } = req.query;
 
     const where = isAdminRole(req.user.tipoUsuario) ? {} : { user_id: req.user.id };
     if (statusFilter) where.status = statusFilter;
+
+    // Filtro por Tipo (Pedido vs Compra)
+    if (typeFilter === 'pedido') {
+      where.shipping_method = { [Op.ne]: 'tienda' };
+      where.status = { [Op.ne]: 'Cerrada' };
+    } else if (typeFilter === 'compra') {
+      where[Op.or] = [
+        { shipping_method: 'tienda' },
+        { status: 'Cerrada' }
+      ];
+    }
 
     let orderArray = [['id', 'DESC']];
     if (sortBy === 'date_asc') orderArray = [['id', 'ASC']];
@@ -32,7 +43,12 @@ router.get('/', authMiddleware, async (req, res) => {
       }
     ];
     if (isAdminRole(req.user.tipoUsuario)) {
-      include.push({ model: User, attributes: ['id', 'name', 'email', 'tipoUsuario'] });
+      const userWhere = userSearch ? { name: { [Op.like]: `%${userSearch}%` } } : undefined;
+      include.push({ 
+        model: User, 
+        attributes: ['id', 'name', 'email', 'tipoUsuario'],
+        where: userWhere
+      });
     }
 
     const { count, rows } = await Order.findAndCountAll({
