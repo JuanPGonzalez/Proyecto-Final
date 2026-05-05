@@ -2,28 +2,36 @@ import React, { useEffect, useState } from 'react';
 import axios from 'axios';
 import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, LineElement, PointElement, Title, Tooltip, Legend, ArcElement } from 'chart.js';
 import { Bar, Line, Pie, Doughnut } from 'react-chartjs-2';
-import { Users, ShoppingBag, DollarSign, Activity, AlertTriangle, Calendar, Award, ChevronLeft, ChevronRight, Search, Plus } from 'lucide-react';
+import { Users, ShoppingBag, DollarSign, Activity, AlertTriangle, Calendar, Award, ChevronLeft, ChevronRight, Search, Globe, History, ArrowUpRight, ArrowDownRight, Info } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { isAdminRole } from '../constants/roles';
+import { showToast } from '../utils/swal';
+import ClientDetailModal from '../components/ClientDetailModal';
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, LineElement, PointElement, Title, Tooltip, Legend, ArcElement);
 
 export default function AdminDashboard() {
   const [data, setData] = useState(null);
+  const [compare, setCompare] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [users, setUsers] = useState([]); // Para el filtro de historial
   
-  // Default to current month
   const today = new Date();
   const firstDay = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().split('T')[0];
   const lastDay = new Date(today.getFullYear(), today.getMonth() + 1, 0).toISOString().split('T')[0];
   
+  // Período Principal
   const [startDate, setStartDate] = useState(firstDay);
   const [endDate, setEndDate] = useState(lastDay);
-  const [loading, setLoading] = useState(true);
 
-  // Purchase History State
+  // Período de Comparación
+  const [compareStart, setCompareStart] = useState('');
+  const [compareEnd, setCompareEnd] = useState('');
+
   const [history, setHistory] = useState({ orders: [], totalPages: 1, currentPage: 1 });
-  const [historyFilters, setHistoryFilters] = useState({ page: 1, shippingMethod: '' });
+  const [historyFilters, setHistoryFilters] = useState({ page: 1, shippingMethod: '', clientId: 'all' });
   const [loadingHistory, setLoadingHistory] = useState(false);
+  const [selectedClient, setSelectedClient] = useState(null);
   
   const navigate = useNavigate();
 
@@ -35,19 +43,30 @@ export default function AdminDashboard() {
       return navigate('/forbidden');
     }
     fetchDashboardData();
+    fetchUsers();
   }, [navigate]);
 
   useEffect(() => {
     fetchPurchaseHistory();
-  }, [historyFilters, startDate, endDate]);
+  }, [historyFilters]);
+
+  const rangesOverlap = (aStart, aEnd, bStart, bEnd) => {
+    if (!aStart || !aEnd || !bStart || !bEnd) return false;
+    return new Date(bStart) <= new Date(aEnd) && new Date(bEnd) >= new Date(aStart);
+  };
 
   const fetchDashboardData = async () => {
     setLoading(true);
     try {
       const token = localStorage.getItem('token');
-      const params = {};
+      const params = { compare };
       if (startDate) params.startDate = startDate;
       if (endDate) params.endDate = endDate;
+      
+      if (compare && compareStart && compareEnd) {
+        params.compareStart = compareStart;
+        params.compareEnd = compareEnd;
+      }
 
       const res = await axios.get('http://localhost:5000/api/admin/dashboard-data', {
         headers: { Authorization: `Bearer ${token}` },
@@ -58,6 +77,18 @@ export default function AdminDashboard() {
       console.error('Error fetching dashboard data:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchUsers = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const res = await axios.get('http://localhost:5000/api/admin/users', {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setUsers(Array.isArray(res.data) ? res.data : []);
+    } catch (err) {
+      console.error(err);
     }
   };
 
@@ -73,7 +104,7 @@ export default function AdminDashboard() {
         headers: { Authorization: `Bearer ${token}` },
         params
       });
-      setHistory(res.data);
+      setHistory(res.data || { orders: [], totalPages: 1, currentPage: 1 });
     } catch (error) {
       console.error('Error fetching purchase history:', error);
     } finally {
@@ -82,13 +113,37 @@ export default function AdminDashboard() {
   };
 
   const handleFilter = (e) => {
-    e.preventDefault();
+    if (e) e.preventDefault();
+    
+    if (!startDate || !endDate) {
+      showToast('Selecciona el rango de fechas principal.', 'info');
+      return;
+    }
+
+    if (compare) {
+      if (!compareStart || !compareEnd) {
+        showToast('Completa las fechas de comparación.', 'info');
+        return;
+      }
+      if (new Date(compareStart) >= new Date(compareEnd)) {
+        showToast('La fecha de inicio de comparación debe ser anterior a la de fin.', 'warning');
+        return;
+      }
+      if (rangesOverlap(startDate, endDate, compareStart, compareEnd)) {
+        showToast('El período comparativo no puede solaparse con el principal.', 'warning');
+        return;
+      }
+    }
+
     fetchDashboardData();
   };
 
   const handleClearFilter = () => {
-    setStartDate('');
-    setEndDate('');
+    setStartDate(firstDay);
+    setEndDate(lastDay);
+    setCompareStart('');
+    setCompareEnd('');
+    setCompare(false);
     setTimeout(fetchDashboardData, 100);
   };
 
@@ -96,473 +151,476 @@ export default function AdminDashboard() {
     return <div className="container" style={{ marginTop: '50px', textAlign: 'center' }}>Cargando inteligencia de negocio...</div>;
   }
 
-  const { 
-    stats, lowStockProducts, outOfStockProducts, topUsers, salesTrend, adminPerformance, 
-    topProducts, shippingMethods, topSellingProducts, 
-    productsByCategory, revenueByCategory, userRegistrations 
-  } = data || {};
+  if (!data) {
+    return <div className="container" style={{ marginTop: '50px', textAlign: 'center' }}>No se pudo cargar la información analítica.</div>;
+  }
 
-  // Formatear datos para gráficos
+  const global = data.global || data.stats || {};
+  const current = data.current || data.stats || {};
+  const previous = data.previous || null;
+  const rankings = data.rankings || {
+    lowStockProducts: data.lowStockProducts || [],
+    outOfStockProducts: data.outOfStockProducts || [],
+    topUsers: data.topUsers || [],
+    productsByCategory: data.productsByCategory || [],
+    shippingMethods: data.shippingMethods || [],
+    topSellingProducts: data.topSellingProducts || [],
+    topProducts: data.topProducts || []
+  };
+
   const salesChartData = {
-    labels: salesTrend?.map(t => new Date(t.date).toLocaleDateString('es-AR')) || [],
-    datasets: [{
-      label: 'Ingresos ($)',
-      data: salesTrend?.map(t => t.total) || [],
-      borderColor: 'var(--primary)',
-      backgroundColor: 'rgba(56, 189, 248, 0.1)',
-      borderWidth: 2,
-      fill: true,
-      tension: 0.3
-    }]
+    labels: current?.salesTrend?.map(t => t.date ? new Date(t.date).toLocaleDateString('es-AR') : '') || [],
+    datasets: [
+      {
+        label: 'Periodo actual',
+        data: current?.salesTrend?.map(t => t.total || 0) || [],
+        borderColor: '#3b82f6',
+        backgroundColor: 'rgba(59,130,246,0.2)',
+        borderWidth: 3,
+        fill: true,
+        tension: 0.3,
+        pointRadius: 4,
+        pointBackgroundColor: '#3b82f6'
+      },
+      compare && previous?.salesTrend ? {
+        label: 'Periodo anterior',
+        data: previous.salesTrend.map(t => t.total || 0) || [],
+        borderColor: '#f59e0b',
+        backgroundColor: 'rgba(245,158,11,0.2)',
+        borderWidth: 2,
+        borderDash: [5, 5],
+        fill: true,
+        tension: 0.3,
+        pointRadius: 0
+      } : null
+    ].filter(Boolean)
   };
 
-  const userRegChartData = {
-    labels: userRegistrations?.map(u => new Date(u.date).toLocaleDateString('es-AR')) || [],
-    datasets: [{
-      label: 'Nuevos Usuarios',
-      data: userRegistrations?.map(u => u.count) || [],
-      borderColor: '#ec4899',
-      backgroundColor: 'rgba(236, 72, 153, 0.1)',
-      borderWidth: 2,
-      fill: true,
-      tension: 0.3
-    }]
-  };
-
-  const adminChartData = {
-    labels: adminPerformance?.map(a => a.admin_name) || [],
-    datasets: [{
-      label: 'Tickets Resueltos',
-      data: adminPerformance?.map(a => a.resolved) || [],
-      backgroundColor: '#10b981',
-      borderRadius: 4,
-    }]
+  const userGrowthData = {
+    labels: current?.userRegistrations?.map(u => u.date ? new Date(u.date).toLocaleDateString('es-AR') : '') || [],
+    datasets: [
+      {
+        label: 'Periodo actual',
+        data: current?.userRegistrations?.map(u => u.count || 0) || [],
+        borderColor: '#ec4899',
+        backgroundColor: 'rgba(236, 72, 153, 0.1)',
+        borderWidth: 3,
+        fill: true,
+        tension: 0.3
+      },
+      compare && previous?.userRegistrations ? {
+        label: 'Periodo anterior',
+        data: previous.userRegistrations.map(u => u.count || 0) || [],
+        borderColor: '#f59e0b',
+        backgroundColor: 'rgba(245, 158, 11, 0.1)',
+        borderWidth: 2,
+        borderDash: [5, 5],
+        fill: true,
+        tension: 0.3,
+        pointRadius: 0
+      } : null
+    ].filter(Boolean)
   };
 
   const chartColors = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4', '#ec4899', '#71717a'];
 
-  const categoryStockChartData = {
-    labels: productsByCategory?.map(c => c.category) || [],
+  const categoryStockData = {
+    labels: rankings?.productsByCategory?.map(c => c.category || 'Sin Cat.') || [],
     datasets: [{
-      data: productsByCategory?.map(c => c.count) || [],
+      data: rankings?.productsByCategory?.map(c => c.count || 0) || [],
       backgroundColor: chartColors,
-      borderWidth: 2,
-      borderColor: 'var(--card)',
+      borderWidth: 0,
       hoverOffset: 15
     }]
   };
 
-  const categoryRevenueChartData = {
-    labels: revenueByCategory?.map(r => r.category) || [],
+  const shippingData = {
+    labels: rankings?.shippingMethods?.map(s => s.method === 'tienda' ? 'Retiro en Tienda' : (s.method?.toUpperCase() || 'OTRO')) || [],
     datasets: [{
-      data: revenueByCategory?.map(r => r.revenue) || [],
-      backgroundColor: chartColors,
-      borderWidth: 2,
-      borderColor: 'var(--card)',
-      hoverOffset: 15
-    }]
-  };
-
-  const shippingChartData = {
-    labels: shippingMethods?.map(s => s.method === 'tienda' ? 'Retiro en Tienda' : s.method.charAt(0).toUpperCase() + s.method.slice(1)) || [],
-    datasets: [{
-      data: shippingMethods?.map(s => s.count) || [],
+      data: rankings?.shippingMethods?.map(s => s.count || 0) || [],
       backgroundColor: ['#3b82f6', '#f59e0b', '#10b981', '#8b5cf6'],
-      borderWidth: 2,
-      borderColor: 'var(--card)',
-      hoverOffset: 15
+      borderWidth: 0
     }]
   };
 
-  const topSellingChartData = {
-    labels: topSellingProducts?.map(p => p.name.substring(0, 15) + '...') || [],
+  const topSellingData = {
+    labels: rankings?.topSellingProducts?.map(p => (p.name || 'Desconocido').substring(0, 15) + '...') || [],
     datasets: [{
       label: 'Unidades Vendidas',
-      data: topSellingProducts?.map(p => p.totalQuantity) || [],
+      data: rankings?.topSellingProducts?.map(p => p.totalQuantity || 0) || [],
       backgroundColor: '#8b5cf6',
-      borderRadius: 4,
+      borderRadius: 6
     }]
   };
 
-  const doughnutOptions = {
-    maintainAspectRatio: false,
-    cutout: '70%',
-    plugins: {
-      legend: {
-        position: 'bottom',
-        labels: {
-          usePointStyle: true,
-          padding: 15,
-          font: { size: 11 }
-        }
-      }
-    }
+  const calculateGrowth = (curr, prev) => {
+    if (!prev || prev === 0) return null;
+    const growth = ((curr - prev) / prev) * 100;
+    return isFinite(growth) ? growth.toFixed(1) : (curr > 0 ? '100' : '0');
   };
 
-  // Interactividad de clics en gráficos
-  const onShippingClick = (event, elements) => {
-    if (elements.length > 0) {
-      const idx = elements[0].index;
-      // Use the raw method name for filtering, not the display label
-      const rawMethod = shippingMethods[idx].method;
-      setHistoryFilters(prev => ({ ...prev, shippingMethod: rawMethod, page: 1 }));
-      window.scrollTo({ top: document.getElementById('history-section').offsetTop - 50, behavior: 'smooth' });
-    }
-  };
-
-  const onTicketClick = (event, elements) => {
-    if (elements.length > 0) {
-      const idx = elements[0].index;
-      const adminName = adminChartData.labels[idx];
-      // Filter or show alert with admin details
-      showAlert(`Tickets de ${adminName}`, `Este administrador ha resuelto ${adminPerformance[idx].resolved} tickets en el período seleccionado.`, 'info');
-    }
-  };
+  const periodRevenue = current?.periodRevenue || current?.revenue || 0;
+  const periodOrders = current?.periodOrders || current?.totalOrders || 0;
+  const prevRevenue = previous?.periodRevenue || 0;
+  const prevOrders = previous?.periodOrders || 0;
 
   return (
     <div className="container animate-fade-in" style={{ marginTop: '40px', paddingBottom: '60px' }}>
       
-      {/* ALERTAS DE STOCK - REPOSICIÓN INMEDIATA */}
-      {outOfStockProducts && outOfStockProducts.length > 0 && (
-        <div style={{ backgroundColor: '#ef4444', color: 'white', padding: '15px 20px', borderRadius: 'var(--radius-lg)', marginBottom: '15px', display: 'flex', alignItems: 'center', gap: '15px', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)' }}>
-          <AlertTriangle size={24} />
-          <div>
-            <h4 style={{ margin: 0, fontWeight: 700, fontSize: '1.1rem' }}>URGENTE: Stock Agotado</h4>
-            <p style={{ margin: 0, fontSize: '0.9rem', opacity: 0.9 }}>
-              Hay {outOfStockProducts.length} producto(s) sin unidades disponibles. Reposición inmediata sugerida.
-            </p>
+      {/* ALERTAS DE STOCK */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', gap: '20px', marginBottom: '40px' }}>
+        {rankings?.outOfStockProducts?.length > 0 && (
+          <div className="animate-slide-in" style={{ backgroundColor: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', padding: '15px 25px', borderRadius: 'var(--radius-lg)', border: '1px solid rgba(239, 68, 68, 0.2)', display: 'flex', alignItems: 'center', gap: '15px' }}>
+            <AlertTriangle size={24} />
+            <div style={{ flex: 1 }}>
+              <h4 style={{ margin: 0, fontWeight: 800 }}>STOCK AGOTADO</h4>
+              <p style={{ margin: 0, fontSize: '0.85rem' }}>Hay {rankings.outOfStockProducts.length} productos sin unidades.</p>
+            </div>
+            <button className="btn" onClick={() => navigate('/admin/productos')} style={{ backgroundColor: '#ef4444', color: 'white', border: 'none', padding: '6px 12px', fontSize: '0.8rem' }}>Ver</button>
           </div>
-          <button className="btn" onClick={() => navigate('/admin/productos', { state: { filterOutOfStock: true } })} style={{ marginLeft: 'auto', backgroundColor: 'white', color: '#ef4444', border: 'none' }}>
-            Ver Agotados
-          </button>
-        </div>
-      )}
-
-      {/* ALERTA DE STOCK BAJO - ADVERTENCIA */}
-      {lowStockProducts && lowStockProducts.length > 0 && (
-        <div style={{ backgroundColor: '#f59e0b', color: 'white', padding: '15px 20px', borderRadius: 'var(--radius-lg)', marginBottom: '30px', display: 'flex', alignItems: 'center', gap: '15px', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)' }}>
-          <Activity size={24} />
-          <div>
-            <h4 style={{ margin: 0, fontWeight: 700, fontSize: '1.1rem' }}>Advertencia: Stock Bajo</h4>
-            <p style={{ margin: 0, fontSize: '0.9rem', opacity: 0.9 }}>
-              Hay {lowStockProducts.length} producto(s) en alerta (1-4 unidades).
-            </p>
+        )}
+        {rankings?.lowStockProducts?.length > 0 && (
+          <div className="animate-slide-in" style={{ backgroundColor: 'rgba(245, 158, 11, 0.1)', color: '#f59e0b', padding: '15px 25px', borderRadius: 'var(--radius-lg)', border: '1px solid rgba(245, 158, 11, 0.2)', display: 'flex', alignItems: 'center', gap: '15px' }}>
+            <Activity size={24} />
+            <div style={{ flex: 1 }}>
+              <h4 style={{ margin: 0, fontWeight: 800 }}>STOCK BAJO</h4>
+              <p style={{ margin: 0, fontSize: '0.85rem' }}>{rankings.lowStockProducts.length} productos en alerta de reposición.</p>
+            </div>
+            <button className="btn" onClick={() => navigate('/admin/productos')} style={{ backgroundColor: '#f59e0b', color: 'white', border: 'none', padding: '6px 12px', fontSize: '0.8rem' }}>Revisar</button>
           </div>
-          <button className="btn" onClick={() => navigate('/admin/productos', { state: { filterLowStock: true } })} style={{ marginLeft: 'auto', backgroundColor: 'white', color: '#f59e0b', border: 'none' }}>
-            Filtrar Alerta
-          </button>
-        </div>
-      )}
+        )}
+      </div>
 
-      {/* HEADER & FILTROS GLOBALES */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '30px', flexWrap: 'wrap', gap: '20px' }}>
+      {/* HEADER & CONTROLES */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '40px', flexWrap: 'wrap', gap: '25px' }}>
         <div>
-          <h2 style={{ fontSize: '2.5rem', fontWeight: 800, letterSpacing: '-1px' }}>Dashboard Analítico</h2>
-          <p style={{ color: 'var(--muted-foreground)' }}>Reportes Históricos y Métricas de Rendimiento</p>
+          <h2 style={{ fontSize: '2.8rem', fontWeight: 900, letterSpacing: '-1.5px', marginBottom: '5px' }}>Business Intelligence</h2>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+             <p style={{ color: 'var(--muted-foreground)', margin: 0 }}>Panel de control analítico y logística</p>
+             {(startDate !== firstDay || compare) && <span style={{ backgroundColor: 'var(--primary)', color: 'white', padding: '2px 10px', borderRadius: '20px', fontSize: '0.7rem', fontWeight: 700 }}>FILTRO ACTIVO</span>}
+          </div>
         </div>
         
-        <form onSubmit={handleFilter} className="card" style={{ display: 'flex', gap: '15px', alignItems: 'flex-end', padding: '15px', border: '1px solid var(--border)' }}>
-          <div>
-            <label style={{ fontSize: '0.8rem', color: 'var(--muted-foreground)', display: 'block', marginBottom: '5px' }}>Desde</label>
-            <input type="date" className="input-field" value={startDate} onChange={e => setStartDate(e.target.value)} style={{ borderColor: 'var(--border)' }} />
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '15px', alignItems: 'flex-end' }}>
+          <div style={{ display: 'flex', gap: '20px', alignItems: 'center' }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', backgroundColor: 'var(--card)', padding: '10px 15px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)' }}>
+              <input type="checkbox" checked={compare} onChange={e => setCompare(e.target.checked)} />
+              <span style={{ fontSize: '0.9rem', fontWeight: 600 }}>Comparar periodos</span>
+            </label>
+
+            <div className="card" style={{ display: 'flex', gap: '12px', alignItems: 'flex-end', padding: '12px', border: '1px solid var(--border)', flexDirection: 'row' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+                <span style={{ fontSize: '0.7rem', fontWeight: 800, color: 'var(--muted-foreground)', marginLeft: '5px' }}>PERÍODO PRINCIPAL</span>
+                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                  <input type="date" className="input-field" value={startDate} onChange={e => setStartDate(e.target.value)} style={{ height: '38px', fontSize: '0.85rem' }} />
+                  <span style={{ color: 'var(--muted-foreground)' }}>→</span>
+                  <input type="date" className="input-field" value={endDate} onChange={e => setEndDate(e.target.value)} style={{ height: '38px', fontSize: '0.85rem' }} />
+                </div>
+              </div>
+              
+              <button onClick={handleFilter} className="btn" style={{ height: '38px', padding: '0 20px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Search size={16}/> {compare ? 'Comparar períodos' : 'Filtrar'}
+              </button>
+              {(startDate !== firstDay || compare) && <button type="button" className="btn btn-outline" onClick={handleClearFilter} style={{ height: '38px', padding: '0 15px' }}>×</button>}
+            </div>
           </div>
-          <div>
-            <label style={{ fontSize: '0.8rem', color: 'var(--muted-foreground)', display: 'block', marginBottom: '5px' }}>Hasta</label>
-            <input type="date" className="input-field" value={endDate} onChange={e => setEndDate(e.target.value)} style={{ borderColor: 'var(--border)' }} />
-          </div>
-          <button type="submit" className="btn" style={{ height: '42px', display: 'flex', alignItems: 'center', gap: '5px' }}>
-            <Calendar size={18}/> Filtrar
-          </button>
-          {(startDate || endDate) && (
-            <button type="button" className="btn btn-outline" onClick={handleClearFilter} style={{ height: '42px' }}>
-              Limpiar
-            </button>
+
+          {compare && (
+            <div className="animate-slide-in card" style={{ display: 'flex', gap: '12px', alignItems: 'flex-end', padding: '12px', border: '1px solid var(--warning)', backgroundColor: 'rgba(245, 158, 11, 0.05)' }}>
+               <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginLeft: '5px' }}>
+                    <span style={{ fontSize: '0.7rem', fontWeight: 800, color: '#f59e0b' }}>PERÍODO DE COMPARACIÓN</span>
+                    <Info size={12} color="#f59e0b" title="Seleccioná un período distinto para comparar resultados" />
+                  </div>
+                  <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                    <input type="date" className="input-field" value={compareStart} onChange={e => setCompareStart(e.target.value)} style={{ height: '38px', fontSize: '0.85rem', borderColor: '#f59e0b' }} />
+                    <span style={{ color: 'var(--muted-foreground)' }}>→</span>
+                    <input type="date" className="input-field" value={compareEnd} onChange={e => setCompareEnd(e.target.value)} style={{ height: '38px', fontSize: '0.85rem', borderColor: '#f59e0b' }} />
+                  </div>
+               </div>
+            </div>
           )}
-        </form>
+        </div>
       </div>
       
-      {/* TARJETAS DE MÉTRICAS - FILA 1 (HISTÓRICO / TOTAL) y FILA 2 (FILTRADO / PERIODO) */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '20px', marginBottom: '30px' }}>
-        {/* FILA 1: DESDE EL INICIO / AL DÍA DE HOY */}
-        <StatCard title="Ingresos Históricos" subtitle="Desde el inicio" value={`$${Number(stats?.revenue || 0).toLocaleString('es-AR')}`} icon={<DollarSign size={24} />} bg="rgba(16, 185, 129, 0.1)" color="#10b981" />
-        <StatCard title="Órdenes Totales" subtitle="Desde el inicio" value={stats?.totalOrders || 0} icon={<ShoppingBag size={24} />} bg="rgba(56, 189, 248, 0.1)" color="#38bdf8" />
-        <StatCard title="Total Usuarios" subtitle="Al día de hoy" value={stats?.totalUsers || 0} icon={<Users size={24} />} bg="rgba(139, 92, 246, 0.1)" color="#8b5cf6" />
-        <StatCard title="Total Productos" subtitle="Al día de hoy" value={stats?.totalProducts || 0} icon={<Activity size={24} />} bg="rgba(245, 158, 11, 0.1)" color="#f59e0b" />
-        
-        {/* FILA 2: DEL PERIODO FILTRADO */}
-        <StatCard title="Ingresos Periodo" subtitle="Del periodo filtrado" value={`$${Number(stats?.periodRevenue || 0).toLocaleString('es-AR')}`} icon={<DollarSign size={24} />} bg="rgba(16, 185, 129, 0.1)" color="#10b981" />
-        <StatCard title="Órdenes Periodo" subtitle="Del periodo filtrado" value={stats?.periodOrders || 0} icon={<ShoppingBag size={24} />} bg="rgba(56, 189, 248, 0.1)" color="#38bdf8" />
-        <StatCard title="Nuevos Usuarios" subtitle="Del periodo filtrado" value={stats?.newUsers || 0} icon={<Plus size={24} />} bg="rgba(236, 72, 153, 0.1)" color="#ec4899" />
-        <StatCard title="Nuevos Productos" subtitle="Del periodo filtrado" value={stats?.newProducts || 0} icon={<Plus size={24} />} bg="rgba(6, 182, 212, 0.1)" color="#06b6d4" />
-      </div>
-
-      {/* TENDENCIAS PRINCIPALES - FILA 2 */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1.8fr 1.2fr', gap: '30px', marginBottom: '30px', alignItems: 'stretch' }}>
-        
-        {/* GRÁFICO TENDENCIA DE VENTAS */}
-        <div className="card" style={{ padding: '30px' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-            <h4 style={{ margin: 0, fontSize: '1.2rem', fontWeight: 700 }}>Evolución de Ingresos</h4>
-            <span style={{ fontSize: '0.8rem', color: 'var(--muted-foreground)' }}>Filtrado por fechas</span>
-          </div>
-          {salesTrend && salesTrend.length > 0 ? (
-             <div style={{ height: '300px' }}>
-               <Line 
-                 options={{ responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }} 
-                 data={salesChartData} 
-               />
-             </div>
-          ) : (
-             <div style={{ height: '300px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--muted-foreground)' }}>No hay ventas en este período</div>
-          )}
+      {/* SECCIÓN 1: MÉTRICAS POR PERIODO */}
+      <section style={{ marginBottom: '60px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '15px', marginBottom: '25px' }}>
+          <Calendar size={24} color="var(--primary)" />
+          <h3 style={{ margin: 0, fontSize: '1.6rem', fontWeight: 800 }}>Métricas por Período</h3>
+          <div style={{ flex: 1, height: '1px', backgroundColor: 'var(--border)', marginLeft: '10px' }}></div>
         </div>
 
-        {/* TENDENCIA DE REGISTROS */}
-        <div className="card" style={{ padding: '30px' }}>
-          <h4 style={{ marginBottom: '20px', fontSize: '1.2rem', fontWeight: 700 }}>Crecimiento de Usuarios</h4>
-          <div style={{ height: '300px' }}>
-            <Line 
-              data={userRegChartData} 
-              options={{ responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } } }} 
-            />
-          </div>
-        </div>
-      </div>
-
-      {/* ANALÍTICA DE CATEGORÍAS Y ENVÍOS - FILA 3 */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '30px', marginBottom: '30px' }}>
-        
-        <div className="card" style={{ padding: '25px' }}>
-          <h5 style={{ marginBottom: '20px', fontSize: '1.1rem', textAlign: 'center' }}>Stock por Categoría</h5>
-          <div style={{ height: '320px' }}>
-            <Bar 
-              data={categoryStockChartData} 
-              options={{ 
-                indexAxis: 'y', 
-                responsive: true, 
-                maintainAspectRatio: false, 
-                plugins: { legend: { display: false } },
-                scales: { x: { beginAtZero: true, grid: { display: false } } }
-              }} 
-            />
-          </div>
-        </div>
-
-        <div className="card" style={{ padding: '25px' }}>
-          <h5 style={{ marginBottom: '20px', fontSize: '1.1rem', textAlign: 'center' }}>Ventas por Categoría</h5>
-          <div style={{ height: '320px' }}>
-            <Bar 
-              data={categoryRevenueChartData} 
-              options={{ 
-                indexAxis: 'y', 
-                responsive: true, 
-                maintainAspectRatio: false, 
-                plugins: { legend: { display: false } },
-                scales: { x: { beginAtZero: true, grid: { display: false } } }
-              }} 
-            />
-          </div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '20px', marginBottom: '30px' }}>
+          <PeriodStatCard 
+            title="Ingresos" 
+            value={`$${Number(periodRevenue).toLocaleString('es-AR')}`} 
+            growth={calculateGrowth(periodRevenue, prevRevenue)}
+            icon={<DollarSign size={20} />} 
+            color="#10b981" 
+          />
+          <PeriodStatCard 
+            title="Órdenes" 
+            value={periodOrders} 
+            growth={calculateGrowth(periodOrders, prevOrders)}
+            icon={<ShoppingBag size={20} />} 
+            color="#38bdf8" 
+          />
+          <PeriodStatCard 
+            title="Nuevos Usuarios" 
+            value={current?.newUsers || 0} 
+            growth={calculateGrowth(current?.newUsers || 0, previous?.newUsers || 0)}
+            icon={<Users size={20} />} 
+            color="#ec4899" 
+          />
+          <PeriodStatCard 
+            title="Ticket Promedio" 
+            value={`$${(periodOrders ? periodRevenue / periodOrders : 0).toLocaleString('es-AR', { maximumFractionDigits: 0 })}`} 
+            growth={calculateGrowth(periodOrders ? periodRevenue / periodOrders : 0, prevOrders ? prevRevenue / prevOrders : 0)}
+            icon={<Activity size={20} />} 
+            color="#f59e0b" 
+          />
         </div>
 
-        <div className="card" style={{ padding: '25px' }}>
-          <h5 style={{ marginBottom: '20px', fontSize: '1.1rem', textAlign: 'center' }}>Métodos de Envío</h5>
-          <div style={{ height: '260px' }}>
-            <Doughnut data={shippingChartData} options={{ ...doughnutOptions, onClick: onShippingClick }} />
-          </div>
-        </div>
-      </div>
-
-      {/* RENDIMIENTO Y RANKINGS - FILA 4 */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr 1.2fr', gap: '30px', marginBottom: '40px', alignItems: 'start' }}>
-        
-        {/* TOP PRODUCTOS (VENTAS) */}
-        <div className="card" style={{ padding: '25px' }}>
-          <h4 style={{ marginBottom: '20px', fontSize: '1.1rem', fontWeight: 700 }}>Más Vendidos</h4>
-          <div style={{ height: '350px' }}>
-            {topSellingProducts && topSellingProducts.length > 0 ? (
-              <Bar 
-                options={{ indexAxis: 'y', responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }} 
-                data={topSellingChartData} 
-              />
-            ) : (
-              <div style={{ padding: '40px 0', textAlign: 'center', color: 'var(--muted-foreground)' }}>Sin ventas</div>
-            )}
-          </div>
-        </div>
-
-        {/* RENDIMIENTO ADMINS */}
-        <div className="card" style={{ padding: '25px' }}>
-          <h4 style={{ marginBottom: '20px', fontSize: '1.1rem', fontWeight: 700 }}>Soporte (Admins)</h4>
-          <div style={{ height: '350px' }}>
-            <Bar 
-              data={adminChartData} 
-              options={{ 
-                responsive: true, 
-                maintainAspectRatio: false, 
-                plugins: { legend: { display: false } },
-                onClick: onTicketClick
-              }} 
-            />
-          </div>
-        </div>
-
-        {/* MEJORES CLIENTES */}
-        <div className="card" style={{ padding: '25px' }}>
-          <h4 style={{ marginBottom: '20px', fontSize: '1.1rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <Award size={20} color="#f59e0b" /> Top Clientes
-          </h4>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-            {(topUsers || []).length > 0 ? topUsers.map((u, i) => (
-              <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: '8px', borderBottom: '1px solid var(--border)' }}>
-                <div>
-                  <p style={{ margin: 0, fontWeight: 600, fontSize: '0.9rem' }}>{u.name.split(' ')[0]}</p>
-                  <p style={{ margin: 0, fontSize: '0.75rem', color: 'var(--muted-foreground)' }}>{u.orderCount} compras</p>
-                </div>
-                <div style={{ fontWeight: 700, color: 'var(--primary)', fontSize: '0.9rem' }}>
-                  ${Number(u.totalSpent).toLocaleString('es-AR')}
-                </div>
-              </div>
-            )) : <p style={{ color: 'var(--muted-foreground)' }}>Sin datos.</p>}
-          </div>
-          
-          <h4 style={{ marginTop: '25px', marginBottom: '15px', fontSize: '1.1rem', fontWeight: 700 }}>Más Vistos (Web)</h4>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-            {(topProducts || []).slice(0, 3).map((p, i) => (
-              <div key={i} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem' }}>
-                <span style={{ color: 'var(--muted-foreground)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '180px' }}>{p.name}</span>
-                <span style={{ fontWeight: 600 }}>{p.views} views</span>
-              </div>
-            ))}
-          </div>
-        </div>
-
-      </div>
-
-      {/* HISTORIAL DE TICKETS - SEGUIMIENTO DE ADMINS */}
-      <section className="card" style={{ padding: '30px', marginBottom: '30px' }}>
-        <h3 style={{ fontSize: '1.5rem', fontWeight: 700, marginBottom: '20px' }}>Seguimiento de Tickets (Soporte)</h3>
-        
-        <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1.8fr', gap: '30px', alignItems: 'start' }}>
-          <div>
-            <h4 style={{ fontSize: '1.1rem', marginBottom: '15px' }}>Resolución por Administrador</h4>
-            <div style={{ height: '300px' }}>
-              <Bar 
-                data={adminChartData} 
+        <div style={{ display: 'grid', gridTemplateColumns: '1.8fr 1.2fr', gap: '30px' }}>
+          <div className="card" style={{ padding: '30px' }}>
+            <h4 style={{ marginBottom: '25px', fontWeight: 800 }}>Evolución de Ingresos</h4>
+            <div style={{ height: '350px' }}>
+              <Line 
+                data={salesChartData} 
                 options={{ 
                   responsive: true, 
                   maintainAspectRatio: false, 
-                  plugins: { legend: { display: false } },
-                  scales: { y: { beginAtZero: true } }
+                  plugins: { legend: { position: 'top', align: 'end', labels: { usePointStyle: true, boxWidth: 6, font: { weight: 700 } } } },
+                  scales: { y: { beginAtZero: true, grid: { color: 'rgba(0,0,0,0.03)' } }, x: { grid: { display: false } } }
                 }} 
               />
             </div>
           </div>
-          
-          <div style={{ overflowX: 'auto' }}>
-            <h4 style={{ fontSize: '1.1rem', marginBottom: '15px' }}>Actividad Detallada</h4>
-            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-              <thead>
-                <tr style={{ borderBottom: '1px solid var(--border)', textAlign: 'left' }}>
-                  <th style={{ padding: '12px', color: 'var(--muted-foreground)' }}>Administrador</th>
-                  <th style={{ padding: '12px', color: 'var(--muted-foreground)', textAlign: 'center' }}>Tickets Resueltos</th>
-                </tr>
-              </thead>
-              <tbody>
-                {adminPerformance?.map((a, i) => (
-                  <tr key={i} style={{ borderBottom: '1px solid var(--border)' }}>
-                    <td style={{ padding: '12px', fontWeight: 600 }}>{a.admin_name}</td>
-                    <td style={{ padding: '12px', textAlign: 'center' }}>{a.resolved}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <div className="card" style={{ padding: '30px' }}>
+            <h4 style={{ marginBottom: '25px', fontWeight: 800 }}>Crecimiento de Usuarios</h4>
+            <div style={{ height: '350px' }}>
+              <Line 
+                data={userGrowthData} 
+                options={{ 
+                  responsive: true, 
+                  maintainAspectRatio: false, 
+                  plugins: { legend: { display: false } },
+                  scales: { y: { beginAtZero: true, grid: { color: 'rgba(0,0,0,0.03)' } }, x: { grid: { display: false } } }
+                }} 
+              />
+            </div>
           </div>
         </div>
       </section>
 
-      {/* HISTORIAL DE COMPRAS */}
-      <section id="history-section" className="card" style={{ padding: '30px' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '15px' }}>
-          <h3 style={{ fontSize: '1.5rem', fontWeight: 700 }}>Historial de Compras</h3>
+      {/* SECCIÓN 2: MÉTRICAS GENERALES */}
+      <section style={{ marginBottom: '60px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '15px', marginBottom: '25px' }}>
+          <Globe size={24} color="var(--primary)" />
+          <h3 style={{ margin: 0, fontSize: '1.6rem', fontWeight: 800 }}>Métricas Generales</h3>
+          <div style={{ flex: 1, height: '1px', backgroundColor: 'var(--border)', marginLeft: '10px' }}></div>
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '20px', marginBottom: '40px' }}>
+          <StatCard title="Total Órdenes" value={global?.totalOrders || 0} icon={<ShoppingBag size={20} />} bg="rgba(56, 189, 248, 0.1)" color="#38bdf8" />
+          <StatCard title="Base Usuarios" value={global?.totalUsers || 0} icon={<Users size={20} />} bg="rgba(139, 92, 246, 0.1)" color="#8b5cf6" />
+          <StatCard title="Productos Activos" value={global?.totalProducts || 0} icon={<Activity size={20} />} bg="rgba(245, 158, 11, 0.1)" color="#f59e0b" />
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '30px', marginBottom: '40px' }}>
+          <div className="card" style={{ padding: '25px' }}>
+            <h5 style={{ marginBottom: '20px', fontWeight: 800, textAlign: 'center' }}>Distribución de Stock</h5>
+            <div style={{ height: '300px' }}>
+              <Doughnut data={categoryStockData} options={{ maintainAspectRatio: false, cutout: '75%', plugins: { legend: { position: 'bottom', labels: { usePointStyle: true, font: { size: 10 } } } } }} />
+            </div>
+          </div>
+          <div className="card" style={{ padding: '25px' }}>
+            <h5 style={{ marginBottom: '20px', fontWeight: 800, textAlign: 'center' }}>Top Productos (Views)</h5>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+              {rankings?.topProducts?.map((p, i) => (
+                <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px', backgroundColor: 'var(--secondary)', borderRadius: 'var(--radius-sm)' }}>
+                  <span style={{ fontSize: '0.85rem', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '160px' }}>{p.name || 'Desconocido'}</span>
+                  <span style={{ fontSize: '0.75rem', backgroundColor: 'var(--card)', padding: '2px 8px', borderRadius: '10px', fontWeight: 700 }}>{p.views || 0} views</span>
+                </div>
+              ))}
+            </div>
+          </div>
+          <div className="card" style={{ padding: '25px' }}>
+            <h5 style={{ marginBottom: '20px', fontWeight: 800, textAlign: 'center' }}>Métodos de Envío</h5>
+            <div style={{ height: '300px' }}>
+              <Pie data={shippingData} options={{ maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { usePointStyle: true, font: { size: 10 } } } } }} />
+            </div>
+          </div>
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.5fr', gap: '30px' }}>
+          <div className="card" style={{ padding: '30px' }}>
+             <h4 style={{ marginBottom: '25px', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '10px' }}><Award color="#f59e0b" /> Top Clientes</h4>
+             <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+               {rankings?.topUsers?.map((u, i) => (
+                 <div 
+                   key={i} 
+                   onClick={() => setSelectedClient(u)}
+                   style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '15px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', cursor: 'pointer', transition: 'all 0.2s' }}
+                   onMouseOver={e => { e.currentTarget.style.borderColor = 'var(--primary)'; e.currentTarget.style.backgroundColor = 'var(--secondary)'; }}
+                   onMouseOut={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.backgroundColor = 'transparent'; }}
+                 >
+                   <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                     <div style={{ width: '32px', height: '32px', borderRadius: '50%', backgroundColor: 'var(--primary)', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.8rem', fontWeight: 800 }}>{(u.name || 'U').charAt(0)}</div>
+                     <div>
+                       <p style={{ margin: 0, fontWeight: 700, fontSize: '0.9rem' }}>{u.name || 'Usuario'}</p>
+                       <p style={{ margin: 0, fontSize: '0.75rem', color: 'var(--muted-foreground)' }}>{u.orderCount || 0} compras realizadas</p>
+                     </div>
+                   </div>
+                   <div style={{ fontWeight: 800, color: 'var(--primary)' }}>${Number(u.totalSpent || 0).toLocaleString('es-AR')}</div>
+                 </div>
+               ))}
+             </div>
+          </div>
+          <div className="card" style={{ padding: '30px' }}>
+            <h4 style={{ marginBottom: '25px', fontWeight: 800 }}>Productos Más Vendidos (Periodo)</h4>
+            <div style={{ height: '350px' }}>
+              <Bar 
+                data={topSellingData} 
+                options={{ 
+                  indexAxis: 'y', 
+                  responsive: true, 
+                  maintainAspectRatio: false, 
+                  plugins: { legend: { display: false } },
+                  scales: { x: { grid: { display: false } }, y: { grid: { display: false } } }
+                }} 
+              />
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* SECCIÓN 3: HISTORIAL INTERACTIVO */}
+      <section id="history-section" className="card" style={{ padding: '35px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px', flexWrap: 'wrap', gap: '20px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+            <History size={24} color="var(--primary)" />
+            <h3 style={{ margin: 0, fontSize: '1.6rem', fontWeight: 800 }}>Historial de Transacciones</h3>
+          </div>
           
           <div style={{ display: 'flex', gap: '15px' }}>
+             <div style={{ position: 'relative' }}>
+               <select 
+                 className="input-field" 
+                 style={{ width: '220px', paddingLeft: '35px' }}
+                 value={historyFilters.clientId} 
+                 onChange={e => setHistoryFilters(p => ({...p, clientId: e.target.value || 'all', page: 1}))}
+               >
+                 <option value="all">Todos los Clientes</option>
+                 {users?.map(u => (
+                   <option key={u.id} value={u.id}>{u.name}</option>
+                 ))}
+               </select>
+               <Users size={16} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--muted-foreground)' }} />
+             </div>
+
              <select className="input-field" value={historyFilters.shippingMethod} onChange={e => setHistoryFilters(p => ({...p, shippingMethod: e.target.value, page: 1}))}>
                <option value="">Cualquier Envío</option>
                <option value="express">Express</option>
                <option value="normal">Normal</option>
                <option value="tienda">Retiro en Tienda</option>
              </select>
-             {(historyFilters.shippingMethod) && (
-               <button className="btn btn-outline" onClick={() => setHistoryFilters({ page: 1, shippingMethod: '' })}>Limpiar</button>
+             
+             {(historyFilters.shippingMethod || (historyFilters.clientId && historyFilters.clientId !== 'all')) && (
+               <button className="btn btn-outline" onClick={() => setHistoryFilters({ page: 1, shippingMethod: '', clientId: 'all' })}>Limpiar</button>
              )}
           </div>
         </div>
 
         {loadingHistory ? (
-          <p style={{ textAlign: 'center', padding: '20px' }}>Cargando historial...</p>
+          <div style={{ padding: '50px', textAlign: 'center' }}>Procesando historial...</div>
         ) : (
           <div style={{ overflowX: 'auto' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead>
-                <tr style={{ borderBottom: '1px solid var(--border)', textAlign: 'left' }}>
-                  <th style={{ padding: '12px', color: 'var(--muted-foreground)' }}>ID Orden</th>
-                  <th style={{ padding: '12px', color: 'var(--muted-foreground)' }}>Fecha</th>
-                  <th style={{ padding: '12px', color: 'var(--muted-foreground)' }}>Cliente</th>
-                  <th style={{ padding: '12px', color: 'var(--muted-foreground)' }}>Envío</th>
-                  <th style={{ padding: '12px', color: 'var(--muted-foreground)' }}>Total</th>
+                <tr style={{ borderBottom: '2px solid var(--border)', textAlign: 'left' }}>
+                  <th style={{ padding: '15px', color: 'var(--muted-foreground)', fontSize: '0.8rem', textTransform: 'uppercase' }}>Orden</th>
+                  <th style={{ padding: '15px', color: 'var(--muted-foreground)', fontSize: '0.8rem', textTransform: 'uppercase' }}>Fecha</th>
+                  <th style={{ padding: '15px', color: 'var(--muted-foreground)', fontSize: '0.8rem', textTransform: 'uppercase' }}>Cliente</th>
+                  <th style={{ padding: '15px', color: 'var(--muted-foreground)', fontSize: '0.8rem', textTransform: 'uppercase' }}>Envío</th>
+                  <th style={{ padding: '15px', color: 'var(--muted-foreground)', fontSize: '0.8rem', textTransform: 'uppercase' }}>Total</th>
                 </tr>
               </thead>
               <tbody>
-                {history.orders.length > 0 ? history.orders.map(o => (
-                  <tr key={o.id} style={{ borderBottom: '1px solid var(--border)' }}>
-                    <td style={{ padding: '12px', fontWeight: 600 }}>#{o.id}</td>
-                    <td style={{ padding: '12px' }}>{new Date(o.fecha_compra).toLocaleDateString('es-AR')}</td>
-                    <td style={{ padding: '12px' }}>{o.User?.name} <br/><span style={{ fontSize: '0.8rem', color: 'var(--muted-foreground)' }}>{o.User?.email}</span></td>
-                    <td style={{ padding: '12px', textTransform: 'capitalize' }}>{o.shipping_method === 'tienda' ? 'Retiro en Tienda' : o.shipping_method}</td>
-                    <td style={{ padding: '12px', fontWeight: 700, color: 'var(--primary)' }}>${Number(o.total).toLocaleString('es-AR')}</td>
+                {history.orders?.length > 0 ? history.orders.map(o => (
+                  <tr key={o.id} style={{ borderBottom: '1px solid var(--border)', transition: 'background 0.2s' }} onMouseOver={e => e.currentTarget.style.backgroundColor = 'var(--secondary)'} onMouseOut={e => e.currentTarget.style.backgroundColor = 'transparent'}>
+                    <td style={{ padding: '15px', fontWeight: 700 }}>#{o.id}</td>
+                    <td style={{ padding: '15px' }}>{o.fecha_compra ? new Date(o.fecha_compra).toLocaleDateString('es-AR') : 'S/F'}</td>
+                    <td style={{ padding: '15px' }}>
+                      <div style={{ display: 'flex', flexDirection: 'column' }}>
+                        <span style={{ fontWeight: 600 }}>{o.User?.name || 'Anon'}</span>
+                        <span style={{ fontSize: '0.75rem', color: 'var(--muted-foreground)' }}>{o.User?.email || ''}</span>
+                      </div>
+                    </td>
+                    <td style={{ padding: '15px' }}>
+                      <span style={{ fontSize: '0.8rem', padding: '4px 10px', borderRadius: '12px', backgroundColor: 'var(--card)', border: '1px solid var(--border)', textTransform: 'capitalize' }}>
+                        {o.shipping_method === 'tienda' ? 'Retiro en Tienda' : (o.shipping_method || 'Normal')}
+                      </span>
+                    </td>
+                    <td style={{ padding: '15px', fontWeight: 800, color: 'var(--primary)' }}>${Number(o.total || 0).toLocaleString('es-AR')}</td>
                   </tr>
                 )) : (
-                  <tr>
-                    <td colSpan="5" style={{ padding: '30px', textAlign: 'center', color: 'var(--muted-foreground)' }}>No se encontraron órdenes con estos filtros.</td>
-                  </tr>
+                  <tr><td colSpan="5" style={{ padding: '50px', textAlign: 'center', color: 'var(--muted-foreground)' }}>Sin resultados.</td></tr>
                 )}
               </tbody>
             </table>
           </div>
         )}
 
-        {/* Paginación */}
         {history.totalPages > 1 && (
-          <div style={{ display: 'flex', justifyContent: 'center', gap: '10px', marginTop: '20px' }}>
-            <button 
-              className="btn btn-outline" 
-              disabled={history.currentPage === 1}
-              onClick={() => setHistoryFilters(p => ({ ...p, page: p.page - 1 }))}
-            ><ChevronLeft size={18} /></button>
-            <span style={{ padding: '8px 12px', fontWeight: 600 }}>{history.currentPage} de {history.totalPages}</span>
-            <button 
-              className="btn btn-outline" 
-              disabled={history.currentPage === history.totalPages}
-              onClick={() => setHistoryFilters(p => ({ ...p, page: p.page + 1 }))}
-            ><ChevronRight size={18} /></button>
+          <div style={{ display: 'flex', justifyContent: 'center', gap: '15px', marginTop: '30px' }}>
+            <button className="pagination-btn" disabled={history.currentPage === 1} onClick={() => setHistoryFilters(p => ({ ...p, page: p.page - 1 }))}><ChevronLeft size={18} /></button>
+            <span style={{ display: 'flex', alignItems: 'center', fontWeight: 700 }}>{history.currentPage} / {history.totalPages}</span>
+            <button className="pagination-btn" disabled={history.currentPage === history.totalPages} onClick={() => setHistoryFilters(p => ({ ...p, page: p.page + 1 }))}><ChevronRight size={18} /></button>
           </div>
         )}
       </section>
+
+      {selectedClient && (
+        <ClientDetailModal 
+          clientId={selectedClient.id} 
+          clientName={selectedClient.name} 
+          onClose={() => setSelectedClient(null)} 
+        />
+      )}
 
     </div>
   );
 }
 
-function StatCard({ title, subtitle, value, icon, bg, color }) {
+function PeriodStatCard({ title, value, growth, icon, color }) {
   return (
-    <div className="card" style={{ padding: '24px', display: 'flex', alignItems: 'center', gap: '20px', transition: 'transform 0.2s', cursor: 'default' }} onMouseOver={e => e.currentTarget.style.transform = 'translateY(-2px)'} onMouseOut={e => e.currentTarget.style.transform = 'translateY(0)'}>
-      <div style={{ backgroundColor: bg, color: color, padding: '16px', borderRadius: 'var(--radius-md)', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+    <div className="card" style={{ padding: '20px', border: '1px solid var(--border)', position: 'relative', overflow: 'hidden' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '15px' }}>
+        <div style={{ backgroundColor: `${color}15`, color: color, padding: '10px', borderRadius: '10px' }}>{icon}</div>
+        {growth !== null && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.75rem', fontWeight: 800, color: parseFloat(growth) >= 0 ? '#10b981' : '#ef4444' }}>
+            {parseFloat(growth) >= 0 ? <ArrowUpRight size={14} /> : <ArrowDownRight size={14} />}
+            {Math.abs(growth)}%
+          </div>
+        )}
+      </div>
+      <h4 style={{ margin: '0 0 5px 0', fontSize: '0.85rem', color: 'var(--muted-foreground)', fontWeight: 600, textTransform: 'uppercase' }}>{title}</h4>
+      <span style={{ fontSize: '1.8rem', fontWeight: 900 }}>{value}</span>
+    </div>
+  );
+}
+
+function StatCard({ title, value, icon, bg, color }) {
+  return (
+    <div className="card" style={{ padding: '20px', display: 'flex', alignItems: 'center', gap: '20px', border: '1px solid var(--border)' }}>
+      <div style={{ backgroundColor: bg, color: color, padding: '12px', borderRadius: '50%', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
         {icon}
       </div>
       <div>
-        <h4 style={{ color: 'var(--muted-foreground)', fontSize: '0.85rem', fontWeight: 600, marginBottom: '2px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{title}</h4>
-        {subtitle && <p style={{ fontSize: '0.7rem', color: 'var(--muted-foreground)', margin: '0 0 4px 0', opacity: 0.8 }}>{subtitle}</p>}
-        <span style={{ fontSize: '1.8rem', fontWeight: 800, color: 'var(--foreground)' }}>{value}</span>
+        <h4 style={{ color: 'var(--muted-foreground)', fontSize: '0.75rem', fontWeight: 700, marginBottom: '2px', textTransform: 'uppercase' }}>{title}</h4>
+        <span style={{ fontSize: '1.4rem', fontWeight: 800 }}>{value}</span>
       </div>
     </div>
   );

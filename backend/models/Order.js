@@ -7,7 +7,13 @@ const Order = sequelize.define('Order', {
   fecha_compra: { type: DataTypes.DATE, defaultValue: DataTypes.NOW },
   user_id: { type: DataTypes.INTEGER.UNSIGNED, allowNull: false },
   status: { 
-    type: DataTypes.ENUM('Pendiente', 'Cerrada', 'Cancelada'), 
+    type: DataTypes.ENUM(
+      'Pendiente',
+      'Pendiente de Validación',
+      'En preparación',
+      'Cerrada',
+      'Cancelada'
+    ),
     defaultValue: 'Pendiente',
     allowNull: false 
   },
@@ -17,7 +23,8 @@ const Order = sequelize.define('Order', {
   shipping_method: { type: DataTypes.STRING, allowNull: true },
   shipping_cost: { type: DataTypes.DECIMAL(10, 2), defaultValue: 0 },
   provincia: { type: DataTypes.STRING, allowNull: true },
-  payment_method: { type: DataTypes.STRING, allowNull: true }
+  payment_method: { type: DataTypes.STRING, allowNull: true },
+  payment_receipt: { type: DataTypes.STRING, allowNull: true }
 }, {
   tableName: 'compra',
   timestamps: false

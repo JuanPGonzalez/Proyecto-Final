@@ -8,49 +8,90 @@ router.use(authMiddleware, adminMiddleware);
 
 const { Op } = require('sequelize');
 
-// Dashboard Data (Unificado y Avanzado)
+// Dashboard Data (Unificado y Avanzado con Comparativa)
 router.get('/dashboard-data', async (req, res) => {
   try {
-    const { startDate, endDate } = req.query;
+    const { startDate, endDate, compare, compareStart, compareEnd } = req.query;
 
-    // Filtro de fecha para órdenes
-    let orderDateFilter = {};
-    let ticketDateFilter = {};
-    if (startDate && endDate) {
-      orderDateFilter = {
-        fecha_compra: {
-          [Op.between]: [new Date(`${startDate}T00:00:00`), new Date(`${endDate}T23:59:59`)]
-        }
-      };
-      ticketDateFilter = {
-        created_at: {
-          [Op.between]: [new Date(`${startDate}T00:00:00`), new Date(`${endDate}T23:59:59`)]
-        }
-      };
+    const getStatsForPeriod = async (start, end) => {
+      let orderFilter = {};
+      let userFilter = {};
+      let ticketFilter = {};
+
+      if (start && end) {
+        const s = new Date(`${start}T00:00:00`);
+        const e = new Date(`${end}T23:59:59`);
+        orderFilter = { fecha_compra: { [Op.between]: [s, e] } };
+        userFilter = { fechaReg: { [Op.between]: [s, e] } };
+        ticketFilter = { created_at: { [Op.between]: [s, e] } };
+      }
+
+      const periodOrders = await Order.count({ where: orderFilter });
+      const periodRevenue = await Order.sum('total', { where: orderFilter }) || 0;
+      const newUsers = await User.count({ where: userFilter });
+
+      // Trend data
+      let salesTrend = [];
+      let userRegistrations = [];
+      if (start && end) {
+        salesTrend = await Order.findAll({
+          where: orderFilter,
+          attributes: [
+            [sequelize.fn('DATE', sequelize.col('fecha_compra')), 'date'],
+            [sequelize.fn('SUM', sequelize.col('total')), 'total']
+          ],
+          group: [sequelize.fn('DATE', sequelize.col('fecha_compra'))],
+          order: [[sequelize.fn('DATE', sequelize.col('fecha_compra')), 'ASC']]
+        });
+
+        userRegistrations = await User.findAll({
+          attributes: [
+            [sequelize.fn('DATE', sequelize.col('fecha_reg')), 'date'],
+            [sequelize.fn('COUNT', sequelize.col('id')), 'count']
+          ],
+          where: userFilter,
+          group: [sequelize.fn('DATE', sequelize.col('fecha_reg'))],
+          order: [[sequelize.fn('DATE', sequelize.col('fecha_reg')), 'ASC']]
+        });
+      }
+
+      return { periodOrders, periodRevenue, newUsers, salesTrend, userRegistrations };
+    };
+
+    // 1. Métricas Globales (No afectadas por filtros)
+    const globalStats = {
+      totalUsers: await User.count(),
+      totalProducts: await Product.count(),
+      totalOrders: await Order.count(),
+      totalRevenue: await Order.sum('total') || 0
+    };
+
+    // 2. Métricas del Periodo Actual
+    const current = await getStatsForPeriod(startDate, endDate);
+
+    // 3. Métricas del Periodo Anterior (Comparativa)
+    let previous = null;
+    if (startDate && endDate && compare === 'true') {
+      let prevStartStr, prevEndStr;
+
+      if (compareStart && compareEnd) {
+        prevStartStr = compareStart;
+        prevEndStr = compareEnd;
+      } else {
+        const s = new Date(startDate);
+        const e = new Date(endDate);
+        const diff = e.getTime() - s.getTime();
+        const prevEnd = new Date(s.getTime() - 86400000); 
+        const prevStart = new Date(prevEnd.getTime() - diff);
+        
+        prevStartStr = prevStart.toISOString().split('T')[0];
+        prevEndStr = prevEnd.toISOString().split('T')[0];
+      }
+      
+      previous = await getStatsForPeriod(prevStartStr, prevEndStr);
     }
 
-    // 1. Stats Generales (Métricas Históricas y del Periodo)
-    const totalUsers = await User.count();
-    const totalProducts = await Product.count();
-    const totalOrders = await Order.count();
-    const sumOrders = await Order.sum('total') || 0;
-
-    // Métricas del periodo filtrado (Nuevos registros y Ventas)
-    const userDateFilter = {};
-    if (startDate && endDate) {
-      userDateFilter.fechaReg = {
-        [Op.between]: [new Date(`${startDate}T00:00:00`), new Date(`${endDate}T23:59:59`)]
-      };
-    }
-    const newUsers = await User.count({ where: userDateFilter });
-    
-    // El modelo Product (tabla componente) no tiene campos de fecha de creación (timestamps: false)
-    const newProducts = 0;
-
-    const periodOrders = await Order.count({ where: orderDateFilter });
-    const periodRevenue = await Order.sum('total', { where: orderDateFilter }) || 0;
-
-    // 2. Alerta de Stock (Productos < 5)
+    // 4. Rankings y Datos Estáticos
     const lowStockProducts = await Product.findAll({
       where: { stock: { [Op.gt]: 0, [Op.lt]: 5 } },
       order: [['stock', 'ASC']],
@@ -62,9 +103,7 @@ router.get('/dashboard-data', async (req, res) => {
       limit: 10
     });
 
-    // 3. Top Usuarios (Gastos)
-    const topUsersQuery = await Order.findAll({
-      where: orderDateFilter,
+    const topUsers = await Order.findAll({
       attributes: [
         'user_id',
         [sequelize.fn('SUM', sequelize.col('total')), 'totalSpent'],
@@ -76,172 +115,77 @@ router.get('/dashboard-data', async (req, res) => {
       include: [{ model: User, attributes: ['name', 'email'] }]
     });
 
-    // 4. Tendencia de Ventas (Agrupadas por Fecha)
-    const salesTrendQuery = await Order.findAll({
-      where: orderDateFilter,
-      attributes: [
-        [sequelize.fn('DATE', sequelize.col('fecha_compra')), 'date'],
-        [sequelize.fn('SUM', sequelize.col('total')), 'total'],
-        [sequelize.fn('COUNT', sequelize.col('Order.id')), 'count']
-      ],
-      group: [sequelize.fn('DATE', sequelize.col('fecha_compra'))],
-      order: [[sequelize.fn('DATE', sequelize.col('fecha_compra')), 'ASC']]
+    const productsByCategory = await Product.findAll({
+      attributes: ['categoria_id', [sequelize.fn('COUNT', sequelize.col('Product.id')), 'count']],
+      include: [{ model: Category, attributes: ['descripcion'] }],
+      group: ['Product.categoria_id', 'Category.id']
     });
 
-    // 5. Rendimiento de Administradores en Soporte
-    const adminPerformanceQuery = await SupportTicket.findAll({
-      where: {
-        ...ticketDateFilter,
-        admin_id: { [Op.not]: null }
-      },
-      attributes: [
-        'admin_id',
-        [sequelize.fn('COUNT', sequelize.col('SupportTicket.id')), 'ticketsResolved']
-      ],
-      group: ['admin_id'],
-      order: [[sequelize.literal('ticketsResolved'), 'DESC']],
-      limit: 5
-    });
-
-    // Enriquecer datos de admins
-    const adminPerformance = await Promise.all(adminPerformanceQuery.map(async (perf) => {
-      const adminUser = await User.findByPk(perf.admin_id, { attributes: ['name'] });
-      return {
-        admin_name: adminUser ? adminUser.name : `Admin #${perf.admin_id}`,
-        resolved: perf.get('ticketsResolved')
-      };
-    }));
-
-    // 6. Top Productos por vistas (Histórico General)
-    const topProducts = await Product.findAll({
-      order: [['views', 'DESC']],
-      limit: 5
-    });
-
-    // 7. Métodos de Envío
-    const shippingMethodsQuery = await Order.findAll({
-      where: orderDateFilter,
-      attributes: [
-        'shipping_method',
-        [sequelize.fn('COUNT', sequelize.col('id')), 'count']
-      ],
+    const shippingMethods = await Order.findAll({
+      attributes: ['shipping_method', [sequelize.fn('COUNT', sequelize.col('id')), 'count']],
       group: ['shipping_method']
     });
 
-    // 8. Productos más vendidos por cantidad (Considerando el filtro de fechas)
-    const topSellingProductsQuery = await OrderItem.findAll({
-      attributes: [
-        'componente_id',
-        [sequelize.fn('SUM', sequelize.col('cantidad')), 'totalQuantity']
-      ],
+    const topSellingProducts = await OrderItem.findAll({
+      attributes: ['componente_id', [sequelize.fn('SUM', sequelize.col('cantidad')), 'totalQuantity']],
       include: [
-        { model: Product, attributes: ['name', 'price'] },
-        { model: Order, attributes: [], where: orderDateFilter }
+        { model: Product, attributes: ['name'] },
+        { model: Order, attributes: [], where: (startDate && endDate) ? { 
+            fecha_compra: { [Op.between]: [new Date(`${startDate}T00:00:00`), new Date(`${endDate}T23:59:59`)] } 
+          } : {} 
+        }
       ],
       group: ['componente_id', 'Product.id'],
       order: [[sequelize.literal('totalQuantity'), 'DESC']],
       limit: 5
     });
 
-    // 9. Distribución de Productos por Categoría
-    const productsByCategoryQuery = await Product.findAll({
-      attributes: [
-        'categoria_id',
-        [sequelize.fn('COUNT', sequelize.col('Product.id')), 'count']
-      ],
-      include: [{ model: Category, attributes: ['descripcion'] }],
-      group: ['Product.categoria_id', 'Category.id', 'Category.descripcion']
-    });
-
-    // 10. Ingresos por Categoría (en el rango de fechas)
-    const revenueByCategoryQuery = await OrderItem.findAll({
-      attributes: [
-        [sequelize.fn('SUM', sequelize.literal('OrderItem.cantidad * OrderItem.sub_total')), 'totalRevenue']
-      ],
-      include: [
-        {
-          model: Product,
-          attributes: [],
-          include: [{ model: Category, attributes: ['id', 'descripcion'] }]
-        },
-        { model: Order, attributes: [], where: orderDateFilter }
-      ],
-      group: ['Product->Category.id', 'Product->Category.descripcion'],
-      raw: true
-    });
-
-    // Reformatear respuesta para el gráfico
-    const revenueByCategory = revenueByCategoryQuery.map(r => ({
-      category: r['Product.Category.descripcion'] || 'Sin Categoría',
-      revenue: parseFloat(r.totalRevenue || 0)
-    }));
-
-    // 11. Registros de Usuarios (Tendencia) - Reacciona al filtro de fechas (usa userDateFilter definido arriba)
-    const userRegistrationsQuery = await User.findAll({
-      attributes: [
-        [sequelize.fn('DATE', sequelize.col('fecha_reg')), 'date'],
-        [sequelize.fn('COUNT', sequelize.col('id')), 'count']
-      ],
-      where: userDateFilter,
-      group: [sequelize.fn('DATE', sequelize.col('fecha_reg'))],
-      order: [[sequelize.fn('DATE', sequelize.col('fecha_reg')), 'ASC']]
-    });
-
     res.json({
-      stats: { 
-        totalUsers, totalProducts, totalOrders, revenue: sumOrders,
-        newUsers, newProducts, periodRevenue, periodOrders
-      },
-      lowStockProducts,
-      outOfStockProducts,
-      topUsers: topUsersQuery.map(u => ({
-        name: u.User?.name || 'Usuario Desconocido',
-        email: u.User?.email || '',
-        totalSpent: u.get('totalSpent'),
-        orders: u.get('orderCount')
-      })),
-      salesTrend: salesTrendQuery.map(t => ({
-        date: t.get('date'),
-        total: t.get('total'),
-        count: t.get('count')
-      })),
-      adminPerformance,
-      topProducts,
-      shippingMethods: shippingMethodsQuery.map(s => ({
-        method: s.shipping_method || 'Desconocido',
-        count: s.get('count')
-      })),
-      topSellingProducts: topSellingProductsQuery.map(p => ({
-        name: p.Product?.name || 'Producto Desconocido',
-        price: p.Product?.price || 0,
-        totalQuantity: p.get('totalQuantity')
-      })),
-      productsByCategory: productsByCategoryQuery.map(c => ({
-        category: c.Category?.descripcion || 'Sin Categoría',
-        count: c.get('count')
-      })),
-      revenueByCategory,
-      userRegistrations: userRegistrationsQuery.map(u => ({
-        date: u.get('date'),
-        count: u.get('count')
-      }))
+      global: globalStats,
+      current,
+      previous,
+      rankings: {
+        lowStockProducts,
+        outOfStockProducts,
+        topUsers: topUsers.map(u => ({
+          id: u.user_id,
+          name: u.User?.name || 'Anon',
+          totalSpent: u.get('totalSpent'),
+          orderCount: u.get('orderCount')
+        })),
+        productsByCategory: productsByCategory.map(c => ({
+          category: c.Category?.descripcion || 'Sin Cat.',
+          count: c.get('count')
+        })),
+        shippingMethods: shippingMethods.map(s => ({
+          method: s.shipping_method || 'Desconocido',
+          count: s.get('count')
+        })),
+        topSellingProducts: topSellingProducts.map(p => ({
+          name: p.Product?.name || 'Desconocido',
+          totalQuantity: p.get('totalQuantity')
+        })),
+        topProducts: await Product.findAll({ order: [['views', 'DESC']], limit: 5 })
+      }
     });
 
   } catch (error) {
-    console.error('Dashboard Data Error:', error);
-    res.status(500).json({ error: 'Error al obtener datos del dashboard' });
+    console.error('Dashboard Error:', error);
+    res.status(500).json({ error: 'Error al obtener datos' });
   }
 });
 
 // Endpoint paginado para historial de compras
 router.get('/purchase-history', async (req, res) => {
   try {
-    const { page = 1, limit = 10, userId, shippingMethod, startDate, endDate } = req.query;
+    const { page = 1, limit = 10, clientId, shippingMethod, startDate, endDate } = req.query;
     const offset = (page - 1) * limit;
 
     let whereClause = {};
 
-    if (userId) whereClause.user_id = userId;
+    if (clientId && clientId !== 'all') {
+      whereClause.user_id = Number(clientId);
+    }
     if (shippingMethod) whereClause.shipping_method = shippingMethod;
 
     if (startDate && endDate) {
@@ -275,6 +219,24 @@ router.get('/purchase-history', async (req, res) => {
   } catch (error) {
     console.error('Purchase History Error:', error);
     res.status(500).json({ error: 'Error al obtener historial de compras' });
+  }
+});
+
+// Detalle de cliente (Órdenes)
+router.get('/client/:id/orders', async (req, res) => {
+  try {
+    const orders = await Order.findAll({
+      where: { user_id: req.params.id },
+      include: [{ 
+        model: OrderItem, 
+        include: [{ model: Product, attributes: ['name'] }] 
+      }],
+      order: [['fecha_compra', 'DESC']],
+      limit: 10
+    });
+    res.json({ orders });
+  } catch (error) {
+    res.status(500).json({ error: 'Error al obtener órdenes del cliente' });
   }
 });
 

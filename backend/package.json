@@ -17,12 +17,14 @@
     "express": "^4.19.2",
     "express-session": "^1.17.3",
     "jsonwebtoken": "^9.0.2",
+    "multer": "^2.1.1",
     "mysql2": "^3.9.7",
     "node-cron": "^3.0.3",
     "nodemailer": "^8.0.6",
     "openai": "^6.34.0",
     "pdfkit": "^0.18.0",
-    "sequelize": "^6.37.3"
+    "sequelize": "^6.37.3",
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "nodemon": "^3.1.0"

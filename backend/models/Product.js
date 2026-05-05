@@ -12,6 +12,8 @@ const Product = sequelize.define('Product', {
   imgURL: { type: DataTypes.STRING, field: 'img_url', allowNull: true },
   socket: { type: DataTypes.STRING, field: 'socket', allowNull: true },
   memoryType: { type: DataTypes.STRING, field: 'memory_type', allowNull: true },
+  precio_min: { type: DataTypes.DECIMAL(10, 2), field: 'precio_min', allowNull: true },
+  precio_max: { type: DataTypes.DECIMAL(10, 2), field: 'precio_max', allowNull: true },
   categoria_id: { type: DataTypes.INTEGER.UNSIGNED, field: 'categoria_id', allowNull: false }
 }, {
   tableName: 'componente',

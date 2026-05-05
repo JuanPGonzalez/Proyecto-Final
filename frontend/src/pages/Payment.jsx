@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import axios from 'axios';
-import { CreditCard, Wallet, Banknote, ShieldCheck, ChevronRight } from 'lucide-react';
+import { CreditCard, Wallet, Banknote, ShieldCheck, ChevronRight, Landmark, Info } from 'lucide-react';
 import { getStorageItem } from '../utils/storage';
 import { showAlert } from '../utils/swal';
 
@@ -21,14 +20,20 @@ export default function Payment() {
   const [errors, setErrors] = useState({});
 
   const cart = getStorageItem('cart', []);
-  const shippingInfo = getStorageItem('last_shipping', { cost: 0, address: '' });
+  const shippingInfo = getStorageItem('last_shipping', { cost: 0, address: '', method: 'standard' });
   
   const subtotal = cart.reduce((acc, p) => acc + (Number(p.price) * (p.quantity || 1)), 0);
   const total = subtotal + shippingInfo.cost;
 
+  const isLocalPickup = shippingInfo.method === 'tienda';
+
   useEffect(() => {
     if (cart.length === 0) navigate('/cart');
-  }, [cart, navigate]);
+    // Si no es retiro en local y estaba en cash, cambiar a card
+    if (!isLocalPickup && method === 'cash') {
+      setMethod('card');
+    }
+  }, [cart, navigate, isLocalPickup]);
 
   const validate = () => {
     let newErrors = {};
@@ -56,55 +61,27 @@ export default function Payment() {
     if (errors[name]) setErrors(prev => ({ ...prev, [name]: null }));
   };
 
-  const handleFinalize = async () => {
+  const handleContinue = () => {
     if (!validate()) return;
 
-    setLoading(true);
-    const token = localStorage.getItem('token');
+    const fullOrderSnapshot = {
+      items: cart,
+      total,
+      shipping: shippingInfo,
+      paymentMethod: method,
+      paymentDetails: method === 'card' ? {
+        holderName: cardData.name,
+        idType: cardData.idType,
+        idNumber: cardData.idNumber,
+        contact: cardData.contact
+      } : null,
+      date: new Date()
+    };
+
+    localStorage.setItem('last_payment_method', method);
+    localStorage.setItem('lastOrder', JSON.stringify(fullOrderSnapshot));
     
-    try {
-      const orderData = {
-        items: cart.map(item => ({
-          productId: item.id,
-          quantity: item.quantity || 1,
-          priceAtPurchase: item.price
-        })),
-        shippingAddress: shippingInfo.method === 'tienda' ? null : shippingInfo.address,
-        provincia: shippingInfo.method === 'tienda' ? null : shippingInfo.provincia,
-        localidad: shippingInfo.method === 'tienda' ? null : shippingInfo.localidad,
-        codigoPostal: shippingInfo.method === 'tienda' ? null : shippingInfo.codigoPostal,
-        shippingMethod: shippingInfo.method,
-        shippingCost: shippingInfo.cost,
-        paymentMethod: method,
-        paymentDetails: method === 'card' ? {
-          holderName: cardData.name,
-          idType: cardData.idType,
-          idNumber: cardData.idNumber,
-          contact: cardData.contact
-        } : null
-      };
-
-      const fullOrderSnapshot = {
-        items: cart,
-        total,
-        shipping: shippingInfo,
-        paymentMethod: method,
-        date: new Date()
-      };
-
-      await axios.post('http://localhost:5000/api/orders', orderData, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-
-      localStorage.setItem('last_payment_method', method);
-      localStorage.setItem('lastOrder', JSON.stringify(fullOrderSnapshot));
-      
-      navigate('/checkout/summary', { state: fullOrderSnapshot });
-    } catch (err) {
-      alert('Error al procesar el pedido. Intenta de nuevo.');
-    } finally {
-      setLoading(false);
-    }
+    navigate('/checkout/summary', { state: fullOrderSnapshot });
   };
 
   return (
@@ -126,13 +103,23 @@ export default function Payment() {
               desc="Visa, Mastercard, American Express"
             />
             <PaymentOption 
-              id="cash" 
-              title="Efectivo en el Local" 
-              icon={<Banknote size={24} />} 
-              selected={method === 'cash'} 
-              onClick={() => setMethod('cash')}
-              desc="Abona al retirar en Zeballos 1315"
+              id="transfer" 
+              title="Transferencia Bancaria" 
+              icon={<Landmark size={24} />} 
+              selected={method === 'transfer'} 
+              onClick={() => setMethod('transfer')}
+              desc="Abona mediante CBU / Alias"
             />
+            {isLocalPickup && (
+              <PaymentOption 
+                id="cash" 
+                title="Efectivo en el Local" 
+                icon={<Banknote size={24} />} 
+                selected={method === 'cash'} 
+                onClick={() => setMethod('cash')}
+                desc="Abona al retirar en Zeballos 1315"
+              />
+            )}
           </div>
 
           {method === 'card' && (
@@ -226,6 +213,42 @@ export default function Payment() {
             </div>
           )}
 
+          {method === 'transfer' && (
+            <div className="card animate-slide-up" style={{ marginTop: '30px', padding: '30px', borderLeft: '4px solid var(--accent)' }}>
+               <h4 style={{ marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                 <Landmark size={20} color="var(--accent)" /> Datos para la Transferencia
+               </h4>
+               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', fontSize: '0.95rem' }}>
+                  <div>
+                    <p style={{ margin: '0 0 5px 0', color: 'var(--muted-foreground)', fontSize: '0.8rem' }}>Banco</p>
+                    <p style={{ fontWeight: 700, margin: 0 }}>Banco Ejemplo</p>
+                  </div>
+                  <div>
+                    <p style={{ margin: '0 0 5px 0', color: 'var(--muted-foreground)', fontSize: '0.8rem' }}>Titular</p>
+                    <p style={{ fontWeight: 700, margin: 0 }}>HH Company</p>
+                  </div>
+                  <div style={{ gridColumn: 'span 2' }}>
+                    <p style={{ margin: '0 0 5px 0', color: 'var(--muted-foreground)', fontSize: '0.8rem' }}>CBU</p>
+                    <p style={{ fontWeight: 700, margin: 0, letterSpacing: '1px' }}>0000003100000000000000</p>
+                  </div>
+                  <div>
+                    <p style={{ margin: '0 0 5px 0', color: 'var(--muted-foreground)', fontSize: '0.8rem' }}>Alias</p>
+                    <p style={{ fontWeight: 700, margin: 0 }}>HARDWARE.HAVEN</p>
+                  </div>
+                  <div>
+                    <p style={{ margin: '0 0 5px 0', color: 'var(--muted-foreground)', fontSize: '0.8rem' }}>CUIT</p>
+                    <p style={{ fontWeight: 700, margin: 0 }}>20-12345678-9</p>
+                  </div>
+               </div>
+               <div style={{ marginTop: '20px', padding: '12px', backgroundColor: 'oklch(0.627 0.194 259.215 / 5%)', borderRadius: 'var(--radius-sm)', display: 'flex', gap: '10px', alignItems: 'flex-start' }}>
+                  <Info size={18} color="var(--accent)" style={{ flexShrink: 0, marginTop: '2px' }} />
+                  <p style={{ margin: 0, fontSize: '0.8rem', color: 'var(--muted-foreground)', lineHeight: '1.4' }}>
+                    Deberás adjuntar el comprobante en el siguiente paso para validar tu compra.
+                  </p>
+               </div>
+            </div>
+          )}
+
           <div style={{ marginTop: '40px', display: 'flex', alignItems: 'center', gap: '10px', color: 'var(--muted-foreground)', fontSize: '0.9rem' }}>
              <ShieldCheck size={20} color="var(--success)" />
              Tus datos están protegidos con encriptación de grado bancario.
@@ -255,12 +278,9 @@ export default function Payment() {
           <button 
             className="btn" 
             style={{ width: '100%', padding: '16px', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '10px' }}
-            onClick={handleFinalize}
-            disabled={loading}
+            onClick={handleContinue}
           >
-            {loading ? 'Procesando...' : (
-              <>Confirmar Pago <ChevronRight size={18} /></>
-            )}
+            Continuar al Resumen <ChevronRight size={18} />
           </button>
           
           <button 

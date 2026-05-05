@@ -6,6 +6,7 @@ import AdminProducts from './pages/AdminProducts';
 import AdminTickets from './pages/AdminTickets';
 import AdminOrders from './pages/AdminOrders';
 import AdminUsers from './pages/AdminUsers';
+import AdminStockManager from './pages/AdminStockManager';
 import Login from './pages/Login';
 import Profile from './pages/Profile';
 import Cart from './pages/Cart';
@@ -50,6 +51,7 @@ function App() {
             <Route path="/admin/reclamos" element={<AdminTickets />} />
             <Route path="/admin/pedidos" element={<AdminOrders />} />
             <Route path="/admin/usuarios" element={<AdminUsers />} />
+            <Route path="/admin/stock" element={<AdminStockManager />} />
             
             <Route path="/chatbot" element={<Chatbot standalone={true} />} />
 

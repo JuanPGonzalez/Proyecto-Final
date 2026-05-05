@@ -4,6 +4,9 @@ const axios = require('axios');
 const { UserView, Order, OrderItem, User, Product } = require('../models');
 const { Op } = require('sequelize');
 const { authMiddleware, optionalAuthMiddleware, adminMiddleware } = require('../middleware/roles');
+const XLSX = require('xlsx');
+const multer = require('multer');
+const upload = multer({ storage: multer.memoryStorage() });
 
 // Obtener todas las categorías
 router.get('/categories', async (req, res) => {
@@ -13,6 +16,109 @@ router.get('/categories', async (req, res) => {
     res.json(categories);
   } catch (error) {
     res.status(500).json({ error: 'Error al obtener categorías' });
+  }
+});
+
+// Exportar productos a Excel
+router.get('/export', adminMiddleware, async (req, res) => {
+  try {
+    const products = await Product.findAll();
+    const cleanData = products.map(p => ({
+      id: p.id,
+      name: p.name,
+      price: p.price,
+      stock: p.stock,
+      categoria_id: p.categoria_id
+    }));
+
+    const worksheet = XLSX.utils.json_to_sheet(cleanData);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Productos');
+
+    const buffer = XLSX.write(workbook, {
+      type: 'buffer',
+      bookType: 'xlsx'
+    });
+
+    res.setHeader('Content-Disposition', 'attachment; filename=productos.xlsx');
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+
+    res.send(buffer);
+  } catch (error) {
+    console.error('Export Error:', error);
+    res.status(500).json({ error: 'Error al exportar productos' });
+  }
+});
+
+// Importar productos desde Excel
+router.post('/import', adminMiddleware, upload.single('file'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: 'No se subió ningún archivo' });
+    }
+
+    const workbook = XLSX.read(req.file.buffer, { type: 'buffer' });
+    const sheet = workbook.Sheets[workbook.SheetNames[0]];
+    const rows = XLSX.utils.sheet_to_json(sheet);
+
+    let updated = 0;
+    let skipped = 0;
+    let errors = [];
+
+    const processRow = async (row) => {
+      try {
+        if (!row.id) {
+          skipped++;
+          return;
+        }
+
+        const product = await Product.findByPk(row.id);
+        if (!product) {
+          skipped++;
+          return;
+        }
+
+        const updateData = {};
+
+        if (row.price !== undefined && !isNaN(row.price)) {
+          updateData.price = Number(row.price);
+        }
+
+        if (row.stock !== undefined && !isNaN(row.stock) && row.stock >= 0) {
+          updateData.stock = Number(row.stock);
+        }
+
+        if (Object.keys(updateData).length === 0) {
+          skipped++;
+          return;
+        }
+
+        await product.update(updateData);
+        updated++;
+
+      } catch (err) {
+        errors.push({ row, error: err.message });
+      }
+    };
+
+    if (rows.length > 100) {
+      // Uso de Promise.all para "batching" como solicitado
+      await Promise.all(rows.map(row => processRow(row)));
+    } else {
+      for (const row of rows) {
+        await processRow(row);
+      }
+    }
+
+    res.json({
+      ok: true,
+      updated,
+      skipped,
+      errors
+    });
+  } catch (error) {
+    console.error('Import Error:', error);
+    res.status(500).json({ error: 'Error al importar productos' });
   }
 });
 
@@ -176,9 +282,24 @@ router.get('/recommendations/cart', async (req, res) => {
 
 router.post('/', adminMiddleware, async (req, res) => {
   try {
-    const { name, description, price, stock, imgURL, categoryId, newCategoryName } = req.body;
+    console.log("REQ.BODY RECEIVED:", JSON.stringify(req.body, null, 2));
+    const { name, description, price, stock, imgURL, categoryId, newCategoryName, precio_min, precio_max } = req.body;
     const { Category } = require('../models');
     
+    const pBase = Number(price);
+    const pMin = (precio_min !== undefined && precio_min !== '' && precio_min !== null) ? Number(precio_min) : null;
+    const pMax = (precio_max !== undefined && precio_max !== '' && precio_max !== null) ? Number(precio_max) : null;
+
+    if (pMin !== null && pMin > pBase) {
+      return res.status(400).json({ error: "El precio mínimo no puede ser mayor al precio base" });
+    }
+    if (pMax !== null && pMax < pBase) {
+      return res.status(400).json({ error: "El precio máximo no puede ser menor al precio base" });
+    }
+    if (pMin !== null && pMax !== null && pMin > pMax) {
+      return res.status(400).json({ error: "El precio mínimo no puede ser mayor al precio máximo" });
+    }
+
     let finalCategoryId = categoryId;
 
     if (newCategoryName) {
@@ -189,16 +310,20 @@ router.post('/', adminMiddleware, async (req, res) => {
     }
 
     const newProduct = await Product.create({ 
-      name, 
-      description, 
-      price, 
-      stock, 
-      imgURL, 
+      name: name, 
+      description: description, 
+      price: price, 
+      stock: stock, 
+      imgURL: imgURL, 
+      precio_min: (precio_min !== undefined && precio_min !== '' && precio_min !== null) ? Number(precio_min) : null,
+      precio_max: (precio_max !== undefined && precio_max !== '' && precio_max !== null) ? Number(precio_max) : null,
       categoria_id: finalCategoryId || 1 
     });
+
+    console.log("PRODUCT CREATED IN DB:", JSON.stringify(newProduct.toJSON(), null, 2));
     res.status(201).json(newProduct);
   } catch (error) {
-    console.error(error);
+    console.error("CREATE ERROR:", error);
     res.status(500).json({ error: 'Error al crear producto' });
   }
 });
@@ -207,9 +332,24 @@ router.post('/', adminMiddleware, async (req, res) => {
 // Actualizar producto
 router.put('/:id', adminMiddleware, async (req, res) => {
   try {
-    const { name, description, price, stock, imgURL, categoryId, newCategoryName } = req.body;
+    console.log("REQ.BODY RECEIVED (UPDATE):", JSON.stringify(req.body, null, 2));
+    const { name, description, price, stock, imgURL, categoryId, newCategoryName, precio_min, precio_max } = req.body;
     const { Category } = require('../models');
     
+    const pBase = Number(price);
+    const pMin = (precio_min !== undefined && precio_min !== '' && precio_min !== null) ? Number(precio_min) : null;
+    const pMax = (precio_max !== undefined && precio_max !== '' && precio_max !== null) ? Number(precio_max) : null;
+
+    if (pMin !== null && pMin > pBase) {
+      return res.status(400).json({ error: "El precio mínimo no puede ser mayor al precio base" });
+    }
+    if (pMax !== null && pMax < pBase) {
+      return res.status(400).json({ error: "El precio máximo no puede ser menor al precio base" });
+    }
+    if (pMin !== null && pMax !== null && pMin > pMax) {
+      return res.status(400).json({ error: "El precio mínimo no puede ser mayor al precio máximo" });
+    }
+
     const product = await Product.findByPk(req.params.id);
     if (!product) return res.status(404).json({ error: 'Producto no encontrado' });
 
@@ -222,11 +362,27 @@ router.put('/:id', adminMiddleware, async (req, res) => {
       finalCategoryId = newCat.id;
     }
 
-    const updateData = { name, description, price, stock, imgURL };
+    // MAPEO EXPLÍCITO PARA EVITAR PÉRDIDA DE DATOS
+    const updateData = { 
+      name: name, 
+      description: description, 
+      price: price, 
+      stock: stock, 
+      imgURL: imgURL,
+      precio_min: (precio_min !== undefined && precio_min !== '' && precio_min !== null) ? Number(precio_min) : null,
+      precio_max: (precio_max !== undefined && precio_max !== '' && precio_max !== null) ? Number(precio_max) : null
+    };
+    
     if (finalCategoryId) updateData.categoria_id = finalCategoryId;
 
+    console.log("DATA TO BE UPDATED:", JSON.stringify(updateData, null, 2));
     await product.update(updateData);
-    res.json(product);
+    
+    // VERIFICACIÓN INMEDIATA DE LECTURA DESPUÉS DE ESCRITURA
+    const updatedProduct = await Product.findByPk(req.params.id);
+    console.log("PRODUCT AFTER UPDATE IN DB:", JSON.stringify(updatedProduct.toJSON(), null, 2));
+
+    res.json(updatedProduct);
   } catch (error) {
     console.error('Error in PUT /products/:id:', error);
     res.status(500).json({ error: error.message || 'Error al actualizar producto' });

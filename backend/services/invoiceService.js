@@ -1,6 +1,7 @@
 const PDFDocument = require('pdfkit');
 const fs = require('fs');
 const path = require('path');
+const { applyHardwareHavenBranding, applyCommonFooter } = require('./pdfShared');
 
 /**
  * Generar un PDF de la factura
@@ -18,16 +19,8 @@ async function generateInvoicePDF(order, items) {
       const stream = fs.createWriteStream(filePath);
       doc.pipe(stream);
 
-      // --- BRANDING & HEADER ---
-      doc.rect(0, 0, 595, 100).fill('#0f172a'); // Header background (Slate 900)
-      
-      doc.fillColor('#38bdf8').fontSize(28).font('Helvetica-Bold')
-         .text('HARDWARE', 40, 30, { continued: true })
-         .fillColor('#ffffff').text(' HAVEN.');
-      
-      doc.fillColor('#94a3b8').fontSize(10).font('Helvetica')
-         .text('Zeballos 1315, Rosario, Santa Fe', 40, 65)
-         .text('CUIT: 30-12345678-9 | IVA Responsable Inscripto', 40, 80);
+      // --- BRANDING & HEADER (REUSED) ---
+      applyHardwareHavenBranding(doc);
 
       // --- INVOICE DETAILS BOX ---
       doc.rect(380, 20, 175, 60).fill('#1e293b').stroke();
@@ -67,7 +60,6 @@ async function generateInvoicePDF(order, items) {
       doc.font('Helvetica').fillColor('#000000').fontSize(9);
       
       items.forEach((item, index) => {
-        // Alternating row background
         if (index % 2 !== 0) doc.rect(40, y, 515, 25).fill('#f8fafc');
         
         doc.fillColor('#000000');
@@ -77,7 +69,6 @@ async function generateInvoicePDF(order, items) {
         doc.text(`$${Number(item.priceAtPurchase).toLocaleString('es-AR')}`, 430, y + 8, { align: 'right', width: 55 });
         doc.text(`$${(Number(item.priceAtPurchase) * (item.quantity || 1)).toLocaleString('es-AR')}`, 495, y + 8, { align: 'right', width: 55 });
         
-        // Draw vertical lines
         doc.moveTo(105, y).lineTo(105, y + 25).stroke('#cbd5e1');
         doc.moveTo(375, y).lineTo(375, y + 25).stroke('#cbd5e1');
         doc.moveTo(425, y).lineTo(425, y + 25).stroke('#cbd5e1');
@@ -86,9 +77,7 @@ async function generateInvoicePDF(order, items) {
         y += 25;
       });
       
-      // Bottom table border
       doc.moveTo(40, y).lineTo(555, y).stroke('#cbd5e1');
-      // Side borders
       doc.moveTo(40, tableTop + 25).lineTo(40, y).stroke('#cbd5e1');
       doc.moveTo(555, tableTop + 25).lineTo(555, y).stroke('#cbd5e1');
 
@@ -112,11 +101,8 @@ async function generateInvoicePDF(order, items) {
       doc.text(`$${Number(order.total).toLocaleString('es-AR')}`, 450, y + 62, { align: 'right', width: 95 });
 
       // --- FOOTER & TECH DECORATION ---
-      doc.fontSize(8).font('Helvetica').fillColor('#94a3b8');
-      doc.text('Este documento es un comprobante no válido como factura legal salvo indicación contraria.', 40, 740, { align: 'center' });
-      doc.text('Hardware Haven garantiza los componentes por 12 meses desde la fecha de emisión.', 40, 755, { align: 'center' });
+      applyCommonFooter(doc);
       
-      // Simulated Barcode
       doc.font('Helvetica-Bold').fontSize(24).fillColor('#cbd5e1')
          .text(`| || | |||| || || | || | |||`, 40, 700, { align: 'center', characterSpacing: 2 });
       doc.fontSize(6).text(`ORD-${order.id}-AUTH`, 40, 725, { align: 'center' });

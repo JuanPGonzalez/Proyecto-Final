@@ -2,6 +2,7 @@ process.env.TZ = 'America/Argentina/Buenos_Aires';
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
+const fs = require('fs');
 require('dotenv').config();
 
 const { sequelize } = require('./models');
@@ -36,6 +37,14 @@ app.use(session({
 
 // Serve static files from frontend directory
 app.use(express.static(path.join(__dirname, '../frontend')));
+
+// Serve uploads folder for receipts
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+
+// Ensure uploads directory exists
+if (!fs.existsSync('./uploads/proofs')) {
+  fs.mkdirSync('./uploads/proofs', { recursive: true });
+}
 
 // Test endpoint
 app.get('/test', (req, res) => {

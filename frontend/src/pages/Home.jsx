@@ -1,16 +1,19 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import axios from 'axios';
-import { ShoppingCart, Filter, SlidersHorizontal, ChevronLeft, ChevronRight } from 'lucide-react';
+import { ShoppingCart, Filter, SlidersHorizontal, ChevronLeft, ChevronRight, Edit2 } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { isAdminRole, isClientRole } from '../constants/roles';
 import { formatCurrency, fixImageUrl } from '../utils';
 import { showToast, showConfirm, showAlert } from '../utils/swal';
+import ProductFormModal from '../components/ProductFormModal';
 
 const ITEMS_PER_PAGE = 12;
 
 export default function Home() {
   const [products, setProducts] = useState([]);
   const [selectedProduct, setSelectedProduct] = useState(null);
+  const [editingProduct, setEditingProduct] = useState(null);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
 
   const location = useLocation();
@@ -29,12 +32,14 @@ export default function Home() {
 
   const [recommendations, setRecommendations] = useState([]);
 
-  useEffect(() => {
+  const fetchProducts = () => {
     axios.get('http://localhost:5000/api/products')
       .then(res => setProducts(res.data))
       .catch(err => console.error(err));
-    
-    // Always fetch recommendations if someone is logged in
+  };
+
+  useEffect(() => {
+    fetchProducts();
     if (user.id) {
       axios.get(`http://localhost:5000/api/products/recommendations?userId=${user.id}&limit=4`)
         .then(res => setRecommendations(res.data))
@@ -42,13 +47,11 @@ export default function Home() {
     }
   }, [user.id]);
 
-  // Reset page when filters change and scroll to top
   useEffect(() => {
     setCurrentPage(1);
     window.scrollTo(0, 0);
   }, [searchQuery, quickFilter, minPrice, maxPrice, sortBy]);
 
-  // Scroll to top when page changes
   useEffect(() => {
     window.scrollTo(0, 0);
   }, [currentPage]);
@@ -63,6 +66,11 @@ export default function Home() {
 
   const closeModal = () => {
     setSelectedProduct(null);
+  };
+
+  const handleEdit = (product) => {
+    setEditingProduct(product);
+    setIsEditModalOpen(true);
   };
 
   const addToCart = (e, product) => {
@@ -107,8 +115,7 @@ export default function Home() {
   };
 
   const filteredProducts = useMemo(() => {
-    // FILTRO CRITICO: Solo productos con stock > 0
-    let result = products.filter(p => Number(p.stock) > 0);
+    let result = products.filter(p => Number(p.stock) > 0 || isAdmin); // Admins see everything
 
     if (searchQuery) {
       const q = searchQuery.toLowerCase();
@@ -133,9 +140,8 @@ export default function Home() {
     else if (sortBy === 'relevance') sorted.sort((a, b) => (b.views || 0) - (a.views || 0));
 
     return sorted;
-  }, [products, searchQuery, quickFilter, minPrice, maxPrice, sortBy]);
+  }, [products, searchQuery, quickFilter, minPrice, maxPrice, sortBy, isAdmin]);
 
-  // Pagination Logic
   const totalPages = Math.ceil(filteredProducts.length / ITEMS_PER_PAGE);
   const paginatedProducts = useMemo(() => {
     const start = (currentPage - 1) * ITEMS_PER_PAGE;
@@ -294,13 +300,15 @@ export default function Home() {
                       </h3>
                       {isAdmin ? (
                         <div style={{ display: 'grid', gap: '10px', marginTop: '20px' }}>
-                          <button className="btn btn-outline" style={{ width: '100%', display:'flex', justifyContent:'center', alignItems:'center', gap:'8px' }} onClick={(e) => { e.stopPropagation(); openProductModal(product); }}>
-                            Ver detalle
-                          </button>
-                          <button className="btn btn-outline" style={{ width: '100%', display:'flex', justifyContent:'center', alignItems:'center', gap:'8px' }} onClick={(e) => { e.stopPropagation(); navigate('/admin/productos'); }}>
-                            Editar
-                          </button>
-                          <button className="btn" style={{ width: '100%', display:'flex', justifyContent:'center', alignItems:'center', gap:'8px' }} onClick={(e) => handleDeleteProduct(e, product.id)}>
+                          <div style={{ display: 'flex', gap: '10px' }}>
+                            <button className="btn btn-outline" style={{ flex: 1, display:'flex', justifyContent:'center', alignItems:'center', gap:'8px' }} onClick={(e) => { e.stopPropagation(); openProductModal(product); }}>
+                              Detalle
+                            </button>
+                            <button className="btn btn-outline" style={{ flex: 1, display:'flex', justifyContent:'center', alignItems:'center', gap:'8px' }} onClick={(e) => { e.stopPropagation(); handleEdit(product); }}>
+                              <Edit2 size={14} /> Editar
+                            </button>
+                          </div>
+                          <button className="btn btn-destructive" style={{ width: '100%', display:'flex', justifyContent:'center', alignItems:'center', gap:'8px' }} onClick={(e) => handleDeleteProduct(e, product.id)}>
                             Eliminar
                           </button>
                         </div>
@@ -403,7 +411,7 @@ export default function Home() {
              <div style={{ display: 'flex', gap: '16px', marginTop: '24px' }}>
                 {isAdmin ? (
                   <>
-                    <button className="btn" style={{ flex: 1, padding: '14px' }} onClick={() => navigate('/admin/productos')}>
+                    <button className="btn" style={{ flex: 1, padding: '14px' }} onClick={() => handleEdit(selectedProduct)}>
                       Editar producto
                     </button>
                     <button className="btn btn-destructive" style={{ flex: '0 0 120px' }} onClick={async () => { await handleDeleteProduct({ stopPropagation: () => {} }, selectedProduct.id); closeModal(); }}>
@@ -435,6 +443,13 @@ export default function Home() {
           </div>
         </div>
       )}
+
+      <ProductFormModal 
+        isOpen={isEditModalOpen} 
+        onClose={() => { setIsEditModalOpen(false); setEditingProduct(null); }} 
+        product={editingProduct} 
+        onSuccess={() => { fetchProducts(); closeModal(); }} 
+      />
     </>
   );
 }

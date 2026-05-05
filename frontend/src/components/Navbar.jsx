@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { Search, ShoppingCart, User, Settings, Database, Headphones, Cpu, HelpCircle, Sun, Moon, AlertCircle, Package, Bell, X, Check } from 'lucide-react';
+import { Search, ShoppingCart, User, Settings, Database, Headphones, Cpu, HelpCircle, Sun, Moon, AlertCircle, Package, Bell, X, Check, FileSpreadsheet } from 'lucide-react';
 import axios from 'axios';
 import { isAdminRole } from '../constants/roles';
 import { getStorageItem, setStorageItem } from '../utils/storage';
@@ -73,6 +73,28 @@ export default function Navbar() {
     }
   };
 
+  const handleNotificationClick = async (notif) => {
+    if (!notif.is_read) {
+      await markAsRead(notif.id);
+    }
+    
+    setShowNotifications(false);
+
+    if (isAdmin) {
+      if (notif.type === 'ORDER') {
+        navigate('/admin/pedidos');
+      } else if (notif.type === 'TICKET') {
+        navigate('/admin/reclamos');
+      }
+    } else {
+      if (notif.type === 'ORDER') {
+        navigate('/profile');
+      } else if (notif.type === 'TICKET') {
+        navigate('/soporte');
+      }
+    }
+  };
+
   // Aplicar tema
   useEffect(() => {
     if (isDarkMode) {
@@ -93,7 +115,6 @@ export default function Navbar() {
 
   // Search as you type with debounce
   useEffect(() => {
-    // Si no estamos en el home, abortamos cualquier busqueda automatica
     if (location.pathname !== '/') return;
 
     const delayDebounceFn = setTimeout(() => {
@@ -119,7 +140,7 @@ export default function Navbar() {
     }
   };
 
-  // Escuchar cambios en el carrito en todo momento vía ventana local
+  // Escuchar cambios en el carrito
   useEffect(() => {
     const updateCartCount = () => {
       const items = JSON.parse(localStorage.getItem('cart') || '[]');
@@ -127,7 +148,6 @@ export default function Navbar() {
     };
     updateCartCount();
     window.addEventListener('storage', updateCartCount);
-    // Intervalo simple de polling local para detectar inserts propios
     const interval = setInterval(updateCartCount, 1000); 
     return () => { window.removeEventListener('storage', updateCartCount); clearInterval(interval); };
   }, []);
@@ -161,6 +181,7 @@ export default function Navbar() {
               <div style={{ display: 'flex', gap: '15px', marginRight: '10px', borderRight: '1px solid var(--border)', paddingRight: '15px' }}>
                 <Link to="/admin" title="BI Dashboard" style={{ color:'var(--muted-foreground)' }}><Settings size={20} /></Link>
                 <Link to="/admin/productos" title="Inventario" style={{ color:'var(--muted-foreground)' }}><Database size={20} /></Link>
+                <Link to="/admin/stock" title="Gestión de Stock" style={{ color:'var(--muted-foreground)' }}><FileSpreadsheet size={20} /></Link>
                 <Link to="/admin/reclamos" title="Reclamos" style={{ color:'var(--muted-foreground)' }}><AlertCircle size={20} /></Link>
                 <Link to="/admin/pedidos" title="Pedidos" style={{ color:'var(--muted-foreground)' }}><Package size={20} /></Link>
               </div>
@@ -171,7 +192,7 @@ export default function Navbar() {
               style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--foreground)', display: 'flex', alignItems: 'center', padding: '8px', borderRadius: '50%' }}
               title={isDarkMode ? "Cambiar a modo claro" : "Cambiar a modo oscuro"}
             >
-              {isDarkMode ? <Sun size={20} /> : <Moon size={20} />}
+              {isDarkMode ? <Sun size={20} /> : <Sun size={20} />}
             </button>
 
             <Link to={token ? '/profile' : '/login'} style={{ display: 'flex', alignItems: 'center', gap: '5px', cursor: 'pointer', color: 'var(--foreground)' }}>
@@ -208,7 +229,17 @@ export default function Navbar() {
                         <p style={{ padding: '20px', textAlign: 'center', color: 'var(--muted-foreground)', fontSize: '0.9rem', margin: 0 }}>No tienes notificaciones.</p>
                       ) : (
                         notifications.map(n => (
-                          <div key={n.id} onClick={() => !n.is_read && markAsRead(n.id)} style={{ padding: '15px', borderBottom: '1px solid var(--border)', backgroundColor: n.is_read ? 'transparent' : 'var(--secondary)', cursor: n.is_read ? 'default' : 'pointer', transition: 'background 0.2s' }}>
+                          <div 
+                            key={n.id} 
+                            onClick={() => handleNotificationClick(n)} 
+                            style={{ 
+                              padding: '15px', 
+                              borderBottom: '1px solid var(--border)', 
+                              backgroundColor: n.is_read ? 'transparent' : 'var(--secondary)', 
+                              cursor: 'pointer', 
+                              transition: 'background 0.2s' 
+                            }}
+                          >
                             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '5px' }}>
                               <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--accent)', textTransform: 'uppercase' }}>{n.type}</span>
                               <span style={{ fontSize: '0.75rem', color: 'var(--muted-foreground)' }}>{new Date(n.created_at).toLocaleDateString()}</span>

@@ -1,19 +1,20 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Edit2, Trash2, Search, AlertTriangle, Filter, Activity } from 'lucide-react';
+import { Edit2, Trash2, Search, AlertTriangle, Filter, Activity, Download, Upload, Plus } from 'lucide-react';
 import { isAdminRole } from '../constants/roles';
 import { showToast, showConfirm, showAlert } from '../utils/swal';
+import ProductFormModal from '../components/ProductFormModal';
 
 export default function AdminProducts() {
   const [products, setProducts] = useState([]);
-  const [categories, setCategories] = useState([]);
-  const [formData, setFormData] = useState({ name: '', description: '', price: '', stock: '', categoryId: '', newCategoryName: '', imgURL: '' });
-  const [isEditing, setIsEditing] = useState(false);
-  const [editingId, setEditingId] = useState(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingProduct, setEditingProduct] = useState(null);
+  const [importing, setImporting] = useState(false);
   
   const [searchTerm, setSearchTerm] = useState('');
   const [filterCategoryId, setFilterCategoryId] = useState('');
+  const [categories, setCategories] = useState([]);
   const [stockStatus, setStockStatus] = useState('all'); // 'all', 'in_stock', 'low_stock', 'out_of_stock'
   const [stockExact, setStockExact] = useState('');
   const [sortBy, setSortBy] = useState('name_asc');
@@ -41,10 +42,28 @@ export default function AdminProducts() {
     }
   }, [navigate, location.state]);
 
+  // Handle direct edit from navigation state
+  useEffect(() => {
+    if (location.state?.editProductId && products.length > 0) {
+      const p = products.find(prod => prod.id === location.state.editProductId);
+      if (p) {
+        handleEdit(p);
+        // Clear state to avoid reopening on refresh
+        navigate(location.pathname, { replace: true, state: {} });
+      }
+    }
+  }, [products, location.state]);
+
   const fetchProducts = () => {
-    axios.get('http://localhost:5000/api/products')
-      .then(res => setProducts(res.data))
-      .catch(console.error);
+    axios.get('http://localhost:5000/api/products', {
+      headers: { Authorization: `Bearer ${token}` }
+    })
+      .then(res => {
+        setProducts(res.data);
+      })
+      .catch(err => {
+        console.error("Error al cargar productos:", err);
+      });
   };
 
   const fetchCategories = () => {
@@ -81,46 +100,14 @@ export default function AdminProducts() {
   const lowStockProducts = products.filter(p => p.stock > 0 && p.stock < 5);
   const outOfStockProducts = products.filter(p => p.stock === 0);
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    try {
-      const dataToSend = { ...formData };
-      if (dataToSend.categoryId !== 'otros') {
-        dataToSend.newCategoryName = '';
-      }
-
-      if (isEditing) {
-        await axios.put(`http://localhost:5000/api/products/${editingId}`, dataToSend, {
-          headers: { Authorization: `Bearer ${token}` }
-        });
-        showToast('Producto actualizado');
-      } else {
-        await axios.post('http://localhost:5000/api/products', dataToSend, {
-          headers: { Authorization: `Bearer ${token}` }
-        });
-        showToast('Producto creado');
-      }
-      resetForm();
-      fetchProducts();
-      fetchCategories();
-    } catch (err) {
-      showAlert('Error', err.response?.data?.error || 'Error al guardar producto', 'error');
-    }
+  const handleEdit = (product) => {
+    setEditingProduct(product);
+    setIsModalOpen(true);
   };
 
-  const handleEdit = (product) => {
-    setIsEditing(true);
-    setEditingId(product.id);
-    setFormData({
-      name: product.name,
-      description: product.description || '',
-      price: product.price,
-      stock: product.stock,
-      categoryId: product.categoria_id || '',
-      newCategoryName: '',
-      imgURL: product.imgURL || ''
-    });
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+  const handleCreate = () => {
+    setEditingProduct(null);
+    setIsModalOpen(true);
   };
 
   const handleDelete = async (id) => {
@@ -137,12 +124,6 @@ export default function AdminProducts() {
     }
   };
 
-  const resetForm = () => {
-    setFormData({ name: '', description: '', price: '', stock: '', categoryId: '', newCategoryName: '', imgURL: '' });
-    setIsEditing(false);
-    setEditingId(null);
-  };
-
   const clearFilters = () => {
     setSearchTerm('');
     setFilterCategoryId('');
@@ -151,6 +132,61 @@ export default function AdminProducts() {
     setSortBy('name_asc');
     setCurrentPage(1);
   };
+  
+  const handleExport = async () => {
+    try {
+      const res = await axios.get('http://localhost:5000/api/products/export', {
+        headers: { Authorization: `Bearer ${token}` },
+        responseType: 'blob'
+      });
+      const url = window.URL.createObjectURL(new Blob([res.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `productos_${new Date().toISOString().split('T')[0]}.xlsx`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      showToast('Inventario exportado a Excel');
+    } catch (error) {
+      showAlert('Error', 'No se pudo exportar el inventario', 'error');
+    }
+  };
+
+  const handleImport = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    if (!file.name.endsWith('.xlsx')) {
+      showAlert('Formato inválido', 'Por favor selecciona un archivo .xlsx', 'error');
+      e.target.value = '';
+      return;
+    }
+
+    setImporting(true);
+    const formData = new FormData();
+    formData.append('file', file);
+
+    try {
+      const res = await axios.post('http://localhost:5000/api/products/import', formData, {
+        headers: { 
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'multipart/form-data'
+        }
+      });
+      
+      const { updated, errors } = res.data;
+      if (errors && errors.length > 0) {
+        showAlert('Importación Parcial', `Se actualizaron ${updated} productos. Algunos registros fallaron.`, 'warning');
+      } else {
+        showAlert('¡Éxito!', `Productos actualizados correctamente (${updated}).`, 'success');
+      }
+      fetchProducts();
+    } catch (error) {
+      showAlert('Error', error.response?.data?.error || 'Error al procesar el archivo', 'error');
+    } finally {
+      setImporting(false);
+      e.target.value = '';
+    }
+  };
 
   const totalPages = Math.ceil(sortedProducts.length / itemsPerPage) || 1;
   const paginatedProducts = sortedProducts.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
@@ -158,231 +194,131 @@ export default function AdminProducts() {
   return (
     <div className="container animate-fade-in" style={{ marginTop: '40px', paddingBottom: '60px' }}>
       
-      {/* ALERTAS DE STOCK - REPOSICIÓN INMEDIATA */}
-      {outOfStockProducts.length > 0 && (
-        <div style={{ backgroundColor: '#ef4444', color: 'white', padding: '15px 20px', borderRadius: 'var(--radius-lg)', marginBottom: '15px', display: 'flex', alignItems: 'center', gap: '15px', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)' }}>
-          <AlertTriangle size={24} />
-          <div>
-            <h4 style={{ margin: 0, fontWeight: 700, fontSize: '1.1rem' }}>URGENTE: Stock Agotado</h4>
-            <p style={{ margin: 0, fontSize: '0.9rem', opacity: 0.9 }}>
-              Hay {outOfStockProducts.length} producto(s) sin unidades disponibles.
-            </p>
+      {/* ALERTS SECTION */}
+      <div style={{ marginBottom: '30px' }}>
+        {outOfStockProducts.length > 0 && (
+          <div style={{ backgroundColor: '#ef4444', color: 'white', padding: '15px 20px', borderRadius: 'var(--radius-lg)', marginBottom: '15px', display: 'flex', alignItems: 'center', gap: '15px', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)' }}>
+            <AlertTriangle size={24} />
+            <div>
+              <h4 style={{ margin: 0, fontWeight: 700, fontSize: '1.1rem' }}>URGENTE: Stock Agotado</h4>
+              <p style={{ margin: 0, fontSize: '0.9rem', opacity: 0.9 }}>{outOfStockProducts.length} producto(s) sin unidades.</p>
+            </div>
+            <button className="btn" onClick={() => { setStockStatus('out_of_stock'); setCurrentPage(1); }} style={{ marginLeft: 'auto', backgroundColor: 'white', color: '#ef4444', border: 'none' }}>Ver Agotados</button>
           </div>
-          <button className="btn" onClick={() => { setStockStatus('out_of_stock'); setCurrentPage(1); }} style={{ marginLeft: 'auto', backgroundColor: 'white', color: '#ef4444', border: 'none' }}>
-            Ver Agotados
-          </button>
-        </div>
-      )}
+        )}
 
-      {/* ALERTA DE STOCK BAJO - ADVERTENCIA */}
-      {lowStockProducts.length > 0 && (
-        <div style={{ backgroundColor: '#f59e0b', color: 'white', padding: '15px 20px', borderRadius: 'var(--radius-lg)', marginBottom: '30px', display: 'flex', alignItems: 'center', gap: '15px', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)' }}>
-          <Activity size={24} />
-          <div>
-            <h4 style={{ margin: 0, fontWeight: 700, fontSize: '1.1rem' }}>Advertencia: Stock Bajo</h4>
-            <p style={{ margin: 0, fontSize: '0.9rem', opacity: 0.9 }}>
-              Hay {lowStockProducts.length} producto(s) en alerta (1-4 unidades).
-            </p>
+        {lowStockProducts.length > 0 && (
+          <div style={{ backgroundColor: '#f59e0b', color: 'white', padding: '15px 20px', borderRadius: 'var(--radius-lg)', marginBottom: '0', display: 'flex', alignItems: 'center', gap: '15px', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)' }}>
+            <Activity size={24} />
+            <div>
+              <h4 style={{ margin: 0, fontWeight: 700, fontSize: '1.1rem' }}>Advertencia: Stock Bajo</h4>
+              <p style={{ margin: 0, fontSize: '0.9rem', opacity: 0.9 }}>{lowStockProducts.length} producto(s) en alerta.</p>
+            </div>
+            <button className="btn" onClick={() => { setStockStatus('low_stock'); setCurrentPage(1); }} style={{ marginLeft: 'auto', backgroundColor: 'white', color: '#f59e0b', border: 'none' }}>Filtrar Alerta</button>
           </div>
-          <button className="btn" onClick={() => { setStockStatus('low_stock'); setCurrentPage(1); }} style={{ marginLeft: 'auto', backgroundColor: 'white', color: '#f59e0b', border: 'none' }}>
-            Filtrar Alerta
-          </button>
-        </div>
-      )}
+        )}
+      </div>
 
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px', flexWrap: 'wrap', gap: '20px' }}>
          <h2 style={{ fontSize: '2.2rem', fontWeight: 800, letterSpacing: '-1px' }}>Gestión de Inventario</h2>
-         <div style={{ display: 'flex', gap: '10px' }}>
-            {isEditing && <button className="btn btn-outline" onClick={resetForm}>Cancelar Edición</button>}
+         <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+            <button className="btn" onClick={handleCreate} style={{ display: 'flex', alignItems: 'center', gap: '8px', height: '42px' }}>
+               <Plus size={18} /> Nuevo Producto
+            </button>
+            <button className="btn btn-outline" onClick={handleExport} style={{ display: 'flex', alignItems: 'center', gap: '8px', height: '42px' }}>
+               <Download size={18} /> <span className="hide-mobile">Exportar</span>
+            </button>
+            <label className={`btn btn-outline ${importing ? 'opacity-50' : ''}`} style={{ display: 'flex', alignItems: 'center', gap: '8px', height: '42px', cursor: 'pointer' }}>
+               <Upload size={18} /> <span className="hide-mobile">{importing ? 'Cargando...' : 'Importar'}</span>
+               <input type="file" accept=".xlsx" onChange={handleImport} style={{ display: 'none' }} disabled={importing} />
+            </label>
          </div>
       </div>
 
-      {/* SEARCH AND FILTER BAR */}
+      {/* FILTERS BAR */}
       <div className="card" style={{ padding: '20px', marginBottom: '30px', display: 'flex', gap: '15px', alignItems: 'center', flexWrap: 'wrap' }}>
          <div style={{ flex: 1, minWidth: '200px', position: 'relative' }}>
             <Search size={18} style={{ position: 'absolute', left: '15px', top: '12px', color: 'var(--muted-foreground)' }} />
-            <input 
-              type="text" 
-              className="input-field" 
-              placeholder="Buscar por nombre..." 
-              style={{ paddingLeft: '45px' }}
-              value={searchTerm}
-              onChange={e => { setSearchTerm(e.target.value); setCurrentPage(1); }}
-            />
+            <input type="text" className="input-field" placeholder="Buscar por nombre..." style={{ paddingLeft: '45px' }} value={searchTerm} onChange={e => { setSearchTerm(e.target.value); setCurrentPage(1); }} />
          </div>
-         <select 
-           className="input-field" 
-           style={{ width: '180px' }}
-           value={filterCategoryId}
-           onChange={e => { setFilterCategoryId(e.target.value); setCurrentPage(1); }}
-         >
+         <select className="input-field" style={{ width: '180px' }} value={filterCategoryId} onChange={e => { setFilterCategoryId(e.target.value); setCurrentPage(1); }}>
             <option value="">Todas las categorías</option>
             {categories.map(c => <option key={c.id} value={c.id}>{c.descripcion}</option>)}
          </select>
-         
-         <select 
-           className="input-field" 
-           style={{ width: '160px' }}
-           value={stockStatus}
-           onChange={e => { setStockStatus(e.target.value); setCurrentPage(1); }}
-         >
+         <select className="input-field" style={{ width: '160px' }} value={stockStatus} onChange={e => { setStockStatus(e.target.value); setCurrentPage(1); }}>
             <option value="all">Todo el stock</option>
-            <option value="in_stock">En Stock (&gt;0)</option>
-            <option value="low_stock">En Alerta (1-4)</option>
-            <option value="out_of_stock">Agotados (0)</option>
+            <option value="in_stock">En Stock</option>
+            <option value="low_stock">En Alerta</option>
+            <option value="out_of_stock">Agotados</option>
          </select>
-
-         <div style={{ position: 'relative', width: '140px' }}>
-            <Filter size={18} style={{ position: 'absolute', left: '10px', top: '12px', color: 'var(--muted-foreground)' }} />
-            <input 
-              type="number" 
-              className="input-field" 
-              placeholder="Stock exacto" 
-              style={{ paddingLeft: '35px' }}
-              value={stockExact}
-              min="0"
-              onChange={e => { setStockExact(Math.max(0, parseInt(e.target.value) || '')); setCurrentPage(1); }}
-            />
-         </div>
-
-         <select 
-           className="input-field" 
-           style={{ width: '150px' }}
-           value={sortBy}
-           onChange={e => setSortBy(e.target.value)}
-         >
-            <option value="name_asc">Nombre (A-Z)</option>
-            <option value="name_desc">Nombre (Z-A)</option>
-            <option value="price_asc">Precio Menor</option>
-            <option value="price_desc">Precio Mayor</option>
-            <option value="stock_asc">Stock Menor</option>
-            <option value="stock_desc">Stock Mayor</option>
-         </select>
-
-         <button className="btn btn-outline" onClick={clearFilters} style={{ padding: '10px' }} title="Limpiar Filtros">
-            Limpiar
-         </button>
+         <button className="btn btn-outline" onClick={clearFilters} style={{ padding: '10px 20px' }}>Limpiar</button>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '30px', alignItems: 'start' }}>
-        
-        {/* Formulario de Alta/Edición */}
-        <div className="card" style={{ padding: '30px' }}>
-          <h3 style={{ marginBottom: '25px', display: 'flex', alignItems: 'center', gap: '10px' }}>
-            {isEditing ? 'Editar Componente' : 'Nuevo Componente'}
-          </h3>
-          <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-            <div>
-              <label style={{ fontSize: '0.85rem', color: 'var(--muted-foreground)', marginBottom: '5px', display: 'block' }}>Nombre Completo</label>
-              <input type="text" className="input-field" placeholder="Ej: Procesador Intel i9" value={formData.name} onChange={e=>setFormData({...formData, name:e.target.value})} required />
-            </div>
-
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
-              <div>
-                <label style={{ fontSize: '0.85rem', color: 'var(--muted-foreground)', marginBottom: '5px', display: 'block' }}>Categoría</label>
-                <select className="input-field" value={formData.categoryId} onChange={e=>setFormData({...formData, categoryId:e.target.value})} required>
-                  <option value="">Seleccionar...</option>
-                  {categories.map(c => <option key={c.id} value={c.id}>{c.descripcion}</option>)}
-                  <option value="otros">+ Nueva Categoría</option>
-                </select>
-              </div>
-              <div>
-                <label style={{ fontSize: '0.85rem', color: 'var(--muted-foreground)', marginBottom: '5px', display: 'block' }}>Stock</label>
-                <input type="number" className="input-field" placeholder="Cant." value={formData.stock} onChange={e=>setFormData({...formData, stock: Math.max(0, parseInt(e.target.value) || 0)})} required />
-              </div>
-            </div>
-
-            {formData.categoryId === 'otros' && (
-              <div className="animate-fade-in">
-                <label style={{ fontSize: '0.85rem', color: 'var(--muted-foreground)', marginBottom: '5px', display: 'block' }}>Nombre de Nueva Categoría</label>
-                <input type="text" className="input-field" placeholder="Ej: Refrigeración" value={formData.newCategoryName} onChange={e=>setFormData({...formData, newCategoryName:e.target.value})} required />
-              </div>
-            )}
-
-            <div>
-              <label style={{ fontSize: '0.85rem', color: 'var(--muted-foreground)', marginBottom: '5px', display: 'block' }}>Precio Base ($)</label>
-              <input type="number" step="0.01" className="input-field" placeholder="0.00" value={formData.price} onChange={e=>setFormData({...formData, price: Math.max(0, parseFloat(e.target.value) || 0)})} required />
-            </div>
-
-            <div>
-              <label style={{ fontSize: '0.85rem', color: 'var(--muted-foreground)', marginBottom: '5px', display: 'block' }}>Descripción / Specs</label>
-              <textarea className="input-field" placeholder="Detalles técnicos..." value={formData.description} onChange={e=>setFormData({...formData, description:e.target.value})} required style={{minHeight:'100px'}}/>
-            </div>
-
-            <div>
-              <label style={{ fontSize: '0.85rem', color: 'var(--muted-foreground)', marginBottom: '5px', display: 'block' }}>URL Imagen</label>
-              <input type="text" className="input-field" placeholder="http://..." value={formData.imgURL} onChange={e=>setFormData({...formData, imgURL:e.target.value})} />
-            </div>
-
-            <button className="btn" type="submit" style={{ width: '100%', padding: '14px', fontSize: '1rem' }}>
-              {isEditing ? 'Guardar Cambios' : 'Crear Producto'}
-            </button>
-          </form>
-        </div>
-
-        {/* Tabla de Inventario */}
-        <div className="card" style={{ padding: '0', overflow: 'hidden' }}>
-          <div style={{ padding: '24px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <h3 style={{ margin: 0 }}>Listado de Stock</h3>
-            <span style={{ fontSize: '0.85rem', color: 'var(--muted-foreground)' }}>{sortedProducts.length} resultados</span>
-          </div>
-          <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.9rem' }}>
-              <thead>
-                <tr style={{ backgroundColor: 'var(--secondary)', borderBottom: '1px solid var(--border)' }}>
-                  <th style={{ padding: '16px' }}>Producto</th>
-                  <th style={{ padding: '16px' }}>Precio</th>
-                  <th style={{ padding: '16px' }}>Stock</th>
-                  <th style={{ padding: '16px', textAlign: 'center' }}>Acciones</th>
+      {/* TABLE */}
+      <div className="card" style={{ padding: '0', overflow: 'hidden' }}>
+        <div style={{ overflowX: 'auto' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.9rem' }}>
+            <thead style={{ backgroundColor: 'var(--secondary)', borderBottom: '1px solid var(--border)' }}>
+              <tr>
+                <th style={{ padding: '16px' }}>Producto</th>
+                <th style={{ padding: '16px' }}>Precio</th>
+                <th style={{ padding: '16px' }}>Rango Precio</th>
+                <th style={{ padding: '16px' }}>Stock</th>
+                <th style={{ padding: '16px', textAlign: 'center' }}>Acciones</th>
+              </tr>
+            </thead>
+            <tbody>
+              {paginatedProducts.map(p => (
+                <tr key={p.id} style={{ borderBottom: '1px solid var(--border)' }}>
+                  <td style={{ padding: '16px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                      <img src={p.imgURL || 'https://via.placeholder.com/40'} alt="p" style={{ width: '40px', height: '40px', objectFit: 'contain', borderRadius: '4px' }} />
+                      <div>
+                        <div style={{ fontWeight: 600 }}>{p.name}</div>
+                        <div style={{ fontSize: '0.75rem', color: 'var(--muted-foreground)' }}>ID: #{p.id}</div>
+                      </div>
+                    </div>
+                  </td>
+                  <td style={{ padding: '16px', fontWeight: 700 }}>${Number(p.price).toLocaleString()}</td>
+                  <td style={{ padding: '16px', fontSize: '0.85rem', color: 'var(--muted-foreground)' }}>
+                    ${p.precio_min || 0} - {p.precio_max ? `$${p.precio_max}` : '∞'}
+                  </td>
+                  <td style={{ padding: '16px' }}>
+                    <span style={{ 
+                      padding: '4px 8px', borderRadius: '4px', fontSize: '0.75rem', fontWeight: 800,
+                      backgroundColor: p.stock > 0 ? (p.stock < 5 ? 'rgba(245, 158, 11, 0.1)' : 'rgba(16, 185, 129, 0.1)') : 'rgba(239, 68, 68, 0.1)',
+                      color: p.stock > 0 ? (p.stock < 5 ? '#f59e0b' : 'var(--success)') : 'var(--destructive)'
+                    }}>
+                      {p.stock > 0 ? (p.stock < 5 ? `${p.stock} ALERTA` : `${p.stock} DISP.`) : 'AGOTADO'}
+                    </span>
+                  </td>
+                  <td style={{ padding: '16px' }}>
+                    <div style={{ display: 'flex', gap: '10px', justifyContent: 'center' }}>
+                      <button onClick={() => handleEdit(p)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted-foreground)' }}><Edit2 size={18} /></button>
+                      <button onClick={() => handleDelete(p.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--destructive)' }}><Trash2 size={18} /></button>
+                    </div>
+                  </td>
                 </tr>
-              </thead>
-              <tbody>
-                {paginatedProducts.length === 0 ? (
-                  <tr><td colSpan="4" style={{ padding: '40px', textAlign: 'center', color: 'var(--muted-foreground)' }}>No se encontraron productos.</td></tr>
-                ) : (
-                  paginatedProducts.map(p => (
-                    <tr key={p.id} style={{ borderBottom: '1px solid var(--border)', transition: 'background 0.2s' }}>
-                      <td style={{ padding: '16px' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                           <img src={p.imgURL || 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIzMDAiIGhlaWdodD0iMzAwIiB2aWV3Qm94PSIwIDAgMzAwIDMwMCI+PHJlY3Qgd2lkdGg9IjMwMCIgaGVpZ2h0PSIzMDAiIGZpbGw9IiNmOGZhZmMiLz48dGV4dCB4PSIxNTAiIHk9IjE1MCIgZm9udC1mYW1pbHk9IkFyaWFsIiBmb250LXNpemU9IjI0IiBmb250LXdlaWdodD0iYm9sZCIgZmlsbD0iIzY0NzQ4YiIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iPkhhcmR3YXJlPC90ZXh0Pjwvc3ZnPg=='} alt="p" style={{ width: '40px', height: '40px', objectFit: 'contain', backgroundColor: 'white', border: '1px solid var(--border)', borderRadius: '4px' }} />
-                           <div>
-                              <div style={{ fontWeight: 600 }}>{p.name}</div>
-                              <div style={{ fontSize: '0.75rem', color: 'var(--muted-foreground)' }}>ID: #{p.id} | {p.Category?.descripcion || 'Sin Cat.'}</div>
-                           </div>
-                        </div>
-                      </td>
-                      <td style={{ padding: '16px', fontWeight: 700 }}>${Number(p.price).toLocaleString('es-AR')}</td>
-                      <td style={{ padding: '16px' }}>
-                        <span style={{ 
-                          padding: '4px 8px', borderRadius: '4px', fontSize: '0.75rem', fontWeight: 800,
-                          backgroundColor: p.stock > 0 ? (p.stock < 5 ? 'rgba(245, 158, 11, 0.1)' : 'rgba(16, 185, 129, 0.1)') : 'rgba(239, 68, 68, 0.1)',
-                          color: p.stock > 0 ? (p.stock < 5 ? '#f59e0b' : 'var(--success)') : 'var(--destructive)'
-                        }}>
-                          {p.stock > 0 ? (p.stock < 5 ? `${p.stock} ALERTA` : `${p.stock} DISP.`) : 'AGOTADO'}
-                        </span>
-                      </td>
-                      <td style={{ padding: '16px' }}>
-                        <div style={{ display: 'flex', gap: '10px', justifyContent: 'center' }}>
-                          <button onClick={() => handleEdit(p)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted-foreground)' }} title="Editar"><Edit2 size={18} /></button>
-                          <button onClick={() => handleDelete(p.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--destructive)' }} title="Eliminar"><Trash2 size={18} /></button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-          {/* Pagination */}
-          {totalPages > 1 && (
-            <div style={{ padding: '15px', borderTop: '1px solid var(--border)', display: 'flex', justifyContent: 'center', gap: '10px' }}>
-              <button className="pagination-btn" onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1}>Anterior</button>
-              <span style={{ padding: '8px' }}>Página {currentPage} de {totalPages}</span>
-              <button className="pagination-btn" onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage >= totalPages || totalPages === 0}>Siguiente</button>
-            </div>
-          )}
+              ))}
+            </tbody>
+          </table>
         </div>
+        {/* Pagination */}
+        {totalPages > 1 && (
+          <div style={{ padding: '15px', borderTop: '1px solid var(--border)', display: 'flex', justifyContent: 'center', gap: '10px' }}>
+            <button className="pagination-btn" onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1}>Anterior</button>
+            <span style={{ padding: '8px' }}>{currentPage} / {totalPages}</span>
+            <button className="pagination-btn" onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage >= totalPages}>Siguiente</button>
+          </div>
+        )}
       </div>
+
+      <ProductFormModal 
+        isOpen={isModalOpen} 
+        onClose={() => setIsModalOpen(false)} 
+        product={editingProduct} 
+        onSuccess={() => { fetchProducts(); fetchCategories(); }} 
+      />
     </div>
   );
 }

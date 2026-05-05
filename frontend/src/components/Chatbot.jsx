@@ -1,12 +1,12 @@
 import React, { useState, useRef, useEffect } from 'react';
 import axios from 'axios';
-import { MessageSquare, X, Send, ShoppingCart, AlertCircle } from 'lucide-react';
+import { MessageSquare, X, Send, ShoppingCart, AlertCircle, Eye, ChevronRight } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 
 export default function Chatbot({ standalone = false }) {
   const [isOpen, setIsOpen] = useState(standalone);
   const [messages, setMessages] = useState([
-    { type: 'text', message: '¡Hola! Soy la IA de Hardware Haven. ¿Qué buscas armar hoy?', sender: 'bot' }
+    { type: 'text', message: '¡Hola! Soy el asistente de Hardware Haven. ¿En qué puedo ayudarte?', sender: 'bot' }
   ]);
   const [input, setInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
@@ -22,62 +22,64 @@ export default function Chatbot({ standalone = false }) {
     if (standalone || location.pathname === '/chatbot') {
       setIsOpen(true);
     } else {
-      // If we leave the chatbot page, the floating assistant should close
       setIsOpen(false);
     }
   }, [standalone, location.pathname]);
 
   const toggleChat = () => {
     if (standalone || location.pathname === '/chatbot') return;
-    
-    // Changed to navigate to the page instead of opening a new window
     navigate('/chatbot');
   };
 
-  const sendMessage = async (e, overrideMessage = null) => {
+  const sendMessage = async (e, overrideMessage = null, extraParams = {}) => {
     if (e) e.preventDefault();
     const finalMessage = overrideMessage || input;
-    if (!finalMessage.trim() || isTyping) return;
+    if (!finalMessage.trim() && !extraParams.intent) return;
 
-    const userMsg = { type: 'text', message: finalMessage, sender: 'user' };
-    setMessages(prev => [...prev, userMsg]);
+    if (finalMessage.trim()) {
+      const userMsg = { type: 'text', message: finalMessage, sender: 'user' };
+      setMessages(prev => [...prev, userMsg]);
+    }
+    
     setInput('');
     setIsTyping(true);
 
     try {
+      // Get current cart for compatibility logic
       const cartItems = JSON.parse(localStorage.getItem('cart') || '[]');
 
       const payload = {
         message: finalMessage,
-        history: messages,
         lastProducts: lastProducts,
-        cartItems: cartItems
+        cartItems: cartItems, // SEND CART ITEMS
+        ...extraParams
       };
 
       const res = await axios.post('http://localhost:5000/api/chatbot/message', payload);
 
       const botResponse = {
-        type: res.data.type || 'text',
-        message: res.data.message || '',
-        products: Array.isArray(res.data.products) ? res.data.products : [],
-        action: res.data.action || null,
+        ...res.data,
         sender: 'bot'
       };
 
-      if (botResponse.products && botResponse.products.length > 0) {
-        setLastProducts(botResponse.products);
+      if (botResponse.products) setLastProducts(botResponse.products);
+
+      // Handle Redirects
+      if (botResponse.type === 'redirect' && res.data.url) {
+        setMessages(prev => [...prev, botResponse]);
+        setTimeout(() => navigate(res.data.url), 2000);
+        return;
       }
 
-      if (botResponse.type === 'cart_action' && botResponse.action?.productId) {
-        let addedProd = null;
-        if (botResponse.action.product) addedProd = botResponse.action.product;
-        else if (lastProducts && lastProducts.length > 0) {
-          addedProd = lastProducts.find(p => p.id === botResponse.action.productId) || lastProducts[0];
-        }
-
+      // Handle Cart Update (with recommendations)
+      if (botResponse.type === 'cart_update' && extraParams.productId) {
+        // Find product in local state or lastProducts
+        const addedProd = lastProducts.find(p => p.id === extraParams.productId);
         if (addedProd) {
           const cart = JSON.parse(localStorage.getItem('cart') || '[]');
-          cart.push(addedProd);
+          const existing = cart.find(i => i.id === addedProd.id);
+          if (existing) existing.quantity = (existing.quantity || 1) + 1;
+          else cart.push({ ...addedProd, quantity: 1 });
           localStorage.setItem('cart', JSON.stringify(cart));
           window.dispatchEvent(new Event('storage'));
         }
@@ -86,91 +88,28 @@ export default function Chatbot({ standalone = false }) {
       setMessages(prev => [...prev, botResponse]);
     } catch (err) {
       console.error('[Chatbot] Axios error:', err);
-      setMessages(prev => [...prev, { type: 'text', message: 'Lo siento, tuve un error consultando mi base de conocimientos o hubo un fallo en la red.', sender: 'bot' }]);
+      setMessages(prev => [...prev, { type: 'text', message: 'Lo siento, tuve un error técnico.', sender: 'bot' }]);
     } finally {
       setIsTyping(false);
     }
   };
 
-  const addToCart = async (product) => {
-    try {
-      const userMsg = { type: 'text', message: `Agregar producto ${product.name}`, sender: 'user' };
-      setMessages(prev => [...prev, userMsg]);
-
-      const res = await axios.post('http://localhost:5000/api/cart/add', { productId: product.id });
-      if (res.data && res.data.ok && res.data.product) {
-        const botResponse = {
-          type: 'cart_action',
-          message: `"${res.data.product.name}" agregado al carrito exitosamente.`,
-          products: [],
-          action: { type: "add_to_cart", productId: res.data.product.id, product: res.data.product },
-          sender: 'bot'
-        };
-
-        const cart = JSON.parse(localStorage.getItem('cart') || '[]');
-        const existingItem = cart.find(item => item.id === res.data.product.id);
-        if (existingItem) {
-            existingItem.quantity = (existingItem.quantity || 1) + 1;
-        } else {
-            cart.push({ ...res.data.product, quantity: 1 });
-        }
-        localStorage.setItem('cart', JSON.stringify(cart));
-        window.dispatchEvent(new Event('storage'));
-
-        setMessages(prev => [...prev, botResponse]);
-      } else {
-        setMessages(prev => [...prev, { type: 'text', message: res.data.error || 'No se pudo agregar el producto', sender: 'bot' }]);
-      }
-    } catch (err) {
-      setMessages(prev => [...prev, { type: 'text', message: 'Error al agregar el producto al carrito.', sender: 'bot' }]);
-    }
+  const requestProductDetail = (product) => {
+    sendMessage(null, `Ver detalle de ${product.name}`, { intent: 'view_detail', productId: product.id });
   };
 
-  // Layout logic for standalone vs overlay
+  const addToCart = (product) => {
+    sendMessage(null, `Agregar ${product.name} al carrito`, { intent: 'add_to_cart', productId: product.id });
+  };
+
   const isPageMode = standalone || location.pathname === '/chatbot';
   
-  // Prevent double rendering: if this is the persistent chatbot (not standalone)
-  // and we are already on the /chatbot page, don't render anything.
-  if (!standalone && location.pathname === '/chatbot') {
-    return null;
-  }
-
-  const containerStyle = isPageMode ? {
-    width: '100%', height: 'calc(100vh - 250px)', 
-    maxWidth: '900px', margin: '20px auto',
-    backgroundColor: 'var(--card)', borderRadius: 'var(--radius-lg)',
-    boxShadow: '0 10px 40px rgba(0,0,0,0.05)',
-    display: 'flex', flexDirection: 'column',
-    border: '1px solid var(--border)',
-    overflow: 'hidden',
-    animation: 'fadeIn 0.5s ease forwards'
-  } : {
-    position: 'fixed', bottom: '20px', right: '20px',
-    width: '400px', height: 'calc(100vh - 100px)',
-    maxHeight: '700px',
-    backgroundColor: 'var(--card)', borderRadius: 'var(--radius-lg)',
-    boxShadow: '0 10px 40px rgba(0,0,0,0.2)',
-    display: 'flex', flexDirection: 'column', zIndex: 100,
-    border: '1px solid var(--border)',
-    overflow: 'hidden'
-  };
+  if (!standalone && location.pathname === '/chatbot') return null;
 
   return (
     <>
       {!isPageMode && !isOpen && (
-        <button
-          onClick={toggleChat}
-          style={{
-            position: 'fixed', bottom: '30px', right: '30px',
-            width: '64px', height: '64px', borderRadius: '50%',
-            background: 'linear-gradient(135deg, var(--accent) 0%, oklch(0.205 0 0) 100%)',
-            color: 'white',
-            border: 'none', cursor: 'pointer',
-            boxShadow: '0 8px 24px rgba(0, 0, 0, 0.2), inset 0 2px 4px rgba(255, 255, 255, 0.2)',
-            display: 'flex',
-            justifyContent: 'center', alignItems: 'center', zIndex: 100
-          }}
-        >
+        <button onClick={toggleChat} style={{ position: 'fixed', bottom: '30px', right: '30px', width: '64px', height: '64px', borderRadius: '50%', background: 'linear-gradient(135deg, var(--accent) 0%, oklch(0.205 0 0) 100%)', color: 'white', border: 'none', cursor: 'pointer', boxShadow: '0 8px 24px rgba(0, 0, 0, 0.2)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 100 }}>
           <MessageSquare size={30} />
         </button>
       )}
@@ -179,119 +118,112 @@ export default function Chatbot({ standalone = false }) {
         <div className={isPageMode ? "container" : ""} style={isPageMode ? { padding: '0 20px' } : {}}>
           {isPageMode && (
             <div style={{ marginTop: '40px', marginBottom: '20px' }}>
-              <h2 style={{ fontSize: '2.2rem', fontWeight: 800, letterSpacing: '-1px' }}>Asesor Inteligente</h2>
-              <p style={{ color: 'var(--muted-foreground)' }}>Consultá sobre componentes, stock y compatibilidad en tiempo real.</p>
+              <h2 style={{ fontSize: '2.2rem', fontWeight: 800 }}>Asesor Inteligente</h2>
+              <p style={{ color: 'var(--muted-foreground)' }}>Consultá sobre componentes y complementos para tu PC.</p>
             </div>
           )}
           
-          <div style={containerStyle}>
-            {/* Header */}
+          <div style={{
+            width: isPageMode ? '100%' : '400px',
+            height: isPageMode ? 'calc(100vh - 250px)' : 'calc(100vh - 100px)',
+            maxHeight: isPageMode ? 'none' : '700px',
+            maxWidth: isPageMode ? '900px' : 'none',
+            margin: isPageMode ? '20px auto' : '0',
+            position: isPageMode ? 'relative' : 'fixed',
+            bottom: isPageMode ? 'auto' : '20px',
+            right: isPageMode ? 'auto' : '20px',
+            backgroundColor: 'var(--card)', borderRadius: 'var(--radius-lg)',
+            boxShadow: '0 10px 40px rgba(0,0,0,0.1)',
+            display: 'flex', flexDirection: 'column', zIndex: 100,
+            border: '1px solid var(--border)', overflow: 'hidden'
+          }}>
             <div style={{ padding: '15px 20px', backgroundColor: 'var(--primary)', color: 'var(--primary-foreground)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 600 }}>Chat de Soporte IA</h3>
-              {!isPageMode && (
-                <button onClick={() => setIsOpen(false)} style={{ background: 'none', border: 'none', color: 'var(--primary-foreground)', cursor: 'pointer' }}>
-                  <X size={20} />
-                </button>
-              )}
+              <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 600 }}>Soporte Hardware Haven</h3>
+              {!isPageMode && <button onClick={() => setIsOpen(false)} style={{ background: 'none', border: 'none', color: 'white', cursor: 'pointer' }}><X size={20} /></button>}
             </div>
 
-            {/* Messages */}
             <div style={{ flex: 1, padding: '20px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '15px', backgroundColor: 'var(--background)' }}>
               {messages.map((msg, idx) => (
                 <div key={idx} style={{ alignSelf: msg.sender === 'user' ? 'flex-end' : 'flex-start', maxWidth: '85%' }}>
-
-                  {(msg.type === 'text' || msg.type === 'cart_action' || !msg.type) && msg.message && (
-                    <div style={{
-                      padding: '12px 16px', borderRadius: 'var(--radius-md)',
-                      backgroundColor: msg.type === 'cart_action' ? 'var(--input)' : (msg.sender === 'user' ? 'var(--accent)' : 'var(--muted)'),
-                      color: msg.sender === 'user' ? 'var(--accent-foreground)' : 'var(--foreground)',
-                      border: msg.type === 'cart_action' ? '1px solid var(--border)' : 'none',
-                      fontSize: '0.95rem', lineHeight: '1.4',
-                      whiteSpace: 'pre-wrap'
-                    }}>
+                  
+                  {/* TEXT & REDIRECT */}
+                  {(msg.type === 'text' || msg.type === 'redirect' || !msg.type) && msg.message && (
+                    <div style={{ padding: '12px 16px', borderRadius: 'var(--radius-md)', backgroundColor: msg.sender === 'user' ? 'var(--accent)' : 'var(--muted)', color: msg.sender === 'user' ? 'var(--accent-foreground)' : 'var(--foreground)', fontSize: '0.95rem', whiteSpace: 'pre-wrap' }}>
                       {msg.message}
                     </div>
                   )}
 
-                  {(msg.type === 'products' || msg.type === 'cart_action') && (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginTop: msg.type === 'cart_action' ? '10px' : '0' }}>
-
-                      {msg.type === 'products' && msg.message && (
-                        <div style={{ padding: '12px 16px', borderRadius: 'var(--radius-md)', backgroundColor: 'var(--muted)', color: 'var(--foreground)', fontSize: '0.95rem', lineHeight: '1.4', whiteSpace: 'pre-wrap' }}>
-                          {msg.message}
-                        </div>
-                      )}
-
-                      {Array.isArray(msg.products) && msg.products.length > 0 && (
-                        <div style={{ display: 'grid', gridTemplateColumns: isPageMode ? 'repeat(auto-fill, minmax(200px, 1fr))' : '1fr', gap: '10px', marginTop: '5px' }}>
-                          {msg.type === 'cart_action' && !isPageMode && (
-                            <div style={{ fontSize: '0.9rem', marginBottom: '-5px', fontWeight: 600, color: 'var(--accent)', gridColumn: '1/-1' }}>Productos Recomendados:</div>
-                          )}
-                          {msg.products.map((prod, prodIdx) => (
-                            <div key={prod.id || prodIdx + 999} style={{
-                              display: 'flex', flexDirection: 'column', gap: '8px',
-                              backgroundColor: 'var(--card)',
-                              border: '1px solid var(--border)',
-                              borderRadius: 'var(--radius-sm)',
-                              padding: '12px'
-                            }}>
-                              <div style={{ display: 'flex', gap: '10px' }}>
-                                <img
-                                  src={prod.imgURL || 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIzMDAiIGhlaWdodD0iMzAwIiB2aWV3Qm94PSIwIDAgMzAwIDMwMCI+PHJlY3Qgd2lkdGg9IjMwMCIgaGVpZ2h0PSIzMDAiIGZpbGw9IiNmOGZhZmMiLz48dGV4dCB4PSIxNTAiIHk9IjE1MCIgZm9udC1mYW1pbHk9IkFyaWFsIiBmb250LXNpemU9IjI0IiBmb250LXdlaWdodD0iYm9sZCIgZmlsbD0iIzY0NzQ4YiIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iPkhhcmR3YXJlPC90ZXh0Pjwvc3ZnPg=='}
-                                  alt={prod.name || 'Producto'}
-                                  style={{ width: '50px', height: '50px', objectFit: 'contain', backgroundColor: 'var(--background)', borderRadius: 'var(--radius-sm)' }}
-                                />
-                                <div style={{ flex: 1 }}>
-                                  <h4 style={{ margin: 0, fontSize: '0.85rem', fontWeight: 600 }}>{prodIdx + 1}. {prod.name || 'Producto Sin Nombre'}</h4>
-                                  <span style={{ fontSize: '0.9rem', color: 'var(--accent)', fontWeight: 600 }}>${Number(prod.price || 0).toLocaleString()}</span>
-                                </div>
+                  {/* PRODUCT LIST */}
+                  {msg.type === 'products' && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                      <div style={{ padding: '12px 16px', borderRadius: 'var(--radius-md)', backgroundColor: 'var(--muted)', fontSize: '0.95rem' }}>{msg.message}</div>
+                      <div style={{ display: 'grid', gridTemplateColumns: isPageMode ? 'repeat(auto-fill, minmax(200px, 1fr))' : '1fr', gap: '10px' }}>
+                        {msg.products?.map(p => (
+                          <div key={p.id} style={{ backgroundColor: 'var(--card)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '12px' }}>
+                            <div style={{ display: 'flex', gap: '10px', marginBottom: '10px' }}>
+                              <img src={p.imgURL} style={{ width: '40px', height: '40px', objectFit: 'contain' }} alt={p.name} />
+                              <div style={{ flex: 1 }}>
+                                <h4 style={{ margin: 0, fontSize: '0.8rem', fontWeight: 700 }}>{p.name}</h4>
+                                <p style={{ margin: 0, fontSize: '0.75rem', color: 'var(--accent)', fontWeight: 800 }}>${Number(p.price).toLocaleString()}</p>
                               </div>
-                              <button
-                                onClick={() => addToCart(prod)}
-                                style={{
-                                  marginTop: '5px', width: '100%', padding: '8px',
-                                  backgroundColor: 'var(--accent)', color: 'white',
-                                  border: 'none', borderRadius: 'var(--radius-sm)',
-                                  cursor: 'pointer', fontSize: '0.85rem', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '5px'
-                                }}
-                              >
-                                <ShoppingCart size={14} /> Agregar
+                            </div>
+                            <div style={{ display: 'flex', gap: '5px' }}>
+                              <button onClick={() => addToCart(p)} style={{ flex: 1, padding: '6px', fontSize: '0.7rem', backgroundColor: 'var(--accent)', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '3px' }}>
+                                <ShoppingCart size={12} /> Comprar
+                              </button>
+                              <button onClick={() => requestProductDetail(p)} style={{ flex: 1, padding: '6px', fontSize: '0.7rem', backgroundColor: 'var(--secondary)', color: 'var(--secondary-foreground)', border: '1px solid var(--border)', borderRadius: '4px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '3px' }}>
+                                <Eye size={12} /> Detalle
                               </button>
                             </div>
-                          ))}
-                        </div>
-                      )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
 
-                      {msg.type === 'products' && (!Array.isArray(msg.products) || msg.products.length === 0) && (
-                        <div style={{ display: 'flex', gap: '10px', alignItems: 'center', padding: '12px', borderRadius: 'var(--radius-md)', backgroundColor: 'var(--background)', border: '1px solid var(--border)', color: 'var(--muted-foreground)' }}>
-                          <AlertCircle size={18} />
-                          <span style={{ fontSize: '0.9rem' }}>No hay modelos disponibles por el momento con este término.</span>
+                  {/* PRODUCT DETAIL VIEW */}
+                  {msg.type === 'product_detail' && msg.product && (
+                    <div className="card" style={{ padding: '15px', maxWidth: '300px', border: '1px solid var(--primary)' }}>
+                       <img src={msg.product.imgURL} style={{ width: '100%', height: '120px', objectFit: 'contain', marginBottom: '10px' }} alt="" />
+                       <h4 style={{ margin: '0 0 5px 0', fontSize: '1rem', fontWeight: 800 }}>{msg.product.name}</h4>
+                       <p style={{ margin: '0 0 10px 0', fontSize: '1.1rem', color: 'var(--primary)', fontWeight: 900 }}>${Number(msg.product.price).toLocaleString()}</p>
+                       <p style={{ fontSize: '0.8rem', color: 'var(--muted-foreground)', marginBottom: '15px', lineHeight: '1.4' }}>{msg.product.description}</p>
+                       <button onClick={() => addToCart(msg.product)} style={{ width: '100%', padding: '10px', backgroundColor: 'var(--primary)', color: 'white', border: 'none', borderRadius: 'var(--radius-sm)', fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
+                         <ShoppingCart size={16} /> Sumar al Carrito
+                       </button>
+                    </div>
+                  )}
+
+                  {/* CART UPDATE + RECOMMENDATIONS */}
+                  {msg.type === 'cart_update' && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+                      <div style={{ padding: '12px 16px', borderRadius: 'var(--radius-md)', backgroundColor: 'var(--success-muted || var(--muted))', border: '1px solid var(--success)', fontSize: '0.95rem' }}>{msg.message}</div>
+                      
+                      {msg.relatedProducts?.length > 0 && (
+                        <div style={{ backgroundColor: 'var(--secondary)', padding: '15px', borderRadius: 'var(--radius-md)', border: '1px dashed var(--primary)' }}>
+                          <p style={{ margin: '0 0 10px 0', fontSize: '0.8rem', fontWeight: 800, textTransform: 'uppercase', color: 'var(--primary)' }}>Complementa tu compra 👇</p>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                             {msg.relatedProducts.map(rp => (
+                               <div key={rp.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: 'var(--card)', padding: '8px', borderRadius: '4px', border: '1px solid var(--border)' }}>
+                                  <span style={{ fontSize: '0.75rem', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '140px' }}>{rp.name}</span>
+                                  <button onClick={() => requestProductDetail(rp)} style={{ backgroundColor: 'transparent', border: 'none', color: 'var(--primary)', cursor: 'pointer' }}><ChevronRight size={16}/></button>
+                               </div>
+                             ))}
+                          </div>
                         </div>
                       )}
                     </div>
                   )}
+
                 </div>
               ))}
-              {isTyping && (
-                <div style={{ alignSelf: 'flex-start', padding: '12px 16px', borderRadius: 'var(--radius-md)', backgroundColor: 'var(--muted)', color: 'var(--muted-foreground)', fontSize: '0.9rem' }}>
-                  La IA está pensando...
-                </div>
-              )}
+              {isTyping && <div style={{ alignSelf: 'flex-start', padding: '10px', color: 'var(--muted-foreground)', fontSize: '0.8rem' }}>Escribiendo...</div>}
               <div ref={messagesEndRef} />
             </div>
 
-            {/* Input */}
-            <form onSubmit={(e) => sendMessage(e)} style={{ padding: '15px', borderTop: '1px solid var(--border)', display: 'flex', gap: '10px', backgroundColor: 'var(--card)' }}>
-              <input
-                type="text"
-                placeholder="Ej: Necesito una gráfica para 4K..."
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                style={{ flex: 1, padding: '12px', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', outline: 'none', backgroundColor: 'var(--background)', color: 'var(--foreground)' }}
-              />
-              <button type="submit" style={{ backgroundColor: 'var(--accent)', color: 'white', border: 'none', borderRadius: '50%', width: '45px', height: '45px', cursor: 'pointer', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
-                <Send size={20} />
-              </button>
+            <form onSubmit={sendMessage} style={{ padding: '15px', borderTop: '1px solid var(--border)', display: 'flex', gap: '10px', backgroundColor: 'var(--card)' }}>
+              <input type="text" placeholder="¿Qué estás buscando?" value={input} onChange={(e) => setInput(e.target.value)} style={{ flex: 1, padding: '12px', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', outline: 'none', backgroundColor: 'var(--background)' }} />
+              <button type="submit" style={{ backgroundColor: 'var(--accent)', color: 'white', border: 'none', borderRadius: '50%', width: '45px', height: '45px', cursor: 'pointer', display: 'flex', justifyContent: 'center', alignItems: 'center' }}><Send size={20} /></button>
             </form>
           </div>
         </div>

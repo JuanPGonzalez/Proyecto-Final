@@ -200,3 +200,8 @@ a:hover { color: var(--muted-foreground); }
   color: var(--primary-foreground);
   border-color: var(--primary);
 }
+
+/* Responsive Utilities */
+@media (max-width: 640px) {
+  .hide-mobile { display: none; }
+}

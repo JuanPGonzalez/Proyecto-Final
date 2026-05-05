@@ -2,18 +2,20 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import Select from 'react-select';
-import { MapPin, Truck, Store, Calculator, ChevronRight } from 'lucide-react';
+import { MapPin, Truck, Store, Calculator, ChevronRight, Home, Edit3 } from 'lucide-react';
 import { getStorageItem, setStorageItem } from '../utils/storage';
 import { showAlert } from '../utils/swal';
 
 export default function Envios() {
   const navigate = useNavigate();
+  const [user, setUser] = useState(null);
   const [address, setAddress] = useState('');
   const [selectedProvincia, setSelectedProvincia] = useState('');
   const [selectedLocalidad, setSelectedLocalidad] = useState('');
   const [codigoPostal, setCodigoPostal] = useState('');
   const [precioEnvio, setPrecioEnvio] = useState(0);
   const [method, setMethod] = useState('standard');
+  const [useSavedAddress, setUseSavedAddress] = useState(false);
 
   const [provinces, setProvinces] = useState(null);
   const [localidades, setLocalidades] = useState([]);
@@ -29,18 +31,31 @@ export default function Envios() {
       return;
     }
 
+    const token = localStorage.getItem('token');
+    if (token) {
+      axios.get('http://localhost:5000/api/auth/profile', {
+        headers: { Authorization: `Bearer ${token}` }
+      })
+      .then(res => {
+        setUser(res.data);
+        if (res.data.direccion && res.data.direccion !== 'Desconocida') {
+          setUseSavedAddress(true);
+          setAddress(res.data.direccion);
+        }
+      })
+      .catch(err => console.error('Error fetching profile:', err));
+    }
+
     const fetchProvinces = async () => {
       setLoadingProvinces(true);
       try {
         const res = await axios.get('http://localhost:5000/api/shipping/provinces');
-        console.log('PROVINCES RESPONSE:', res.data);
         if (res.data?.ok) {
           setProvinces(res.data?.provinces || []);
         } else {
           setError('Error al cargar provincias');
         }
       } catch (err) {
-        console.error('FETCH PROVINCES ERROR:', err);
         setError('Error al cargar provincias');
       } finally {
         setLoadingProvinces(false);
@@ -48,7 +63,7 @@ export default function Envios() {
     };
 
     fetchProvinces();
-  }, []); // Empty dependency array to run once on mount
+  }, []);
 
   const fetchLocalidades = async (provinciaId) => {
     if (!provinciaId) {
@@ -58,7 +73,6 @@ export default function Envios() {
     setLoadingLocalities(true);
     try {
       const res = await axios.get(`http://localhost:5000/api/shipping/localidades/${provinciaId}`);
-      console.log('LOCALIDADES RESPONSE:', res.data);
       if (res.data?.ok) {
         setLocalidades(res.data?.localidades || []);
       }
@@ -162,7 +176,47 @@ export default function Envios() {
           </div>
 
           {method !== 'tienda' && (
-            <div className="animate-slide-up" style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+            <div className="animate-slide-up" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+              
+              {user?.direccion && user.direccion !== 'Desconocida' && (
+                <div style={{ display: 'flex', gap: '15px' }}>
+                  <button 
+                    onClick={() => {
+                      setUseSavedAddress(true);
+                      setAddress(user.direccion);
+                    }}
+                    style={{ 
+                      flex: 1, padding: '15px', borderRadius: '12px', border: useSavedAddress ? '2px solid var(--accent)' : '1px solid var(--border)',
+                      backgroundColor: useSavedAddress ? 'oklch(0.627 0.194 259.215 / 5%)' : 'transparent',
+                      display: 'flex', alignItems: 'center', gap: '12px', cursor: 'pointer', transition: '0.2s'
+                    }}
+                  >
+                    <Home size={20} color={useSavedAddress ? 'var(--accent)' : 'var(--muted-foreground)'} />
+                    <div style={{ textAlign: 'left' }}>
+                      <p style={{ margin: 0, fontSize: '0.85rem', fontWeight: 700, color: useSavedAddress ? 'var(--accent)' : 'inherit' }}>Usar dirección guardada</p>
+                      <p style={{ margin: 0, fontSize: '0.75rem', color: 'var(--muted-foreground)' }}>{user.direccion}</p>
+                    </div>
+                  </button>
+                  <button 
+                    onClick={() => {
+                      setUseSavedAddress(false);
+                      setAddress('');
+                    }}
+                    style={{ 
+                      flex: 1, padding: '15px', borderRadius: '12px', border: !useSavedAddress ? '2px solid var(--accent)' : '1px solid var(--border)',
+                      backgroundColor: !useSavedAddress ? 'oklch(0.627 0.194 259.215 / 5%)' : 'transparent',
+                      display: 'flex', alignItems: 'center', gap: '12px', cursor: 'pointer', transition: '0.2s'
+                    }}
+                  >
+                    <Edit3 size={20} color={!useSavedAddress ? 'var(--accent)' : 'var(--muted-foreground)'} />
+                    <div style={{ textAlign: 'left' }}>
+                      <p style={{ margin: 0, fontSize: '0.85rem', fontWeight: 700, color: !useSavedAddress ? 'var(--accent)' : 'inherit' }}>Usar otra dirección</p>
+                      <p style={{ margin: 0, fontSize: '0.75rem', color: 'var(--muted-foreground)' }}>Ingresar manualmente</p>
+                    </div>
+                  </button>
+                </div>
+              )}
+
               <div>
                 <label style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--muted-foreground)', marginBottom: '8px', display: 'block' }}>Dirección de Entrega</label>
                 <div style={{ position: 'relative' }}>
@@ -174,6 +228,7 @@ export default function Envios() {
                     style={{ paddingLeft: '45px' }}
                     value={address}
                     onChange={e => setAddress(e.target.value)}
+                    disabled={useSavedAddress}
                   />
                 </div>
               </div>
@@ -196,15 +251,15 @@ export default function Envios() {
                       menu: (base) => ({ ...base, zIndex: 9999 })
                     }}
                     isLoading={loadingProvinces}
-                      onChange={(selected) => {
-                        if (!selected) {
-                          setSelectedProvincia('');
-                          setSelectedLocalidad('');
-                          setCodigoPostal('');
-                          setPrecioEnvio(0);
-                          setLocalidades([]);
-                          return;
-                        }
+                    onChange={(selected) => {
+                      if (!selected) {
+                        setSelectedProvincia('');
+                        setSelectedLocalidad('');
+                        setCodigoPostal('');
+                        setPrecioEnvio(0);
+                        setLocalidades([]);
+                        return;
+                      }
                       setSelectedProvincia(selected.value);
                       setSelectedLocalidad('');
                       setCodigoPostal('');
@@ -238,13 +293,10 @@ export default function Envios() {
                         setPrecioEnvio(0);
                         return;
                       }
-
                       const loc = Array.isArray(localidades)
                         ? localidades.find(l => Number(l.id) === Number(selected.value))
                         : null;
-
                       if (!loc) return;
-
                       setSelectedLocalidad(loc.id);
                       setCodigoPostal(loc.codigo_postal || '');
                       setPrecioEnvio(Number(loc.precio_envio || 0));

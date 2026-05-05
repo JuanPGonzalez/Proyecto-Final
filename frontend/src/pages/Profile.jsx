@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 import { isAdminRole } from '../constants/roles';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Eye, FileText, ExternalLink, MapPin } from 'lucide-react';
 import { showToast, showAlert } from '../utils/swal';
 
 export default function Profile() {
@@ -48,6 +48,60 @@ export default function Profile() {
       });
   }, [navigate, currentPage]);
 
+  const getPaymentMethodLabel = (method) => {
+    switch (method) {
+      case "cash": return "Efectivo";
+      case "card": return "Tarjeta";
+      case "transfer": return "Transferencia";
+      default: return method || "Desconocido";
+    }
+  };
+
+  const viewSummary = (order) => {
+    const receiptSection = order.payment_method === 'transfer' ? `
+      <div style="margin-top: 15px; padding: 12px; border-radius: 8px; background-color: var(--secondary); border: 1px dashed var(--border);">
+         <p style="margin-bottom: 8px; font-weight: 700; color: var(--primary);">Comprobante de pago:</p>
+         ${order.payment_receipt ? `
+           <a href="http://localhost:5000/${order.payment_receipt}" target="_blank" style="display: inline-flex; align-items: center; gap: 8px; color: #10b981; font-weight: 800; text-decoration: none;">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+              Ver comprobante subido
+           </a>
+         ` : `
+           <p style="color: #f59e0b; font-weight: 600; font-size: 0.85rem;">Subida de comprobante pendiente</p>
+         `}
+      </div>
+    ` : '';
+
+    const html = `
+      <div style="text-align: left; font-size: 0.95rem;">
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 20px;">
+          <p><strong>Fecha:</strong><br/> ${new Date(order.fecha_compra || order.createdAt).toLocaleDateString()}</p>
+          <p><strong>Estado:</strong><br/> ${order.status}</p>
+          <p><strong>Método Pago:</strong><br/> ${getPaymentMethodLabel(order.payment_method)}</p>
+          <p><strong>Envío:</strong><br/> ${order.shipping_method || 'Estándar'}</p>
+          <p style="grid-column: span 2;"><strong>Dirección:</strong><br/> ${order.shipping_address || 'Retiro en local'}</p>
+        </div>
+        
+        ${receiptSection}
+
+        <hr style="margin: 20px 0; border-top: 1px solid var(--border);"/>
+        <h4 style="margin-bottom: 10px;">Productos</h4>
+        <div style="margin: 10px 0; max-height: 200px; overflow-y: auto;">
+          ${order.OrderItems?.map(i => `
+            <div style="display: flex; justify-content: space-between; margin-bottom: 6px; font-size: 0.85rem;">
+              <span>${i.quantity}x ${i.Product?.name || 'Producto'}</span>
+              <span style="font-weight: 600;">$${Number(i.priceAtPurchase * i.quantity).toLocaleString()}</span>
+            </div>
+          `).join('')}
+        </div>
+        <div style="text-align: right; font-weight: 900; font-size: 1.2rem; color: var(--primary); border-top: 2px solid var(--border); padding-top: 10px; margin-top: 10px;">
+          TOTAL: $${Number(order.total).toLocaleString()}
+        </div>
+      </div>
+    `;
+    showAlert(`Resumen Orden #${order.id}`, html, 'info', { width: '550px' });
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     const token = localStorage.getItem('token');
@@ -87,10 +141,22 @@ export default function Profile() {
                 <label style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--muted-foreground)', marginBottom: '8px', display: 'block' }}>Nombre</label>
                 <input type="text" className="input-field" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} required />
               </div>
-              <div>
-                <label style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--muted-foreground)', marginBottom: '8px', display: 'block' }}>Dirección de Envío</label>
-                <input type="text" className="input-field" value={formData.direccion} onChange={e => setFormData({...formData, direccion: e.target.value})} />
-              </div>
+              {!isAdminRole(user) && (
+                <div>
+                  <label style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--muted-foreground)', marginBottom: '8px', display: 'block' }}>Dirección Guardada (Opcional)</label>
+                  <div style={{ position: 'relative' }}>
+                    <MapPin size={16} style={{ position: 'absolute', left: '12px', top: '12px', color: 'var(--muted-foreground)' }} />
+                    <input 
+                      type="text" 
+                      className="input-field" 
+                      style={{ paddingLeft: '40px' }}
+                      placeholder="Para usar como predeterminada en el checkout"
+                      value={formData.direccion === 'Desconocida' ? '' : formData.direccion} 
+                      onChange={e => setFormData({...formData, direccion: e.target.value})} 
+                    />
+                  </div>
+                </div>
+              )}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
                 <div>
                   <label style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--muted-foreground)', marginBottom: '8px', display: 'block' }}>Género</label>
@@ -166,48 +232,47 @@ export default function Profile() {
                         </div>
                       ))}
                     </div>
-                    <button 
-                      className="btn btn-outline" 
-                      style={{ fontSize: '0.8rem', padding: '6px 12px', display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--primary)', borderColor: 'var(--primary)' }}
-                      onClick={async () => {
-                        const token = localStorage.getItem('token');
-                        try {
-                          const res = await axios.get(`http://localhost:5000/api/orders/${order.id}/invoice`, {
-                            headers: { Authorization: `Bearer ${token}` },
-                            responseType: 'blob'
-                          });
-                          const url = window.URL.createObjectURL(new Blob([res.data]));
-                          const link = document.createElement('a');
-                          link.href = url;
-                          link.setAttribute('download', `comprobante_${order.id}.pdf`);
-                          document.body.appendChild(link);
-                          link.click();
-                          link.remove();
-                        } catch (err) {
-                          showAlert('Error', 'No se pudo descargar el comprobante', 'error');
-                        }
-                      }}
-                    >
-                       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-                       Ver Comprobante
-                    </button>
+                    
+                    <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                      <button 
+                        className="btn btn-outline" 
+                        style={{ fontSize: '0.8rem', padding: '6px 12px', display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--primary)', borderColor: 'var(--primary)' }}
+                        onClick={() => viewSummary(order)}
+                      >
+                         <Eye size={14} />
+                         Ver Resumen
+                      </button>
+
+                      {order.payment_method === 'transfer' && order.payment_receipt && (
+                        <a 
+                          href={`http://localhost:5000/${order.payment_receipt}`} 
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                          className="btn btn-outline"
+                          style={{ fontSize: '0.8rem', padding: '6px 12px', display: 'flex', alignItems: 'center', gap: '6px', color: '#10b981', borderColor: '#10b981', textDecoration: 'none' }}
+                        >
+                          <ExternalLink size={14} />
+                          Comprobante
+                        </a>
+                      )}
+                    </div>
                   </div>
                 </div>
-              ))
-            )}
-            
-            {/* Pagination */}
-            {totalPages > 1 && (
-              <div style={{ display: 'flex', justifyContent: 'center', gap: '10px', marginTop: '20px' }}>
-                <button className="pagination-btn" disabled={currentPage === 1} onClick={() => setCurrentPage(p => p - 1)}>
-                  <ChevronLeft size={16} />
-                </button>
-                <span style={{ fontSize: '0.9rem', display: 'flex', alignItems: 'center' }}>{currentPage} / {totalPages}</span>
-                <button className="pagination-btn" disabled={currentPage >= totalPages || totalPages === 0} onClick={() => setCurrentPage(p => p + 1)}>
-                  <ChevronRight size={16} />
-                </button>
-              </div>
-            )}
+                ))
+              )}
+              
+              {/* Pagination */}
+              {totalPages > 1 && (
+                <div style={{ display: 'flex', justifyContent: 'center', gap: '10px', marginTop: '20px' }}>
+                  <button className="pagination-btn" disabled={currentPage === 1} onClick={() => setCurrentPage(p => p - 1)}>
+                    <ChevronLeft size={16} />
+                  </button>
+                  <span style={{ fontSize: '0.9rem', display: 'flex', alignItems: 'center' }}>{currentPage} / {totalPages}</span>
+                  <button className="pagination-btn" disabled={currentPage >= totalPages || totalPages === 0} onClick={() => setCurrentPage(p => p + 1)}>
+                    <ChevronRight size={16} />
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         ) : null}
