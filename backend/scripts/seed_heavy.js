@@ -11,7 +11,7 @@ async function seed() {
     
     await sequelize.query('SET FOREIGN_KEY_CHECKS = 0');
     // Actualizar ENUM de tickets manualmente
-    await sequelize.query("ALTER TABLE reclamos MODIFY COLUMN status ENUM('Pendiente', 'Respondido', 'Cerrado') NOT NULL DEFAULT 'Pendiente'");
+    await sequelize.query("ALTER TABLE reclamos MODIFY COLUMN status ENUM('abierto', 'cerrado') NOT NULL DEFAULT 'abierto'");
     
     const tables = ['Category', 'Product', 'User', 'Province', 'Locality', 'Order', 'OrderItem', 'SupportTicket', 'Notification'];
     for (const t of tables) {
@@ -185,7 +185,7 @@ async function seed() {
 
     // 6. TICKETS (~50)
     console.log('Cargando 50+ tickets...');
-    const ticketStatuses = ['Pendiente', 'Respondido', 'Cerrado'];
+    const ticketStatuses = ['abierto', 'cerrado'];
     const subjects = ['Garantía', 'Duda Técnica', 'Envío demorado', 'Problema de Pago', 'Facturación', 'Stock'];
     
     for (let i = 1; i <= 55; i++) {
@@ -201,8 +201,8 @@ async function seed() {
         subject: subjects[Math.floor(Math.random() * subjects.length)] + ` #${i}`,
         description: `Esta es una descripción de prueba para el ticket de soporte número ${i}. El usuario reporta un inconveniente.`,
         status,
-        respuesta: status === 'Cerrado' || status === 'Respondido' ? 'Hemos procesado su solicitud. Por favor verifique.' : null,
-        admin_id: status !== 'Pendiente' ? assignedAdmin.id : null,
+        respuesta: status === 'cerrado' ? 'Hemos procesado su solicitud. Por favor verifique.' : null,
+        admin_id: status !== 'abierto' ? assignedAdmin.id : null,
         created_at
       });
     }

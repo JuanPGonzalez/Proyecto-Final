@@ -24,7 +24,8 @@ const Order = sequelize.define('Order', {
   shipping_cost: { type: DataTypes.DECIMAL(10, 2), defaultValue: 0 },
   provincia: { type: DataTypes.STRING, allowNull: true },
   payment_method: { type: DataTypes.STRING, allowNull: true },
-  payment_receipt: { type: DataTypes.STRING, allowNull: true }
+  payment_receipt: { type: DataTypes.STRING, allowNull: true },
+  tipo_envio: { type: DataTypes.STRING, allowNull: true, field: 'tipo_envio' }
 }, {
   tableName: 'compra',
   timestamps: false

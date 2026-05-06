@@ -178,7 +178,7 @@ router.get('/dashboard-data', async (req, res) => {
 // Endpoint paginado para historial de compras
 router.get('/purchase-history', async (req, res) => {
   try {
-    const { page = 1, limit = 10, clientId, shippingMethod, startDate, endDate } = req.query;
+    const { page = 1, limit = 10, clientId, shippingType, startDate, endDate } = req.query;
     const offset = (page - 1) * limit;
 
     let whereClause = {};
@@ -186,7 +186,15 @@ router.get('/purchase-history', async (req, res) => {
     if (clientId && clientId !== 'all') {
       whereClause.user_id = Number(clientId);
     }
-    if (shippingMethod) whereClause.shipping_method = shippingMethod;
+    
+    if (shippingType && shippingType !== 'all') {
+      if (shippingType === 'retiro') {
+        whereClause.tipo_envio = 'retiro';
+      }
+      if (shippingType === 'envio') {
+        whereClause.tipo_envio = 'envio';
+      }
+    }
 
     if (startDate && endDate) {
       whereClause.fecha_compra = {
@@ -246,7 +254,8 @@ router.get('/client/:id/orders', async (req, res) => {
 router.get('/users', async (req, res) => {
   try {
     const users = await User.findAll({
-      attributes: { exclude: ['password'] },
+      where: { tipoUsuario: 'cliente' },
+      attributes: ['id', 'name', 'email'],
       order: [['fechaReg', 'DESC']]
     });
     res.json(users);

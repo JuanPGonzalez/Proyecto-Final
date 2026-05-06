@@ -137,8 +137,8 @@ async function seed() {
     // 6. TICKETS
     console.log('Cargando tickets de soporte...');
     await SupportTicket.bulkCreate([
-      { user_id: users[2].id, subject: 'Problema con la fuente', description: 'La fuente hace un ruido extraño cuando juego.', status: 'Cerrado', respuesta: 'Por favor traiga el equipo al local para revisión por garantía.', created_at: lastMonth },
-      { user_id: users[3].id, subject: 'Consulta de compatibilidad', description: '¿Esta RAM sirve para mi Ryzen 5?', status: 'Abierto', created_at: yesterday }
+      { user_id: users[2].id, subject: 'Problema con la fuente', description: 'La fuente hace un ruido extraño cuando juego.', status: 'cerrado', respuesta: 'Por favor traiga el equipo al local para revisión por garantía.', created_at: lastMonth },
+      { user_id: users[3].id, subject: 'Consulta de compatibilidad', description: '¿Esta RAM sirve para mi Ryzen 5?', status: 'abierto', created_at: yesterday }
     ]);
 
     // 7. NOTIFICACIONES

@@ -13,7 +13,7 @@ async function reassignTickets() {
     // Buscar tickets que estén Respondidos o Cerrados y que no sean de él (o simplemente agarrar algunos)
     const tickets = await SupportTicket.findAll({
       where: {
-        status: ['Respondido', 'Cerrado']
+        status: 'cerrado'
       },
       limit: 15
     });

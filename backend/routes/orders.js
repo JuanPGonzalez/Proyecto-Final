@@ -53,6 +53,7 @@ router.post('/', authMiddleware, clientMiddleware, upload.single('proof'), async
       shipping_address: shippingAddress,
       provincia, localidad, codigo_postal: codigoPostal,
       shipping_method: shippingMethod,
+      tipo_envio: shippingMethod === 'tienda' ? 'retiro' : 'envio',
       shipping_cost: Number(shippingCost) || 0,
       payment_method: paymentMethod,
       payment_receipt: req.file ? req.file.path.replace(/\\/g, '/') : null

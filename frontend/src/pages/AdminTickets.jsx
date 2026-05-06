@@ -44,7 +44,7 @@ export default function AdminTickets() {
     setLoading(true);
     try {
       await axios.put(`http://localhost:5000/api/tickets/${selectedTicket.id}/respond`, 
-        { respuesta: reply, status: 'Respondido' },
+        { respuesta: reply, status: 'cerrado' },
         { headers: { Authorization: `Bearer ${token}` } }
       );
       setReply('');
@@ -63,7 +63,7 @@ export default function AdminTickets() {
     if (!confirm.isConfirmed) return;
     try {
       await axios.put(`http://localhost:5000/api/tickets/${selectedTicket.id}/respond`, 
-        { status: 'Cerrado' },
+        { status: 'cerrado' },
         { headers: { Authorization: `Bearer ${token}` } }
       );
       setSelectedTicket(null);
@@ -90,9 +90,8 @@ export default function AdminTickets() {
             <div style={{ display: 'flex', gap: '10px' }}>
               <select className="input-field" value={statusFilter} onChange={e => { setStatusFilter(e.target.value); setCurrentPage(1); }} style={{ padding: '6px 12px', fontSize: '0.85rem' }}>
                 <option value="">Todos los estados</option>
-                <option value="Pendiente">Pendiente</option>
-                <option value="Respondido">Respondido</option>
-                <option value="Cerrado">Cerrado</option>
+                <option value="abierto">Pendiente</option>
+                <option value="cerrado">Resuelto</option>
               </select>
               <select className="input-field" value={sortBy} onChange={e => { setSortBy(e.target.value); setCurrentPage(1); }} style={{ padding: '6px 12px', fontSize: '0.85rem' }}>
                 <option value="date_desc">Más recientes</option>
@@ -200,16 +199,19 @@ export default function AdminTickets() {
 }
 
 function StatusBadge({ status }) {
-  const isResolved = status === 'Respondido';
-  const isClosed = status === 'Cerrado';
+  const statusLabel = {
+    abierto: 'Pendiente',
+    cerrado: 'Resuelto'
+  };
+  const isOpen = status === 'abierto';
   
   return (
     <span style={{ 
       fontSize: '0.7rem', fontWeight: 800, padding: '4px 8px', borderRadius: '4px',
-      backgroundColor: isClosed ? 'oklch(0.637 0.237 25.331 / 15%)' : (isResolved ? 'oklch(0.627 0.194 149.214 / 15%)' : 'oklch(0.6 0.118 266.355 / 15%)'),
-      color: isClosed ? 'var(--destructive)' : (isResolved ? 'var(--success)' : 'var(--primary)')
+      backgroundColor: isOpen ? 'oklch(0.6 0.118 266.355 / 15%)' : 'oklch(0.627 0.194 149.214 / 15%)',
+      color: isOpen ? 'var(--primary)' : 'var(--success)'
     }}>
-      {status.toUpperCase()}
+      {(statusLabel[status] || status).toUpperCase()}
     </span>
   );
 }

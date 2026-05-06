@@ -29,7 +29,7 @@ export default function AdminDashboard() {
   const [compareEnd, setCompareEnd] = useState('');
 
   const [history, setHistory] = useState({ orders: [], totalPages: 1, currentPage: 1 });
-  const [historyFilters, setHistoryFilters] = useState({ page: 1, shippingMethod: '', clientId: 'all' });
+  const [historyFilters, setHistoryFilters] = useState({ page: 1, shippingType: 'all', clientId: 'all' });
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [selectedClient, setSelectedClient] = useState(null);
   
@@ -501,7 +501,7 @@ export default function AdminDashboard() {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px', flexWrap: 'wrap', gap: '20px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
             <History size={24} color="var(--primary)" />
-            <h3 style={{ margin: 0, fontSize: '1.6rem', fontWeight: 800 }}>Historial de Transacciones</h3>
+            <h3 style={{ margin: 0, fontSize: '1.6rem', fontWeight: 800 }}>Historial de compras</h3>
           </div>
           
           <div style={{ display: 'flex', gap: '15px' }}>
@@ -520,15 +520,14 @@ export default function AdminDashboard() {
                <Users size={16} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--muted-foreground)' }} />
              </div>
 
-             <select className="input-field" value={historyFilters.shippingMethod} onChange={e => setHistoryFilters(p => ({...p, shippingMethod: e.target.value, page: 1}))}>
-               <option value="">Cualquier Envío</option>
-               <option value="express">Express</option>
-               <option value="normal">Normal</option>
-               <option value="tienda">Retiro en Tienda</option>
+             <select className="input-field" value={historyFilters.shippingType} onChange={e => setHistoryFilters(p => ({...p, shippingType: e.target.value, page: 1}))}>
+               <option value="all">Todos</option>
+               <option value="retiro">Retiro en tienda</option>
+               <option value="envio">Envío a domicilio</option>
              </select>
              
-             {(historyFilters.shippingMethod || (historyFilters.clientId && historyFilters.clientId !== 'all')) && (
-               <button className="btn btn-outline" onClick={() => setHistoryFilters({ page: 1, shippingMethod: '', clientId: 'all' })}>Limpiar</button>
+             {(historyFilters.shippingType !== 'all' || (historyFilters.clientId && historyFilters.clientId !== 'all')) && (
+               <button className="btn btn-outline" onClick={() => setHistoryFilters({ page: 1, shippingType: 'all', clientId: 'all' })}>Limpiar</button>
              )}
           </div>
         </div>
@@ -560,7 +559,7 @@ export default function AdminDashboard() {
                     </td>
                     <td style={{ padding: '15px' }}>
                       <span style={{ fontSize: '0.8rem', padding: '4px 10px', borderRadius: '12px', backgroundColor: 'var(--card)', border: '1px solid var(--border)', textTransform: 'capitalize' }}>
-                        {o.shipping_method === 'tienda' ? 'Retiro en Tienda' : (o.shipping_method || 'Normal')}
+                        {o.tipo_envio === 'retiro' ? 'Retiro en tienda' : (o.tipo_envio === 'envio' ? 'Envío a domicilio' : (o.shipping_method || 'Normal'))}
                       </span>
                     </td>
                     <td style={{ padding: '15px', fontWeight: 800, color: 'var(--primary)' }}>${Number(o.total || 0).toLocaleString('es-AR')}</td>

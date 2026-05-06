@@ -13,7 +13,11 @@ export default function SoporteTickets() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
   const [responseText, setResponseText] = useState('');
-  const [statusSelect, setStatusSelect] = useState('Cerrado');
+  const [statusSelect, setStatusSelect] = useState('cerrado');
+  const statusLabel = {
+    abierto: 'Pendiente',
+    cerrado: 'Resuelto'
+  };
   const navigate = useNavigate();
   const user = JSON.parse(localStorage.getItem('user') || '{}');
   const isAdmin = isAdminRole(user);
@@ -71,7 +75,7 @@ export default function SoporteTickets() {
     try {
       const token = localStorage.getItem('token');
       const res = await axios.put(`http://localhost:5000/api/tickets/${ticketId}/respond`, {
-        status: statusSelect || 'Cerrado',
+        status: statusSelect || 'cerrado',
         respuesta: responseText
       }, {
         headers: { Authorization: `Bearer ${token}` }
@@ -123,10 +127,10 @@ export default function SoporteTickets() {
                     </div>
                     <span style={{ 
                       padding: '6px 12px', borderRadius: '999px', fontSize: '0.8rem', fontWeight: 700, 
-                      backgroundColor: t.status === 'Pendiente' ? 'oklch(0.6 0.118 266.355 / 15%)' : t.status === 'Respondido' ? 'oklch(0.627 0.194 149.214 / 15%)' : 'oklch(0.637 0.237 25.331 / 15%)',
-                      color: t.status === 'Pendiente' ? 'var(--primary)' : t.status === 'Respondido' ? 'var(--success)' : 'var(--destructive)'
+                      backgroundColor: t.status === 'abierto' ? 'oklch(0.6 0.118 266.355 / 15%)' : 'oklch(0.627 0.194 149.214 / 15%)',
+                      color: t.status === 'abierto' ? 'var(--primary)' : 'var(--success)'
                     }}>
-                      {t.status}
+                      {statusLabel[t.status] || t.status}
                     </span>
                   </div>
                   <p style={{ marginTop: '14px', color: 'var(--muted-foreground)' }}>{t.description}</p>
@@ -139,9 +143,8 @@ export default function SoporteTickets() {
                   {isAdmin && (
                     <div style={{ marginTop: '16px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                       <select className="input-field" value={statusSelect} onChange={e => setStatusSelect(e.target.value)}>
-                        <option value="Cerrado">Cerrado</option>
-                        <option value="En Proceso">En Proceso</option>
-                        <option value="Abierto">Abierto</option>
+                        <option value="cerrado">Resuelto</option>
+                        <option value="abierto">Pendiente</option>
                       </select>
                       <input className="input-field" placeholder="Respuesta rápida" value={responseText} onChange={e => setResponseText(e.target.value)} />
                       <button className="btn" style={{ gridColumn: '1 / -1' }} onClick={() => respondTicket(t.id)}>Actualizar Reclamo</button>
