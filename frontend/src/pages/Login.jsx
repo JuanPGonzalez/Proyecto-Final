@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 import { showAlert } from '../utils/swal';
+import PasswordInput from '../components/PasswordInput';
 
 export default function Login({ initialMode = 'login' }) {
   const [isLogin, setIsLogin] = useState(initialMode === 'login');
@@ -57,8 +58,7 @@ export default function Login({ initialMode = 'login' }) {
             value={formData.email}
             onChange={e => setFormData({ ...formData, email: e.target.value })}
           />
-          <input 
-            type="password" 
+          <PasswordInput 
             placeholder="Contraseña" 
             className="input-field" 
             required
