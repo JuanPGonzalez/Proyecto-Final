@@ -29,7 +29,6 @@ Herramienta para comprender y facilitar la representación de entidades de la ba
 
 
 ### Tecnologías utilizadas
-<h3 align="left">Connect with me:</h3>
 <p align="left">
   <a href="https://www.mysql.com/" target="_blank" rel="noreferrer">
     <img src="https://raw.githubusercontent.com/devicons/devicon/master/icons/mysql/mysql-original-wordmark.svg" alt="mysql" width="40" height="40"/>
