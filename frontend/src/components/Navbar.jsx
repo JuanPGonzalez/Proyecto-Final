@@ -81,7 +81,7 @@ export default function Navbar() {
     setShowNotifications(false);
 
     if (isAdmin) {
-      if (notif.type === 'ORDER') {
+      if (notif.type === 'ORDER' || notif.type === 'pedido') {
         navigate('/admin/pedidos');
       } else if (notif.type === 'TICKET') {
         navigate('/admin/reclamos');

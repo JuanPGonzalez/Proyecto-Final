@@ -8,8 +8,17 @@ router.use(authMiddleware);
 // Get all notifications for the logged in user
 router.get('/', async (req, res) => {
   try {
+    const { Op } = require('sequelize');
+    const { normalizeRole } = require('../middleware/roles');
+    const userRole = normalizeRole(req.user.tipoUsuario);
+
     const notifications = await Notification.findAll({
-      where: { user_id: req.user.id },
+      where: {
+        [Op.or]: [
+          { user_id: req.user.id },
+          { target_role: userRole }
+        ]
+      },
       order: [['created_at', 'DESC']]
     });
     res.json(notifications);
@@ -22,8 +31,19 @@ router.get('/', async (req, res) => {
 // Mark a single notification as read
 router.put('/:id/read', async (req, res) => {
   try {
-    const { id } = req.params;
-    const notification = await Notification.findOne({ where: { id, user_id: req.user.id } });
+    const { Op } = require('sequelize');
+    const { normalizeRole } = require('../middleware/roles');
+    const userRole = normalizeRole(req.user.tipoUsuario);
+
+    const notification = await Notification.findOne({ 
+      where: { 
+        id,
+        [Op.or]: [
+          { user_id: req.user.id },
+          { target_role: userRole }
+        ]
+      } 
+    });
     if (!notification) {
       return res.status(404).json({ error: 'Notificación no encontrada' });
     }
@@ -39,8 +59,18 @@ router.put('/:id/read', async (req, res) => {
 // Mark all notifications as read for the logged in user
 router.put('/read-all', async (req, res) => {
   try {
+    const { Op } = require('sequelize');
+    const { normalizeRole } = require('../middleware/roles');
+    const userRole = normalizeRole(req.user.tipoUsuario);
+
     await Notification.update({ is_read: true }, {
-      where: { user_id: req.user.id, is_read: false }
+      where: { 
+        is_read: false,
+        [Op.or]: [
+          { user_id: req.user.id },
+          { target_role: userRole }
+        ]
+      }
     });
     res.json({ success: true });
   } catch (error) {

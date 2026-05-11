@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import axios from 'axios';
 import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, LineElement, PointElement, Title, Tooltip, Legend, ArcElement } from 'chart.js';
 import { Bar, Line, Pie, Doughnut } from 'react-chartjs-2';
-import { Users, ShoppingBag, DollarSign, Activity, AlertTriangle, Calendar, Award, ChevronLeft, ChevronRight, Search, Globe, History, ArrowUpRight, ArrowDownRight, Info } from 'lucide-react';
+import { Users, ShoppingBag, DollarSign, Activity, AlertTriangle, Calendar, Award, ChevronLeft, ChevronRight, Search, Globe, History, ArrowUpRight, ArrowDownRight, Info, Check } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { isAdminRole } from '../constants/roles';
 import { showToast } from '../utils/swal';
@@ -15,6 +15,8 @@ export default function AdminDashboard() {
   const [compare, setCompare] = useState(false);
   const [loading, setLoading] = useState(true);
   const [users, setUsers] = useState([]); // Para el filtro de historial
+  const [supportData, setSupportData] = useState(null);
+  const [loadingSupport, setLoadingSupport] = useState(false);
   
   const today = new Date();
   const firstDay = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().split('T')[0];
@@ -43,11 +45,13 @@ export default function AdminDashboard() {
       return navigate('/forbidden');
     }
     fetchDashboardData();
+    fetchSupportData();
     fetchUsers();
   }, [navigate]);
 
   useEffect(() => {
     fetchPurchaseHistory();
+    fetchSupportData();
   }, [historyFilters]);
 
   const rangesOverlap = (aStart, aEnd, bStart, bEnd) => {
@@ -89,6 +93,28 @@ export default function AdminDashboard() {
       setUsers(Array.isArray(res.data) ? res.data : []);
     } catch (err) {
       console.error(err);
+    }
+  };
+
+  const fetchSupportData = async () => {
+    setLoadingSupport(true);
+    try {
+      const token = localStorage.getItem('token');
+      const params = {
+        startDate,
+        endDate,
+        clientId: historyFilters.clientId
+      };
+
+      const res = await axios.get('http://localhost:5000/api/admin/dashboard/support', {
+        headers: { Authorization: `Bearer ${token}` },
+        params
+      });
+      setSupportData(res.data);
+    } catch (error) {
+      console.error('Error fetching support data:', error);
+    } finally {
+      setLoadingSupport(false);
     }
   };
 
@@ -136,6 +162,7 @@ export default function AdminDashboard() {
     }
 
     fetchDashboardData();
+    fetchSupportData();
   };
 
   const handleClearFilter = () => {
@@ -144,7 +171,11 @@ export default function AdminDashboard() {
     setCompareStart('');
     setCompareEnd('');
     setCompare(false);
-    setTimeout(fetchDashboardData, 100);
+    setHistoryFilters({ page: 1, shippingType: 'all', clientId: 'all' });
+    setTimeout(() => {
+      fetchDashboardData();
+      fetchSupportData();
+    }, 100);
   };
 
   if (loading && !data) {
@@ -253,6 +284,33 @@ export default function AdminDashboard() {
     }]
   };
 
+  const supportTrendData = {
+    labels: supportData?.charts?.ticketsTrend?.map(t => new Date(t.date).toLocaleDateString('es-AR')) || [],
+    datasets: [
+      {
+        label: 'Tickets Creados',
+        data: supportData?.charts?.ticketsTrend?.map(t => t.count) || [],
+        borderColor: '#f97316',
+        backgroundColor: 'rgba(249, 115, 22, 0.2)',
+        borderWidth: 3,
+        fill: true,
+        tension: 0.3
+      }
+    ]
+  };
+
+  const supportStatusData = {
+    labels: ['Abiertos', 'Cerrados'],
+    datasets: [
+      {
+        data: [supportData?.metrics?.abiertos || 0, supportData?.metrics?.cerrados || 0],
+        backgroundColor: ['#f59e0b', '#10b981'],
+        borderWidth: 0,
+        hoverOffset: 10
+      }
+    ]
+  };
+
   const calculateGrowth = (curr, prev) => {
     if (!prev || prev === 0) return null;
     const growth = ((curr - prev) / prev) * 100;
@@ -266,6 +324,13 @@ export default function AdminDashboard() {
 
   return (
     <div className="container animate-fade-in" style={{ marginTop: '40px', paddingBottom: '60px' }}>
+      
+      {/* SECCIÓN 0: ANALYTICS COMERCIALES */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '15px', marginBottom: '30px' }}>
+        <Activity size={28} color="var(--primary)" />
+        <h2 style={{ margin: 0, fontSize: '2rem', fontWeight: 900 }}>Analytics Comerciales</h2>
+        <div style={{ flex: 1, height: '2px', backgroundColor: 'var(--border)', opacity: 0.5 }}></div>
+      </div>
       
       {/* ALERTAS DE STOCK */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', gap: '20px', marginBottom: '40px' }}>
@@ -374,15 +439,37 @@ export default function AdminDashboard() {
             color="#ec4899" 
           />
           <PeriodStatCard 
-            title="Ticket Promedio" 
+            title="Compra Promedio" 
             value={`$${(periodOrders ? periodRevenue / periodOrders : 0).toLocaleString('es-AR', { maximumFractionDigits: 0 })}`} 
             growth={calculateGrowth(periodOrders ? periodRevenue / periodOrders : 0, prevOrders ? prevRevenue / prevOrders : 0)}
             icon={<Activity size={20} />} 
             color="#f59e0b" 
           />
+          {/* Support KPI integrated */}
+          <PeriodStatCard 
+            title="Tickets Abiertos" 
+            value={supportData?.metrics?.abiertos || 0} 
+            icon={<AlertTriangle size={20} />} 
+            color="#f59e0b" 
+            growth={null}
+          />
+          <PeriodStatCard 
+            title="Tickets Cerrados" 
+            value={supportData?.metrics?.cerrados || 0} 
+            icon={<Check size={20} />} 
+            color="#10b981" 
+            growth={null}
+          />
+          <PeriodStatCard 
+            title="Tickets del Período" 
+            value={supportData?.metrics?.totalPeriodo || 0} 
+            icon={<Calendar size={20} />} 
+            color="#3b82f6" 
+            growth={null}
+          />
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1.8fr 1.2fr', gap: '30px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1.8fr 1.2fr', gap: '30px', marginBottom: '30px' }}>
           <div className="card" style={{ padding: '30px' }}>
             <h4 style={{ marginBottom: '25px', fontWeight: 800 }}>Evolución de Ingresos</h4>
             <div style={{ height: '350px' }}>
@@ -407,6 +494,43 @@ export default function AdminDashboard() {
                   maintainAspectRatio: false, 
                   plugins: { legend: { display: false } },
                   scales: { y: { beginAtZero: true, grid: { color: 'rgba(0,0,0,0.03)' } }, x: { grid: { display: false } } }
+                }} 
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* Support Trend Chart integrated into Section 1 */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1.8fr 1.2fr', gap: '30px' }}>
+          <div className="card" style={{ padding: '30px' }}>
+            <h4 style={{ marginBottom: '25px', fontWeight: 800 }}>Tendencia de Tickets (Soporte)</h4>
+            <div style={{ height: '350px' }}>
+              {supportData?.charts?.ticketsTrend?.length > 0 ? (
+                <Line 
+                  data={supportTrendData} 
+                  options={{ 
+                    responsive: true, 
+                    maintainAspectRatio: false, 
+                    plugins: { legend: { display: false } },
+                    scales: { y: { beginAtZero: true, grid: { color: 'rgba(0,0,0,0.03)' } }, x: { grid: { display: false } } }
+                  }} 
+                />
+              ) : (
+                <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--muted-foreground)' }}>
+                  No hay tickets en este período
+                </div>
+              )}
+            </div>
+          </div>
+          <div className="card" style={{ padding: '30px' }}>
+            <h4 style={{ marginBottom: '25px', fontWeight: 800, textAlign: 'center' }}>Distribución Soporte</h4>
+            <div style={{ height: '350px' }}>
+              <Doughnut 
+                data={supportStatusData} 
+                options={{ 
+                  maintainAspectRatio: false, 
+                  cutout: '70%',
+                  plugins: { legend: { position: 'bottom', labels: { usePointStyle: true, font: { weight: 700 } } } }
                 }} 
               />
             </div>
@@ -585,6 +709,8 @@ export default function AdminDashboard() {
         <ClientDetailModal 
           clientId={selectedClient.id} 
           clientName={selectedClient.name} 
+          startDate={startDate}
+          endDate={endDate}
           onClose={() => setSelectedClient(null)} 
         />
       )}

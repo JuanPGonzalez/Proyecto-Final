@@ -175,6 +175,71 @@ router.get('/dashboard-data', async (req, res) => {
   }
 });
 
+// Analytics de Soporte
+router.get('/dashboard/support', async (req, res) => {
+  try {
+    const { startDate, endDate, clientId } = req.query;
+    let whereClause = {};
+    let periodWhere = {};
+
+    if (startDate && endDate) {
+      const s = new Date(`${startDate}T00:00:00`);
+      const e = new Date(`${endDate}T23:59:59`);
+      periodWhere.created_at = { [Op.between]: [s, e] };
+    }
+
+    if (clientId && clientId !== 'all') {
+      whereClause.user_id = Number(clientId);
+      periodWhere.user_id = Number(clientId);
+    }
+
+    // 1. Métricas
+    const abiertos = await SupportTicket.count({ where: { ...whereClause, status: 'abierto' } });
+    const cerrados = await SupportTicket.count({ where: { ...whereClause, status: 'cerrado' } });
+    const totalPeriodo = await SupportTicket.count({ where: periodWhere });
+
+    // 2. Chart 1: Tickets por período (agrupados por día)
+    let ticketsTrend = [];
+    if (startDate && endDate) {
+      ticketsTrend = await SupportTicket.findAll({
+        where: periodWhere,
+        attributes: [
+          [sequelize.fn('DATE', sequelize.col('created_at')), 'date'],
+          [sequelize.fn('COUNT', sequelize.col('id')), 'count']
+        ],
+        group: [sequelize.fn('DATE', sequelize.col('created_at'))],
+        order: [[sequelize.fn('DATE', sequelize.col('created_at')), 'ASC']]
+      });
+    }
+
+    // 3. Historial del cliente (si está seleccionado)
+    let clientHistory = [];
+    if (clientId && clientId !== 'all') {
+      clientHistory = await SupportTicket.findAll({
+        where: { user_id: Number(clientId) },
+        order: [['created_at', 'DESC']],
+        limit: 10
+      });
+    }
+
+    res.json({
+      metrics: { abiertos, cerrados, totalPeriodo },
+      charts: {
+        ticketsTrend: ticketsTrend.map(t => ({
+          date: t.get('date'),
+          count: t.get('count')
+        })),
+        statusDistribution: { abiertos, cerrados }
+      },
+      clientHistory
+    });
+
+  } catch (error) {
+    console.error('Support Analytics Error:', error);
+    res.status(500).json({ error: 'Error al obtener analytics de soporte' });
+  }
+});
+
 // Endpoint paginado para historial de compras
 router.get('/purchase-history', async (req, res) => {
   try {
@@ -245,6 +310,29 @@ router.get('/client/:id/orders', async (req, res) => {
     res.json({ orders });
   } catch (error) {
     res.status(500).json({ error: 'Error al obtener órdenes del cliente' });
+  }
+});
+
+// Detalle de cliente (Tickets)
+router.get('/client/:id/tickets', async (req, res) => {
+  try {
+    const { startDate, endDate } = req.query;
+    let whereClause = { user_id: req.params.id };
+
+    if (startDate && endDate) {
+      whereClause.created_at = {
+        [Op.between]: [new Date(`${startDate}T00:00:00`), new Date(`${endDate}T23:59:59`)]
+      };
+    }
+
+    const tickets = await SupportTicket.findAll({
+      where: whereClause,
+      order: [['created_at', 'DESC']]
+    });
+    res.json({ tickets });
+  } catch (error) {
+    console.error('Error fetching client tickets:', error);
+    res.status(500).json({ error: 'Error al obtener tickets del cliente' });
   }
 });
 

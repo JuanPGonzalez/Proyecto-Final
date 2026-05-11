@@ -82,6 +82,16 @@ router.post('/', authMiddleware, clientMiddleware, upload.single('proof'), async
       type: 'ORDER'
     });
 
+    // Notificación para Admin (Regression Fix)
+    await Notification.create({
+      type: 'pedido',
+      title: 'Nuevo pedido recibido',
+      message: `Pedido #${order.id}`,
+      reference_id: order.id,
+      target_role: ROLES.ADMIN,
+      is_read: false
+    });
+
     res.status(201).json({ success: true, orderId: order.id });
   } catch (error) {
     console.error(error);
@@ -120,11 +130,15 @@ router.get('/preparing/pdf', authMiddleware, async (req, res) => {
   try {
     if (!isAdminRole(req.user.tipoUsuario)) return res.status(403).json({ error: 'Prohibido' });
 
+    const { Category } = require('../models');
     const orders = await Order.findAll({
       where: { status: 'En preparación' },
       include: [{
         model: OrderItem,
-        include: [Product]
+        include: [{
+          model: Product,
+          include: [Category]
+        }]
       }]
     });
 
@@ -143,7 +157,7 @@ router.get('/preparing/pdf', authMiddleware, async (req, res) => {
     doc.fillColor('#64748b').fontSize(11).font('Helvetica-Oblique').text('Órdenes en estado: En preparación', 40, 155);
 
     let y = 190;
-    const totals = {}; // Para el resumen final
+    const groupedTotals = {}; // { category: { productName: quantity } }
 
     orders.forEach((order) => {
       // Verificar espacio para nueva orden (encabezado + al menos 1 producto)
@@ -162,10 +176,12 @@ router.get('/preparing/pdf', authMiddleware, async (req, res) => {
         if (item.Product) {
           const prodName = item.Product.name;
           const qty = item.quantity;
+          const categoryName = item.Product.Category?.descripcion || 'Sin categoría';
 
-          // Acumular para el resumen
-          if (!totals[prodName]) totals[prodName] = 0;
-          totals[prodName] += qty;
+          // Acumular para el resumen agrupado
+          if (!groupedTotals[categoryName]) groupedTotals[categoryName] = {};
+          if (!groupedTotals[categoryName][prodName]) groupedTotals[categoryName][prodName] = 0;
+          groupedTotals[categoryName][prodName] += qty;
 
           doc.fillColor('#334155').fontSize(10).font('Helvetica-Bold').text(`${qty}x`, 40, y, { continued: true });
           doc.font('Helvetica').text(` ${prodName}`, 70, y);
@@ -189,24 +205,39 @@ router.get('/preparing/pdf', authMiddleware, async (req, res) => {
     doc.fillColor('#64748b').fontSize(10).font('Helvetica-Oblique').text('Consolidado de todas las órdenes en preparación', 40, 155);
     
     let summaryY = 190;
-    const entries = Object.entries(totals);
+    const categories = Object.keys(groupedTotals).sort();
     
-    if (entries.length === 0) {
+    if (categories.length === 0) {
        doc.text('No hay productos acumulados.', 40, summaryY);
     } else {
-       // Ordenar por nombre
-       entries.sort((a, b) => a[0].localeCompare(b[0]));
-       
-       entries.forEach(([name, qty]) => {
-         doc.fillColor('#000000').fontSize(11).font('Helvetica-Bold').text(`${qty}x`, 40, summaryY, { continued: true });
-         doc.font('Helvetica').text(` ${name}`, 80, summaryY);
-         summaryY += 20;
-
-         if (summaryY > 750) {
+       categories.forEach(category => {
+         // Título de Categoría
+         if (summaryY > 700) {
            doc.addPage();
            applyHardwareHavenBranding(doc, 'RESUMEN TOTAL DE PRODUCTOS');
            summaryY = 180;
          }
+
+         doc.fillColor('#64748b').fontSize(11).font('Helvetica-Bold').text(category.toUpperCase(), 40, summaryY);
+         summaryY += 18;
+         doc.moveTo(40, summaryY).lineTo(200, summaryY).stroke('#cbd5e1');
+         summaryY += 10;
+
+         const products = Object.entries(groupedTotals[category]).sort((a, b) => a[0].localeCompare(b[0]));
+         
+         products.forEach(([name, qty]) => {
+           doc.fillColor('#000000').fontSize(11).font('Helvetica-Bold').text(`${qty}x`, 50, summaryY, { continued: true });
+           doc.font('Helvetica').text(` ${name}`, 90, summaryY);
+           summaryY += 20;
+
+           if (summaryY > 750) {
+             doc.addPage();
+             applyHardwareHavenBranding(doc, 'RESUMEN TOTAL DE PRODUCTOS');
+             summaryY = 180;
+           }
+         });
+         
+         summaryY += 15; // Espacio entre categorías
        });
     }
 

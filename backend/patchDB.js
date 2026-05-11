@@ -24,6 +24,13 @@ async function patchDatabase() {
     console.log('Aplicando patch de columnas a compra...');
     await runQuery('ALTER TABLE compra ADD COLUMN localidad VARCHAR(255);');
     await runQuery('ALTER TABLE compra ADD COLUMN codigo_postal VARCHAR(255);');
+
+    console.log('Aplicando patch de columnas a notifications...');
+    await runQuery('ALTER TABLE notifications MODIFY COLUMN user_id INT UNSIGNED NULL;');
+    await runQuery('ALTER TABLE notifications ADD COLUMN title VARCHAR(255);');
+    await runQuery('ALTER TABLE notifications ADD COLUMN reference_id INT UNSIGNED;');
+    await runQuery('ALTER TABLE notifications ADD COLUMN target_role VARCHAR(50);');
+    
     console.log('✅ Patch finalizado.');
   } catch(e) {
     console.error('Error general en patch', e);
