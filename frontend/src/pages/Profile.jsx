@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { isAdminRole } from '../constants/roles';
 import { ChevronLeft, ChevronRight, Eye, FileText, ExternalLink, MapPin } from 'lucide-react';
 import { showToast, showAlert } from '../utils/swal';
+import { getStatusStyle } from '../constants/statusStyles';
 
 export default function Profile() {
   const [user, setUser] = useState(null);
@@ -76,7 +77,12 @@ export default function Profile() {
       <div style="text-align: left; font-size: 0.95rem;">
         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 20px;">
           <p><strong>Fecha:</strong><br/> ${new Date(order.fecha_compra || order.createdAt).toLocaleDateString()}</p>
-          <p><strong>Estado:</strong><br/> ${order.status}</p>
+          <p>
+            <strong>Estado:</strong><br/> 
+            <span style="display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 0.75rem; font-weight: 800; background-color: ${getStatusStyle(order.status).bg}; color: ${getStatusStyle(order.status).text};">
+              ${(order.status || 'PENDIENTE').toUpperCase()}
+            </span>
+          </p>
           <p><strong>Método Pago:</strong><br/> ${getPaymentMethodLabel(order.payment_method)}</p>
           <p><strong>Envío:</strong><br/> ${order.shipping_method || 'Estándar'}</p>
           <p style="grid-column: span 2;"><strong>Dirección:</strong><br/> ${order.shipping_address || 'Retiro en local'}</p>
@@ -218,25 +224,34 @@ export default function Profile() {
                       <p style={{ fontWeight: 600 }}>{new Date(order.fecha_compra || order.createdAt || Date.now()).toLocaleDateString()}</p>
                     </div>
                     <div style={{ textAlign: 'right' }}>
-                      <span style={{ padding: '4px 12px', borderRadius: '50px', fontSize: '0.75rem', fontWeight: 700, backgroundColor: 'oklch(0.627 0.194 149.214 / 15%)', color: 'oklch(0.627 0.194 149.214)' }}>
+                      <span style={{ 
+                        padding: '4px 12px', 
+                        borderRadius: '50px', 
+                        fontSize: '0.75rem', 
+                        fontWeight: 700, 
+                        backgroundColor: getStatusStyle(order.status).bg, 
+                        color: getStatusStyle(order.status).text 
+                      }}>
                         {(order.status || 'pendiente').toUpperCase()}
                       </span>
                       <p style={{ fontSize: '1.2rem', fontWeight: 800, marginTop: '5px' }}>${Number(order.total || 0).toLocaleString()}</p>
                     </div>
                   </div>
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-                      {order.OrderItems?.map(item => (
-                        <div key={item.id} style={{ fontSize: '0.85rem', color: 'var(--muted-foreground)', backgroundColor: 'var(--secondary)', padding: '4px 10px', borderRadius: 'var(--radius-sm)' }}>
-                          {item.Product?.name || 'Producto'} (x{item.quantity || 1})
-                        </div>
-                      ))}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '20px', flexWrap: 'wrap' }}>
+                    <div style={{ flex: 1, minWidth: '250px' }}>
+                      <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                        {order.OrderItems?.map(item => (
+                          <div key={item.id} style={{ fontSize: '0.8rem', color: 'var(--muted-foreground)', backgroundColor: 'var(--secondary)', padding: '4px 10px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)' }}>
+                            {item.Product?.name || 'Producto'} <span style={{ fontWeight: 800, color: 'var(--foreground)', marginLeft: '4px' }}>x{item.quantity || 1}</span>
+                          </div>
+                        ))}
+                      </div>
                     </div>
                     
-                    <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                    <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexShrink: 0, marginLeft: 'auto' }}>
                       <button 
                         className="btn btn-outline" 
-                        style={{ fontSize: '0.8rem', padding: '6px 12px', display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--primary)', borderColor: 'var(--primary)' }}
+                        style={{ fontSize: '0.75rem', padding: '8px 14px', display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--primary)', borderColor: 'var(--primary)', fontWeight: 700 }}
                         onClick={() => viewSummary(order)}
                       >
                          <Eye size={14} />
@@ -249,7 +264,7 @@ export default function Profile() {
                           target="_blank" 
                           rel="noopener noreferrer"
                           className="btn btn-outline"
-                          style={{ fontSize: '0.8rem', padding: '6px 12px', display: 'flex', alignItems: 'center', gap: '6px', color: '#10b981', borderColor: '#10b981', textDecoration: 'none' }}
+                          style={{ fontSize: '0.75rem', padding: '8px 14px', display: 'flex', alignItems: 'center', gap: '6px', color: '#10b981', borderColor: '#10b981', textDecoration: 'none', fontWeight: 700 }}
                         >
                           <ExternalLink size={14} />
                           Comprobante

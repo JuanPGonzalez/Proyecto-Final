@@ -5,6 +5,8 @@ import { Package, CheckCircle, XCircle, Clock, ChevronLeft, ChevronRight, User, 
 import { isAdminRole } from '../constants/roles';
 import { showToast, showAlert, showConfirm } from '../utils/swal';
 
+import { getStatusStyle } from '../constants/statusStyles';
+
 export default function AdminOrders() {
   const [orders, setOrders] = useState([]);
   const [currentPage, setCurrentPage] = useState(1);
@@ -288,14 +290,7 @@ export default function AdminOrders() {
 }
 
 function StatusBadge({ status }) {
-  const styles = {
-    'Pendiente': { bg: 'rgba(59, 130, 246, 0.1)', text: '#3b82f6' },
-    'Pendiente de Validación': { bg: 'rgba(245, 158, 11, 0.1)', text: '#f59e0b' },
-    'En preparación': { bg: 'rgba(139, 92, 246, 0.1)', text: '#8b5cf6' },
-    'Cerrada': { bg: 'rgba(16, 185, 129, 0.1)', text: '#10b981' },
-    'Cancelada': { bg: 'rgba(239, 68, 68, 0.1)', text: '#ef4444' }
-  };
-  const s = styles[status] || styles['Pendiente'];
+  const s = getStatusStyle(status);
   return (
     <span style={{ padding: '4px 10px', borderRadius: '50px', fontSize: '0.7rem', fontWeight: 800, backgroundColor: s.bg, color: s.text }}>
       {status.toUpperCase()}

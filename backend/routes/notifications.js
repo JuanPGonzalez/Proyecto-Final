@@ -31,6 +31,7 @@ router.get('/', async (req, res) => {
 // Mark a single notification as read
 router.put('/:id/read', async (req, res) => {
   try {
+    const { id } = req.params;
     const { Op } = require('sequelize');
     const { normalizeRole } = require('../middleware/roles');
     const userRole = normalizeRole(req.user.tipoUsuario);

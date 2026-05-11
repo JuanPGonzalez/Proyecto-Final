@@ -139,18 +139,31 @@ a:hover { color: var(--muted-foreground); }
 @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
 .animate-fade-in { animation: fadeIn 0.4s ease forwards; }
 
-/* Modal Background */
+/* Modal Background Overlay */
 .modal-overlay {
-  position: fixed; top:0; left:0; width:100vw; height:100vh;
-  background: rgba(0,0,0,0.3); backdrop-filter: blur(4px);
-  display: flex; justify-content: center; align-items: center; z-index: 1000;
+  position: fixed; 
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0,0,0,0.4); backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  z-index: 9998;
 }
+
+/* Modal Content Container */
 .modal-content {
-  background: var(--card); padding: 32px; border-radius: var(--radius-lg);
-  max-width: 650px; width: 90%; position: relative;
+  background: var(--card); 
+  padding: 32px; 
+  border-radius: var(--radius-lg);
+  width: min(900px, 95vw);
+  max-height: 90vh; 
+  overflow-y: auto;
+  position: relative;
   box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
   animation: fadeIn 0.2s ease-out;
   border: 1px solid var(--border);
+  z-index: 9999;
 }
 
 /* Estilos de Utilidad para Layout de Filtros (Sidebar / Topbar) */

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import axios from 'axios';
 import { X, Loader2, Save } from 'lucide-react';
 import { showToast, showAlert } from '../utils/swal';
@@ -49,6 +50,13 @@ export default function ProductFormModal({ isOpen, onClose, product = null, onSu
           precio_max: ''
         });
       }
+      
+      // Body scroll lock
+      const originalOverflow = document.body.style.overflow;
+      document.body.style.overflow = 'hidden';
+      return () => {
+        document.body.style.overflow = originalOverflow;
+      };
     }
   }, [isOpen, product]);
 
@@ -124,9 +132,37 @@ export default function ProductFormModal({ isOpen, onClose, product = null, onSu
 
   if (!isOpen) return null;
 
-  return (
-    <div className="modal-overlay" style={{ zIndex: 1000 }}>
-      <div className="modal-content" style={{ maxWidth: '600px', width: '90%' }}>
+  const modalRoot = (
+    <div 
+      className="modal-overlay" 
+      onClick={onClose} 
+      style={{ 
+        position: 'fixed', 
+        inset: 0, 
+        backgroundColor: 'rgba(0,0,0,0.7)', 
+        zIndex: 9999, 
+        display: 'flex', 
+        alignItems: 'center', 
+        justifyContent: 'center', 
+        backdropFilter: 'blur(8px)',
+        padding: '20px'
+      }}
+    >
+      <div 
+        className="modal-content" 
+        onClick={e => e.stopPropagation()}
+        style={{ 
+          width: 'min(900px, 95vw)', 
+          maxHeight: '90vh', 
+          overflowY: 'auto', 
+          position: 'relative',
+          backgroundColor: 'var(--card)',
+          padding: '30px',
+          borderRadius: 'var(--radius-lg)',
+          boxShadow: '0 25px 60px rgba(0,0,0,0.5)',
+          border: '1px solid var(--border)'
+        }}
+      >
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', borderBottom: '1px solid var(--border)', paddingBottom: '15px' }}>
           <h2 style={{ fontSize: '1.5rem', fontWeight: 700 }}>
             {product ? 'Editar Producto' : 'Nuevo Producto'}
@@ -273,4 +309,6 @@ export default function ProductFormModal({ isOpen, onClose, product = null, onSu
       </div>
     </div>
   );
+
+  return createPortal(modalRoot, document.body);
 }

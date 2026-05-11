@@ -52,30 +52,34 @@ export default function Navbar() {
   }, [token]);
 
   const markAsRead = async (id) => {
+    // Optimistic Update
+    setNotifications(prev => prev.map(n => n.id === id ? { ...n, is_read: true } : n));
     try {
       await axios.put(`http://localhost:5000/api/notifications/${id}/read`, {}, {
         headers: { Authorization: `Bearer ${token}` }
       });
-      fetchNotifications();
     } catch (error) {
       console.error('Error marking as read:', error);
+      fetchNotifications(); // Sync back on error
     }
   };
 
   const markAllAsRead = async () => {
+    // Optimistic Update
+    setNotifications(prev => prev.map(n => ({ ...n, is_read: true })));
     try {
       await axios.put(`http://localhost:5000/api/notifications/read-all`, {}, {
         headers: { Authorization: `Bearer ${token}` }
       });
-      fetchNotifications();
     } catch (error) {
       console.error('Error marking all as read:', error);
+      fetchNotifications();
     }
   };
 
-  const handleNotificationClick = async (notif) => {
+  const handleNotificationClick = (notif) => {
     if (!notif.is_read) {
-      await markAsRead(notif.id);
+      markAsRead(notif.id);
     }
     
     setShowNotifications(false);
@@ -235,10 +239,14 @@ export default function Navbar() {
                             style={{ 
                               padding: '15px', 
                               borderBottom: '1px solid var(--border)', 
-                              backgroundColor: n.is_read ? 'transparent' : 'var(--secondary)', 
+                              backgroundColor: n.is_read ? 'transparent' : 'rgba(139, 92, 246, 0.08)', 
+                              borderLeft: n.is_read ? 'none' : '4px solid var(--accent)',
                               cursor: 'pointer', 
-                              transition: 'background 0.2s' 
+                              transition: 'all 0.2s ease',
+                              opacity: n.is_read ? 0.7 : 1
                             }}
+                            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--secondary)'}
+                            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = n.is_read ? 'transparent' : 'rgba(139, 92, 246, 0.08)'}
                           >
                             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '5px' }}>
                               <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--accent)', textTransform: 'uppercase' }}>{n.type}</span>

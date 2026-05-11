@@ -5,6 +5,8 @@ import { MessageSquare, Clock, CheckCircle, Send, User, ChevronLeft, ChevronRigh
 import { isAdminRole } from '../constants/roles';
 import { showToast, showAlert, showConfirm } from '../utils/swal';
 
+import { getStatusStyle } from '../constants/statusStyles';
+
 export default function AdminTickets() {
   const [tickets, setTickets] = useState([]);
   const [currentPage, setCurrentPage] = useState(1);
@@ -203,13 +205,13 @@ function StatusBadge({ status }) {
     abierto: 'Pendiente',
     cerrado: 'Resuelto'
   };
-  const isOpen = status === 'abierto';
+  const s = getStatusStyle(status);
   
   return (
     <span style={{ 
       fontSize: '0.7rem', fontWeight: 800, padding: '4px 8px', borderRadius: '4px',
-      backgroundColor: isOpen ? 'oklch(0.6 0.118 266.355 / 15%)' : 'oklch(0.627 0.194 149.214 / 15%)',
-      color: isOpen ? 'var(--primary)' : 'var(--success)'
+      backgroundColor: s.bg,
+      color: s.text
     }}>
       {(statusLabel[status] || status).toUpperCase()}
     </span>

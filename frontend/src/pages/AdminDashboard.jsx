@@ -7,6 +7,7 @@ import { useNavigate } from 'react-router-dom';
 import { isAdminRole } from '../constants/roles';
 import { showToast } from '../utils/swal';
 import ClientDetailModal from '../components/ClientDetailModal';
+import { getStatusStyle } from '../constants/statusStyles';
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, LineElement, PointElement, Title, Tooltip, Legend, ArcElement);
 
@@ -88,7 +89,8 @@ export default function AdminDashboard() {
     try {
       const token = localStorage.getItem('token');
       const res = await axios.get('http://localhost:5000/api/admin/users', {
-        headers: { Authorization: `Bearer ${token}` }
+        headers: { Authorization: `Bearer ${token}` },
+        params: { tipoUsuario: 'cliente' }
       });
       setUsers(Array.isArray(res.data) ? res.data : []);
     } catch (err) {
@@ -582,24 +584,44 @@ export default function AdminDashboard() {
           <div className="card" style={{ padding: '30px' }}>
              <h4 style={{ marginBottom: '25px', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '10px' }}><Award color="#f59e0b" /> Top Clientes</h4>
              <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-               {rankings?.topUsers?.map((u, i) => (
-                 <div 
-                   key={i} 
-                   onClick={() => setSelectedClient(u)}
-                   style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '15px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', cursor: 'pointer', transition: 'all 0.2s' }}
-                   onMouseOver={e => { e.currentTarget.style.borderColor = 'var(--primary)'; e.currentTarget.style.backgroundColor = 'var(--secondary)'; }}
-                   onMouseOut={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.backgroundColor = 'transparent'; }}
-                 >
-                   <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                     <div style={{ width: '32px', height: '32px', borderRadius: '50%', backgroundColor: 'var(--primary)', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.8rem', fontWeight: 800 }}>{(u.name || 'U').charAt(0)}</div>
-                     <div>
-                       <p style={{ margin: 0, fontWeight: 700, fontSize: '0.9rem' }}>{u.name || 'Usuario'}</p>
-                       <p style={{ margin: 0, fontSize: '0.75rem', color: 'var(--muted-foreground)' }}>{u.orderCount || 0} compras realizadas</p>
-                     </div>
-                   </div>
-                   <div style={{ fontWeight: 800, color: 'var(--primary)' }}>${Number(u.totalSpent || 0).toLocaleString('es-AR')}</div>
-                 </div>
-               ))}
+                {rankings?.topUsers?.map((u, i) => (
+                  <div 
+                    key={i} 
+                    onClick={() => setSelectedClient(u)}
+                    style={{ display: 'flex', flexDirection: 'column', gap: '12px', padding: '18px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', cursor: 'pointer', transition: 'all 0.2s' }}
+                    onMouseOver={e => { e.currentTarget.style.borderColor = 'var(--primary)'; e.currentTarget.style.backgroundColor = 'var(--secondary)'; }}
+                    onMouseOut={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.backgroundColor = 'transparent'; }}
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                        <div style={{ width: '36px', height: '36px', borderRadius: '50%', backgroundColor: 'var(--primary)', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.9rem', fontWeight: 800 }}>{(u.name || 'U').charAt(0).toUpperCase()}</div>
+                        <div>
+                          <p style={{ margin: 0, fontWeight: 700, fontSize: '1rem' }}>{u.name || 'Usuario'}</p>
+                          <p style={{ margin: 0, fontSize: '0.8rem', color: 'var(--muted-foreground)' }}>{u.orderCount} órdenes totales</p>
+                        </div>
+                      </div>
+                      <div style={{ textAlign: 'right' }}>
+                        <p style={{ margin: 0, fontSize: '1.2rem', fontWeight: 900, color: 'var(--primary)' }}>${Number(u.totalSpent || 0).toLocaleString('es-AR')}</p>
+                        <p style={{ margin: 0, fontSize: '0.7rem', fontWeight: 700, color: 'var(--muted-foreground)', textTransform: 'uppercase' }}>Total Vendido</p>
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'flex', gap: '10px', marginTop: '5px' }}>
+                       <div style={{ flex: 1, padding: '8px', backgroundColor: 'rgba(16, 185, 129, 0.05)', borderRadius: '6px', textAlign: 'center', border: '1px solid rgba(16, 185, 129, 0.1)' }}>
+                          <span style={{ display: 'block', fontSize: '0.65rem', fontWeight: 700, color: '#10b981' }}>CERRADAS</span>
+                          <span style={{ fontSize: '1rem', fontWeight: 800 }}>{u.closedCount}</span>
+                       </div>
+                       <div style={{ flex: 1, padding: '8px', backgroundColor: 'rgba(239, 68, 68, 0.05)', borderRadius: '6px', textAlign: 'center', border: '1px solid rgba(239, 68, 68, 0.1)' }}>
+                          <span style={{ display: 'block', fontSize: '0.65rem', fontWeight: 700, color: '#ef4444' }}>CANCELADAS</span>
+                          <span style={{ fontSize: '1rem', fontWeight: 800 }}>{u.cancelledCount}</span>
+                       </div>
+                       <div style={{ flex: 1, padding: '8px', backgroundColor: 'rgba(245, 158, 11, 0.05)', borderRadius: '6px', textAlign: 'center', border: '1px solid rgba(245, 158, 11, 0.1)' }}>
+                          <span style={{ display: 'block', fontSize: '0.65rem', fontWeight: 700, color: '#f59e0b' }}>PENDIENTES</span>
+                          <span style={{ fontSize: '1rem', fontWeight: 800 }}>{u.pendingCount}</span>
+                       </div>
+                    </div>
+                  </div>
+                ))}
              </div>
           </div>
           <div className="card" style={{ padding: '30px' }}>
@@ -667,6 +689,7 @@ export default function AdminDashboard() {
                   <th style={{ padding: '15px', color: 'var(--muted-foreground)', fontSize: '0.8rem', textTransform: 'uppercase' }}>Fecha</th>
                   <th style={{ padding: '15px', color: 'var(--muted-foreground)', fontSize: '0.8rem', textTransform: 'uppercase' }}>Cliente</th>
                   <th style={{ padding: '15px', color: 'var(--muted-foreground)', fontSize: '0.8rem', textTransform: 'uppercase' }}>Envío</th>
+                  <th style={{ padding: '15px', color: 'var(--muted-foreground)', fontSize: '0.8rem', textTransform: 'uppercase' }}>Estado</th>
                   <th style={{ padding: '15px', color: 'var(--muted-foreground)', fontSize: '0.8rem', textTransform: 'uppercase' }}>Total</th>
                 </tr>
               </thead>
@@ -684,6 +707,15 @@ export default function AdminDashboard() {
                     <td style={{ padding: '15px' }}>
                       <span style={{ fontSize: '0.8rem', padding: '4px 10px', borderRadius: '12px', backgroundColor: 'var(--card)', border: '1px solid var(--border)', textTransform: 'capitalize' }}>
                         {o.tipo_envio === 'retiro' ? 'Retiro en tienda' : (o.tipo_envio === 'envio' ? 'Envío a domicilio' : (o.shipping_method || 'Normal'))}
+                      </span>
+                    </td>
+                    <td style={{ padding: '15px' }}>
+                      <span style={{ 
+                        padding: '4px 10px', borderRadius: '50px', fontSize: '0.7rem', fontWeight: 800, 
+                        backgroundColor: getStatusStyle(o.status).bg, 
+                        color: getStatusStyle(o.status).text 
+                      }}>
+                        {(o.status || 'Pendiente').toUpperCase()}
                       </span>
                     </td>
                     <td style={{ padding: '15px', fontWeight: 800, color: 'var(--primary)' }}>${Number(o.total || 0).toLocaleString('es-AR')}</td>

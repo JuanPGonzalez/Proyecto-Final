@@ -1,6 +1,9 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import axios from 'axios';
 import { X, ShoppingBag, Calendar, DollarSign, User, AlertTriangle, MessageSquare } from 'lucide-react';
+
+import { getStatusStyle } from '../constants/statusStyles';
 
 export default function ClientDetailModal({ clientId, clientName, startDate, endDate, onClose }) {
   const [orders, setOrders] = useState([]);
@@ -11,6 +14,13 @@ export default function ClientDetailModal({ clientId, clientName, startDate, end
   useEffect(() => {
     if (clientId) {
       fetchAllData();
+      // Lock body scroll
+      const originalOverflow = document.body.style.overflow;
+      document.body.style.overflow = 'hidden';
+      
+      return () => {
+        document.body.style.overflow = originalOverflow;
+      };
     }
   }, [clientId, startDate, endDate]);
 
@@ -42,9 +52,39 @@ export default function ClientDetailModal({ clientId, clientName, startDate, end
 
   if (!clientId) return null;
 
-  return (
-    <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.6)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000, backdropFilter: 'blur(4px)' }}>
-      <div className="card animate-scale-in" style={{ width: '90%', maxWidth: '750px', maxHeight: '85vh', overflow: 'hidden', display: 'flex', flexDirection: 'column', padding: 0 }}>
+  const modalRoot = (
+    <div 
+      className="modal-portal-overlay"
+      onClick={onClose}
+      style={{ 
+        position: 'fixed', 
+        inset: 0, 
+        backgroundColor: 'rgba(0,0,0,0.7)', 
+        zIndex: 9999, 
+        backdropFilter: 'blur(8px)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: '20px'
+      }}
+    >
+      {/* Modal Container: Viewport relative via Portal + Flex centering */}
+      <div 
+        className="card animate-fade-in" 
+        onClick={e => e.stopPropagation()}
+        style={{ 
+          width: 'min(900px, 95vw)', 
+          maxHeight: '90vh', 
+          overflow: 'hidden', 
+          display: 'flex', 
+          flexDirection: 'column', 
+          padding: 0,
+          boxShadow: '0 25px 60px rgba(0,0,0,0.5)',
+          border: '1px solid var(--border)',
+          position: 'relative',
+          backgroundColor: 'var(--card)'
+        }}
+      >
         
         {/* Header */}
         <div style={{ padding: '20px 30px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: 'var(--secondary)' }}>
@@ -113,8 +153,8 @@ export default function ClientDetailModal({ clientId, clientName, startDate, end
                         <td style={{ padding: '12px' }}>
                           <span style={{ 
                             padding: '4px 10px', borderRadius: '12px', fontSize: '0.75rem', fontWeight: 700,
-                            backgroundColor: ticket.status === 'abierto' ? 'rgba(245, 158, 11, 0.1)' : 'rgba(16, 185, 129, 0.1)',
-                            color: ticket.status === 'abierto' ? '#f59e0b' : '#10b981',
+                            backgroundColor: getStatusStyle(ticket.status).bg,
+                            color: getStatusStyle(ticket.status).text,
                             textTransform: 'capitalize'
                           }}>
                             {ticket.status}
@@ -130,23 +170,42 @@ export default function ClientDetailModal({ clientId, clientName, startDate, end
             orders.length === 0 ? (
               <div style={{ textAlign: 'center', padding: '40px', color: 'var(--muted-foreground)' }}>Este cliente no tiene órdenes registradas en este período.</div>
             ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-                {orders.map(order => (
-                  <div key={order.id} style={{ border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', padding: '15px' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px', alignItems: 'center' }}>
-                      <span style={{ fontWeight: 700, color: 'var(--primary)' }}>Orden #{order.id}</span>
-                      <span style={{ fontSize: '0.8rem', color: 'var(--muted-foreground)', display: 'flex', alignItems: 'center', gap: '5px' }}>
-                        <Calendar size={14} /> {new Date(order.fecha_compra).toLocaleDateString('es-AR')}
-                      </span>
-                    </div>
-                    <div style={{ borderTop: '1px solid var(--border)', paddingTop: '10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <span style={{ fontSize: '0.8rem', color: 'var(--muted-foreground)', textTransform: 'capitalize' }}>
-                        Pago: {order.payment_method} | Envío: {order.shipping_method}
-                      </span>
-                      <span style={{ fontWeight: 800, fontSize: '1.1rem' }}>${Number(order.total).toLocaleString('es-AR')}</span>
-                    </div>
-                  </div>
-                ))}
+              <div className="animate-slide-in">
+                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                  <thead>
+                    <tr style={{ borderBottom: '2px solid var(--border)', textAlign: 'left' }}>
+                      <th style={{ padding: '12px', fontSize: '0.85rem', color: 'var(--muted-foreground)' }}>ORDEN</th>
+                      <th style={{ padding: '12px', fontSize: '0.85rem', color: 'var(--muted-foreground)' }}>FECHA</th>
+                      <th style={{ padding: '12px', fontSize: '0.85rem', color: 'var(--muted-foreground)' }}>PRODUCTOS</th>
+                      <th style={{ padding: '12px', fontSize: '0.85rem', color: 'var(--muted-foreground)' }}>TOTAL</th>
+                      <th style={{ padding: '12px', fontSize: '0.85rem', color: 'var(--muted-foreground)' }}>ESTADO</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {orders.map(order => (
+                      <tr key={order.id} style={{ borderBottom: '1px solid var(--border)' }}>
+                        <td style={{ padding: '12px', fontWeight: 700 }}>#{order.id}</td>
+                        <td style={{ padding: '12px', fontSize: '0.85rem' }}>{new Date(order.fecha_compra).toLocaleDateString('es-AR')}</td>
+                        <td style={{ padding: '12px' }}>
+                           <div style={{ fontSize: '0.75rem', color: 'var(--muted-foreground)' }}>
+                              {order.OrderItems?.map(i => i.Product?.name).join(', ').substring(0, 40)}...
+                           </div>
+                        </td>
+                        <td style={{ padding: '12px', fontWeight: 700 }}>${Number(order.total).toLocaleString('es-AR')}</td>
+                        <td style={{ padding: '12px' }}>
+                          <span style={{ 
+                            padding: '4px 10px', borderRadius: '50px', fontSize: '0.7rem', fontWeight: 800,
+                            backgroundColor: getStatusStyle(order.status).bg,
+                            color: getStatusStyle(order.status).text,
+                            textTransform: 'uppercase'
+                          }}>
+                            {(order.status || 'PENDIENTE').toUpperCase()}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             )
           )}
@@ -159,4 +218,6 @@ export default function ClientDetailModal({ clientId, clientName, startDate, end
       </div>
     </div>
   );
+
+  return createPortal(modalRoot, document.body);
 }

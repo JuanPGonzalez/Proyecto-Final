@@ -106,13 +106,23 @@ router.get('/dashboard-data', async (req, res) => {
     const topUsers = await Order.findAll({
       attributes: [
         'user_id',
-        [sequelize.fn('SUM', sequelize.col('total')), 'totalSpent'],
-        [sequelize.fn('COUNT', sequelize.col('Order.id')), 'orderCount']
+        [sequelize.fn('SUM', sequelize.literal("CASE WHEN status IN ('Cerrada', 'Entregado') THEN total ELSE 0 END")), 'totalSpent'],
+        [sequelize.fn('COUNT', sequelize.col('Order.id')), 'orderCount'],
+        [sequelize.fn('COUNT', sequelize.literal("CASE WHEN status IN ('Cerrada', 'Entregado') THEN 1 ELSE NULL END")), 'closedCount'],
+        [sequelize.fn('COUNT', sequelize.literal("CASE WHEN status = 'Cancelada' THEN 1 ELSE NULL END")), 'cancelledCount'],
+        [sequelize.fn('COUNT', sequelize.literal("CASE WHEN status NOT IN ('Cerrada', 'Entregado', 'Cancelada') THEN 1 ELSE NULL END")), 'pendingCount']
       ],
+      where: (startDate && endDate) ? { 
+        fecha_compra: { [Op.between]: [new Date(`${startDate}T00:00:00`), new Date(`${endDate}T23:59:59`)] } 
+      } : {},
       group: ['user_id'],
       order: [[sequelize.literal('totalSpent'), 'DESC']],
       limit: 5,
-      include: [{ model: User, attributes: ['name', 'email'] }]
+      include: [{ 
+        model: User, 
+        attributes: ['name', 'email'],
+        where: { tipoUsuario: 'cliente' }
+      }]
     });
 
     const productsByCategory = await Product.findAll({
@@ -150,8 +160,11 @@ router.get('/dashboard-data', async (req, res) => {
         topUsers: topUsers.map(u => ({
           id: u.user_id,
           name: u.User?.name || 'Anon',
-          totalSpent: u.get('totalSpent'),
-          orderCount: u.get('orderCount')
+          totalSpent: u.get('totalSpent') || 0,
+          orderCount: u.get('orderCount') || 0,
+          closedCount: u.get('closedCount') || 0,
+          cancelledCount: u.get('cancelledCount') || 0,
+          pendingCount: u.get('pendingCount') || 0
         })),
         productsByCategory: productsByCategory.map(c => ({
           category: c.Category?.descripcion || 'Sin Cat.',
@@ -270,7 +283,11 @@ router.get('/purchase-history', async (req, res) => {
     const { count, rows } = await Order.findAndCountAll({
       where: whereClause,
       include: [
-        { model: User, attributes: ['name', 'email'] },
+        { 
+          model: User, 
+          attributes: ['name', 'email'],
+          where: { tipoUsuario: 'cliente' }
+        },
         {
           model: OrderItem,
           include: [{ model: Product, attributes: ['name'] }]
@@ -298,14 +315,23 @@ router.get('/purchase-history', async (req, res) => {
 // Detalle de cliente (Órdenes)
 router.get('/client/:id/orders', async (req, res) => {
   try {
+    const { startDate, endDate } = req.query;
+    let whereClause = { user_id: req.params.id };
+
+    if (startDate && endDate) {
+      whereClause.fecha_compra = {
+        [Op.between]: [new Date(`${startDate}T00:00:00`), new Date(`${endDate}T23:59:59`)]
+      };
+    }
+
     const orders = await Order.findAll({
-      where: { user_id: req.params.id },
+      where: whereClause,
       include: [{ 
         model: OrderItem, 
         include: [{ model: Product, attributes: ['name'] }] 
       }],
       order: [['fecha_compra', 'DESC']],
-      limit: 10
+      limit: 20 // Increased limit for better history view
     });
     res.json({ orders });
   } catch (error) {
@@ -338,12 +364,18 @@ router.get('/client/:id/tickets', async (req, res) => {
 
 // --- User Management ---
 
-// List users
+// List users (with optional role filter)
 router.get('/users', async (req, res) => {
   try {
+    const { tipoUsuario } = req.query;
+    let whereClause = {};
+    if (tipoUsuario) {
+      whereClause.tipoUsuario = tipoUsuario;
+    }
+
     const users = await User.findAll({
-      where: { tipoUsuario: 'cliente' },
-      attributes: ['id', 'name', 'email'],
+      where: whereClause,
+      attributes: ['id', 'name', 'email', 'tipoUsuario', 'fechaReg'],
       order: [['fechaReg', 'DESC']]
     });
     res.json(users);
