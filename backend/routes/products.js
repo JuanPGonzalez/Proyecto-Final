@@ -405,4 +405,44 @@ router.delete('/:id', adminMiddleware, async (req, res) => {
   }
 });
 
+// Actualización Masiva de Precios
+router.post('/bulk-price-update', adminMiddleware, async (req, res) => {
+  try {
+    const { percentage, action } = req.body;
+    
+    if (!percentage || isNaN(percentage) || percentage <= 0) {
+      return res.status(400).json({ error: 'Debe proveer un porcentaje válido mayor a 0.' });
+    }
+    
+    if (action !== 'increase' && action !== 'decrease') {
+      return res.status(400).json({ error: 'La acción debe ser "increase" o "decrease".' });
+    }
+
+    const factor = action === 'increase' ? (1 + (Number(percentage) / 100)) : (1 - (Number(percentage) / 100));
+
+    // Obtener todos los productos y actualizar cada uno
+    const products = await Product.findAll();
+    
+    let updatedCount = 0;
+    
+    await Promise.all(products.map(async (p) => {
+      if (p.price) {
+        const newPrice = Math.round(Number(p.price) * factor); // Redondeo simple para evitar muchos decimales
+        if (newPrice > 0) {
+          let boundedPrice = newPrice;
+          if (p.precio_min && boundedPrice < p.precio_min) boundedPrice = Number(p.precio_min);
+          if (p.precio_max && boundedPrice > p.precio_max) boundedPrice = Number(p.precio_max);
+          await p.update({ price: boundedPrice });
+          updatedCount++;
+        }
+      }
+    }));
+
+    res.json({ success: true, message: `Se actualizaron los precios de ${updatedCount} productos correctamente.` });
+  } catch (error) {
+    console.error('Error in bulk-price-update:', error);
+    res.status(500).json({ error: 'Error al actualizar precios masivamente.' });
+  }
+});
+
 module.exports = router;

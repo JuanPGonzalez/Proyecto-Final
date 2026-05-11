@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { Search, ShoppingCart, User, Settings, Database, Headphones, Cpu, HelpCircle, Sun, Moon, AlertCircle, Package, Bell, X, Check, FileSpreadsheet } from 'lucide-react';
+import { Search, ShoppingCart, User, Users, Settings, Database, Headphones, Cpu, HelpCircle, Sun, Moon, AlertCircle, Package, Bell, X, Check, FileSpreadsheet } from 'lucide-react';
 import axios from 'axios';
 import { isAdminRole } from '../constants/roles';
 import { getStorageItem, setStorageItem } from '../utils/storage';
@@ -184,6 +184,7 @@ export default function Navbar() {
             {isAdmin && (
               <div style={{ display: 'flex', gap: '15px', marginRight: '10px', borderRight: '1px solid var(--border)', paddingRight: '15px' }}>
                 <Link to="/admin" title="BI Dashboard" style={{ color:'var(--muted-foreground)' }}><Settings size={20} /></Link>
+                <Link to="/admin/usuarios" title="Gestión de Usuarios" style={{ color:'var(--muted-foreground)' }}><Users size={20} /></Link>
                 <Link to="/admin/productos" title="Inventario" style={{ color:'var(--muted-foreground)' }}><Database size={20} /></Link>
                 <Link to="/admin/stock" title="Gestión de Stock" style={{ color:'var(--muted-foreground)' }}><FileSpreadsheet size={20} /></Link>
                 <Link to="/admin/reclamos" title="Reclamos" style={{ color:'var(--muted-foreground)' }}><AlertCircle size={20} /></Link>
@@ -196,7 +197,7 @@ export default function Navbar() {
               style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--foreground)', display: 'flex', alignItems: 'center', padding: '8px', borderRadius: '50%' }}
               title={isDarkMode ? "Cambiar a modo claro" : "Cambiar a modo oscuro"}
             >
-              {isDarkMode ? <Sun size={20} /> : <Sun size={20} />}
+              {isDarkMode ? <Sun size={20} /> : <Moon size={20} />}
             </button>
 
             <Link to={token ? '/profile' : '/login'} style={{ display: 'flex', alignItems: 'center', gap: '5px', cursor: 'pointer', color: 'var(--foreground)' }}>

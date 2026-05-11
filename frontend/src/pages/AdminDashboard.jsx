@@ -32,7 +32,7 @@ export default function AdminDashboard() {
   const [compareEnd, setCompareEnd] = useState('');
 
   const [history, setHistory] = useState({ orders: [], totalPages: 1, currentPage: 1 });
-  const [historyFilters, setHistoryFilters] = useState({ page: 1, shippingType: 'all', clientId: 'all' });
+  const [historyFilters, setHistoryFilters] = useState({ page: 1, shippingType: 'all', clientId: 'all', specificDate: '', categoryName: '', productName: '' });
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [selectedClient, setSelectedClient] = useState(null);
   
@@ -361,7 +361,7 @@ export default function AdminDashboard() {
       {/* HEADER & CONTROLES */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '40px', flexWrap: 'wrap', gap: '25px' }}>
         <div>
-          <h2 style={{ fontSize: '2.8rem', fontWeight: 900, letterSpacing: '-1.5px', marginBottom: '5px' }}>Business Intelligence</h2>
+          <h2 style={{ fontSize: '2.8rem', fontWeight: 900, letterSpacing: '-1.5px', marginBottom: '5px', background: 'linear-gradient(90deg, var(--primary) 0%, var(--accent) 100%)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', display: 'inline-block' }}>Business Intelligence</h2>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
              <p style={{ color: 'var(--muted-foreground)', margin: 0 }}>Panel de control analítico y logística</p>
              {(startDate !== firstDay || compare) && <span style={{ backgroundColor: 'var(--primary)', color: 'white', padding: '2px 10px', borderRadius: '20px', fontSize: '0.7rem', fontWeight: 700 }}>FILTRO ACTIVO</span>}
@@ -481,7 +481,15 @@ export default function AdminDashboard() {
                   responsive: true, 
                   maintainAspectRatio: false, 
                   plugins: { legend: { position: 'top', align: 'end', labels: { usePointStyle: true, boxWidth: 6, font: { weight: 700 } } } },
-                  scales: { y: { beginAtZero: true, grid: { color: 'rgba(0,0,0,0.03)' } }, x: { grid: { display: false } } }
+                  scales: { y: { beginAtZero: true, grid: { color: 'rgba(0,0,0,0.03)' } }, x: { grid: { display: false } } },
+                  onClick: (event, elements) => {
+                    if (elements.length > 0) {
+                      const dataIndex = elements[0].index;
+                      const label = salesChartData.labels[dataIndex]; // Date string e.g., '2023-01-01'
+                      setHistoryFilters(prev => ({ ...prev, specificDate: label, page: 1 }));
+                      document.getElementById('history-section')?.scrollIntoView({ behavior: 'smooth' });
+                    }
+                  }
                 }} 
               />
             </div>
@@ -574,8 +582,8 @@ export default function AdminDashboard() {
           </div>
           <div className="card" style={{ padding: '25px' }}>
             <h5 style={{ marginBottom: '20px', fontWeight: 800, textAlign: 'center' }}>Métodos de Envío</h5>
-            <div style={{ height: '300px' }}>
-              <Pie data={shippingData} options={{ maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { usePointStyle: true, font: { size: 10 } } } } }} />
+            <div style={{ height: '300px', cursor: 'pointer' }}>
+              <Pie data={shippingData} options={{ maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { usePointStyle: true, font: { size: 10 } } } }, onClick: (event, elements) => { if(elements.length > 0){ const idx = elements[0].index; const label = shippingData.labels[idx]; const val = label.toLowerCase().includes('retiro') ? 'retiro' : 'envio'; setHistoryFilters(prev => ({...prev, shippingType: val, page: 1})); document.getElementById('history-section')?.scrollIntoView({behavior: 'smooth'}); } } }} />
             </div>
           </div>
         </div>
@@ -634,7 +642,15 @@ export default function AdminDashboard() {
                   responsive: true, 
                   maintainAspectRatio: false, 
                   plugins: { legend: { display: false } },
-                  scales: { x: { grid: { display: false } }, y: { grid: { display: false } } }
+                  scales: { x: { grid: { display: false } }, y: { grid: { display: false } } },
+                  onClick: (event, elements) => {
+                    if (elements.length > 0) {
+                      const dataIndex = elements[0].index;
+                      const label = topSellingData.labels[dataIndex];
+                      setHistoryFilters(prev => ({ ...prev, productName: label, page: 1 }));
+                      document.getElementById('history-section')?.scrollIntoView({ behavior: 'smooth' });
+                    }
+                  }
                 }} 
               />
             </div>
@@ -672,11 +688,35 @@ export default function AdminDashboard() {
                <option value="envio">Envío a domicilio</option>
              </select>
              
-             {(historyFilters.shippingType !== 'all' || (historyFilters.clientId && historyFilters.clientId !== 'all')) && (
-               <button className="btn btn-outline" onClick={() => setHistoryFilters({ page: 1, shippingType: 'all', clientId: 'all' })}>Limpiar</button>
+             {(historyFilters.shippingType !== 'all' || (historyFilters.clientId && historyFilters.clientId !== 'all') || historyFilters.specificDate || historyFilters.categoryName || historyFilters.productName) && (
+               <button className="btn btn-outline" onClick={() => setHistoryFilters({ page: 1, shippingType: 'all', clientId: 'all', specificDate: '', categoryName: '', productName: '' })}>Limpiar</button>
              )}
           </div>
         </div>
+
+        {/* ACTIVE FILTERS TAGS */}
+        {(historyFilters.specificDate || historyFilters.categoryName || historyFilters.productName) && (
+          <div style={{ display: 'flex', gap: '10px', marginBottom: '20px', flexWrap: 'wrap' }}>
+            {historyFilters.specificDate && (
+              <span style={{ backgroundColor: 'var(--primary)', color: 'white', padding: '4px 12px', borderRadius: '15px', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                Fecha: {historyFilters.specificDate} 
+                <button onClick={() => setHistoryFilters(p => ({...p, specificDate: '', page: 1}))} style={{ background: 'transparent', border: 'none', color: 'white', cursor: 'pointer', padding: 0 }}>×</button>
+              </span>
+            )}
+            {historyFilters.categoryName && (
+              <span style={{ backgroundColor: 'var(--accent)', color: 'white', padding: '4px 12px', borderRadius: '15px', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                Categoría: {historyFilters.categoryName} 
+                <button onClick={() => setHistoryFilters(p => ({...p, categoryName: '', page: 1}))} style={{ background: 'transparent', border: 'none', color: 'white', cursor: 'pointer', padding: 0 }}>×</button>
+              </span>
+            )}
+            {historyFilters.productName && (
+              <span style={{ backgroundColor: '#f59e0b', color: 'white', padding: '4px 12px', borderRadius: '15px', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                Producto: {historyFilters.productName} 
+                <button onClick={() => setHistoryFilters(p => ({...p, productName: '', page: 1}))} style={{ background: 'transparent', border: 'none', color: 'white', cursor: 'pointer', padding: 0 }}>×</button>
+              </span>
+            )}
+          </div>
+        )}
 
         {loadingHistory ? (
           <div style={{ padding: '50px', textAlign: 'center' }}>Procesando historial...</div>
@@ -721,7 +761,7 @@ export default function AdminDashboard() {
                     <td style={{ padding: '15px', fontWeight: 800, color: 'var(--primary)' }}>${Number(o.total || 0).toLocaleString('es-AR')}</td>
                   </tr>
                 )) : (
-                  <tr><td colSpan="5" style={{ padding: '50px', textAlign: 'center', color: 'var(--muted-foreground)' }}>Sin resultados.</td></tr>
+                  <tr><td colSpan="6" style={{ padding: '50px', textAlign: 'center', color: 'var(--muted-foreground)' }}>Sin resultados.</td></tr>
                 )}
               </tbody>
             </table>
@@ -753,30 +793,30 @@ export default function AdminDashboard() {
 
 function PeriodStatCard({ title, value, growth, icon, color }) {
   return (
-    <div className="card" style={{ padding: '20px', border: '1px solid var(--border)', position: 'relative', overflow: 'hidden' }}>
+    <div className="card" style={{ padding: '20px', border: `1px solid ${color}30`, position: 'relative', overflow: 'hidden', background: `linear-gradient(135deg, var(--card) 0%, ${color}05 100%)`, backdropFilter: 'blur(10px)' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '15px' }}>
-        <div style={{ backgroundColor: `${color}15`, color: color, padding: '10px', borderRadius: '10px' }}>{icon}</div>
+        <div style={{ backgroundColor: `${color}15`, color: color, padding: '10px', borderRadius: '10px', boxShadow: `0 4px 10px ${color}10` }}>{icon}</div>
         {growth !== null && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.75rem', fontWeight: 800, color: parseFloat(growth) >= 0 ? '#10b981' : '#ef4444' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.75rem', fontWeight: 800, color: parseFloat(growth) >= 0 ? '#10b981' : '#ef4444', backgroundColor: parseFloat(growth) >= 0 ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.1)', padding: '2px 8px', borderRadius: '12px' }}>
             {parseFloat(growth) >= 0 ? <ArrowUpRight size={14} /> : <ArrowDownRight size={14} />}
             {Math.abs(growth)}%
           </div>
         )}
       </div>
-      <h4 style={{ margin: '0 0 5px 0', fontSize: '0.85rem', color: 'var(--muted-foreground)', fontWeight: 600, textTransform: 'uppercase' }}>{title}</h4>
-      <span style={{ fontSize: '1.8rem', fontWeight: 900 }}>{value}</span>
+      <h4 style={{ margin: '0 0 5px 0', fontSize: '0.85rem', color: 'var(--muted-foreground)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px' }}>{title}</h4>
+      <span style={{ fontSize: '1.8rem', fontWeight: 900, color: 'var(--foreground)' }}>{value}</span>
     </div>
   );
 }
 
 function StatCard({ title, value, icon, bg, color }) {
   return (
-    <div className="card" style={{ padding: '20px', display: 'flex', alignItems: 'center', gap: '20px', border: '1px solid var(--border)' }}>
-      <div style={{ backgroundColor: bg, color: color, padding: '12px', borderRadius: '50%', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+    <div className="card" style={{ padding: '20px', display: 'flex', alignItems: 'center', gap: '20px', border: `1px solid ${color}20`, background: `linear-gradient(to right, var(--card), ${color}05)` }}>
+      <div style={{ backgroundColor: bg, color: color, padding: '12px', borderRadius: '50%', display: 'flex', justifyContent: 'center', alignItems: 'center', boxShadow: `0 4px 12px ${color}15` }}>
         {icon}
       </div>
       <div>
-        <h4 style={{ color: 'var(--muted-foreground)', fontSize: '0.75rem', fontWeight: 700, marginBottom: '2px', textTransform: 'uppercase' }}>{title}</h4>
+        <h4 style={{ color: 'var(--muted-foreground)', fontSize: '0.75rem', fontWeight: 700, marginBottom: '2px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{title}</h4>
         <span style={{ fontSize: '1.4rem', fontWeight: 800 }}>{value}</span>
       </div>
     </div>

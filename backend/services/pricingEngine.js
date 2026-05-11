@@ -28,8 +28,10 @@ async function updatePrices() {
         newPrice *= (1 + (Math.random() * 0.01 - 0.005));
       }
 
-      // Safeguard: Never below base price
+      // Safeguard: Bounds
       if (newPrice < basePrice) newPrice = basePrice;
+      if (product.precio_min && newPrice < product.precio_min) newPrice = product.precio_min;
+      if (product.precio_max && newPrice > product.precio_max) newPrice = product.precio_max;
 
       // Update if significantly changed (> 0.5%)
       if (Math.abs(newPrice - currentPrice) / currentPrice > 0.005) {

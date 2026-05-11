@@ -256,7 +256,7 @@ router.get('/dashboard/support', async (req, res) => {
 // Endpoint paginado para historial de compras
 router.get('/purchase-history', async (req, res) => {
   try {
-    const { page = 1, limit = 10, clientId, shippingType, startDate, endDate } = req.query;
+    const { page = 1, limit = 10, clientId, shippingType, startDate, endDate, specificDate, categoryName, productName } = req.query;
     const offset = (page - 1) * limit;
 
     let whereClause = {};
@@ -274,10 +274,33 @@ router.get('/purchase-history', async (req, res) => {
       }
     }
 
-    if (startDate && endDate) {
+    if (specificDate) {
+      whereClause.fecha_compra = {
+        [Op.between]: [new Date(`${specificDate}T00:00:00`), new Date(`${specificDate}T23:59:59`)]
+      };
+    } else if (startDate && endDate) {
       whereClause.fecha_compra = {
         [Op.between]: [new Date(`${startDate}T00:00:00`), new Date(`${endDate}T23:59:59`)]
       };
+    }
+
+    const requiresProductFilter = !!categoryName || !!productName;
+    const productIncludeParams = {
+      model: Product,
+      attributes: ['name'],
+      required: requiresProductFilter
+    };
+
+    if (productName) {
+      productIncludeParams.where = { name: productName };
+    }
+
+    if (categoryName) {
+      productIncludeParams.include = [{
+        model: Category,
+        where: { descripcion: categoryName },
+        required: true
+      }];
     }
 
     const { count, rows } = await Order.findAndCountAll({
@@ -290,7 +313,8 @@ router.get('/purchase-history', async (req, res) => {
         },
         {
           model: OrderItem,
-          include: [{ model: Product, attributes: ['name'] }]
+          required: requiresProductFilter,
+          include: [productIncludeParams]
         }
       ],
       order: [['fecha_compra', 'DESC']],

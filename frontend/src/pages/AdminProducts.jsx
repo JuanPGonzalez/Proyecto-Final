@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Edit2, Trash2, Search, AlertTriangle, Filter, Activity, Download, Upload, Plus } from 'lucide-react';
+import { Edit2, Trash2, Search, AlertTriangle, Filter, Activity, Download, Upload, Plus, TrendingUp } from 'lucide-react';
 import { isAdminRole } from '../constants/roles';
 import { showToast, showConfirm, showAlert } from '../utils/swal';
+import Swal from 'sweetalert2';
 import ProductFormModal from '../components/ProductFormModal';
 
 export default function AdminProducts() {
@@ -188,6 +189,55 @@ export default function AdminProducts() {
     }
   };
 
+  const handleBulkPriceUpdate = async () => {
+    const { value: formValues } = await Swal.fire({
+      title: 'Corrección Masiva de Precios',
+      html: `
+        <div style="text-align: left; margin-top: 10px;">
+          <label style="display: block; margin-bottom: 5px; font-weight: 600;">Acción:</label>
+          <select id="swal-action" class="input-field" style="width: 100%; margin: 0 0 15px 0; height: 42px;">
+            <option value="increase">Subir precios</option>
+            <option value="decrease">Bajar precios</option>
+          </select>
+          <label style="display: block; margin-bottom: 5px; font-weight: 600;">Porcentaje (%):</label>
+          <input id="swal-percentage" type="number" min="0.1" step="0.1" class="input-field" placeholder="Ej: 10" style="width: 100%; margin: 0; height: 42px;">
+        </div>
+      `,
+      focusConfirm: false,
+      showCancelButton: true,
+      confirmButtonText: 'Aplicar Cambios',
+      cancelButtonText: 'Cancelar',
+      confirmButtonColor: 'var(--primary)',
+      preConfirm: () => {
+        const action = document.getElementById('swal-action').value;
+        const percentage = document.getElementById('swal-percentage').value;
+        if (!percentage || percentage <= 0) {
+          Swal.showValidationMessage('Debe ingresar un porcentaje mayor a 0');
+        }
+        return { action, percentage };
+      }
+    });
+
+    if (formValues) {
+      try {
+        const confirm = await showConfirm(
+          '¿Estás seguro?', 
+          `Vas a ${formValues.action === 'increase' ? 'SUBIR' : 'BAJAR'} todos los precios en un ${formValues.percentage}%.`, 
+          'Sí, proceder'
+        );
+        if (!confirm.isConfirmed) return;
+
+        await axios.post('http://localhost:5000/api/products/bulk-price-update', formValues, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        showToast('Precios actualizados correctamente', 'success');
+        fetchProducts();
+      } catch (err) {
+        showAlert('Error', err.response?.data?.error || 'Error al actualizar precios', 'error');
+      }
+    }
+  };
+
   const totalPages = Math.ceil(sortedProducts.length / itemsPerPage) || 1;
   const paginatedProducts = sortedProducts.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
@@ -195,33 +245,36 @@ export default function AdminProducts() {
     <div className="container animate-fade-in" style={{ marginTop: '40px', paddingBottom: '60px' }}>
       
       {/* ALERTS SECTION */}
-      <div style={{ marginBottom: '30px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', gap: '20px', marginBottom: '30px' }}>
         {outOfStockProducts.length > 0 && (
-          <div style={{ backgroundColor: '#ef4444', color: 'white', padding: '15px 20px', borderRadius: 'var(--radius-lg)', marginBottom: '15px', display: 'flex', alignItems: 'center', gap: '15px', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)' }}>
+          <div className="animate-slide-in" style={{ backgroundColor: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', padding: '15px 25px', borderRadius: 'var(--radius-lg)', border: '1px solid rgba(239, 68, 68, 0.2)', display: 'flex', alignItems: 'center', gap: '15px' }}>
             <AlertTriangle size={24} />
-            <div>
-              <h4 style={{ margin: 0, fontWeight: 700, fontSize: '1.1rem' }}>URGENTE: Stock Agotado</h4>
-              <p style={{ margin: 0, fontSize: '0.9rem', opacity: 0.9 }}>{outOfStockProducts.length} producto(s) sin unidades.</p>
+            <div style={{ flex: 1 }}>
+              <h4 style={{ margin: 0, fontWeight: 800 }}>STOCK AGOTADO</h4>
+              <p style={{ margin: 0, fontSize: '0.85rem' }}>Hay {outOfStockProducts.length} productos sin unidades.</p>
             </div>
-            <button className="btn" onClick={() => { setStockStatus('out_of_stock'); setCurrentPage(1); }} style={{ marginLeft: 'auto', backgroundColor: 'white', color: '#ef4444', border: 'none' }}>Ver Agotados</button>
+            <button className="btn" onClick={() => { setStockStatus('out_of_stock'); setCurrentPage(1); }} style={{ backgroundColor: '#ef4444', color: 'white', border: 'none', padding: '6px 12px', fontSize: '0.8rem' }}>Filtrar</button>
           </div>
         )}
 
         {lowStockProducts.length > 0 && (
-          <div style={{ backgroundColor: '#f59e0b', color: 'white', padding: '15px 20px', borderRadius: 'var(--radius-lg)', marginBottom: '0', display: 'flex', alignItems: 'center', gap: '15px', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)' }}>
+          <div className="animate-slide-in" style={{ backgroundColor: 'rgba(245, 158, 11, 0.1)', color: '#f59e0b', padding: '15px 25px', borderRadius: 'var(--radius-lg)', border: '1px solid rgba(245, 158, 11, 0.2)', display: 'flex', alignItems: 'center', gap: '15px' }}>
             <Activity size={24} />
-            <div>
-              <h4 style={{ margin: 0, fontWeight: 700, fontSize: '1.1rem' }}>Advertencia: Stock Bajo</h4>
-              <p style={{ margin: 0, fontSize: '0.9rem', opacity: 0.9 }}>{lowStockProducts.length} producto(s) en alerta.</p>
+            <div style={{ flex: 1 }}>
+              <h4 style={{ margin: 0, fontWeight: 800 }}>STOCK BAJO</h4>
+              <p style={{ margin: 0, fontSize: '0.85rem' }}>{lowStockProducts.length} productos en alerta de reposición.</p>
             </div>
-            <button className="btn" onClick={() => { setStockStatus('low_stock'); setCurrentPage(1); }} style={{ marginLeft: 'auto', backgroundColor: 'white', color: '#f59e0b', border: 'none' }}>Filtrar Alerta</button>
+            <button className="btn" onClick={() => { setStockStatus('low_stock'); setCurrentPage(1); }} style={{ backgroundColor: '#f59e0b', color: 'white', border: 'none', padding: '6px 12px', fontSize: '0.8rem' }}>Filtrar</button>
           </div>
         )}
       </div>
 
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px', flexWrap: 'wrap', gap: '20px' }}>
          <h2 style={{ fontSize: '2.2rem', fontWeight: 800, letterSpacing: '-1px' }}>Gestión de Inventario</h2>
-         <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+         <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
+            <button className="btn" onClick={handleBulkPriceUpdate} style={{ display: 'flex', alignItems: 'center', gap: '8px', height: '42px', backgroundColor: 'var(--accent)', color: 'white' }}>
+               <TrendingUp size={18} /> Corrección Masiva
+            </button>
             <button className="btn" onClick={handleCreate} style={{ display: 'flex', alignItems: 'center', gap: '8px', height: '42px' }}>
                <Plus size={18} /> Nuevo Producto
             </button>
