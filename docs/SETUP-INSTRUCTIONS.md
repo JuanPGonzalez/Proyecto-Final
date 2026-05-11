@@ -73,3 +73,6 @@ Esta guía contiene los pasos necesarios para desplegar y correr localmente todo
 3. Ve a **Inventario** (`/admin/productos`) para agregar nuevo hardware a la BD con sólo un clic, el cual inmediatamente podrá ser buscado por los clientes.
 
 Cualquier inconveniente en conexiones de red (ej. CORS) o configuraciones ausentes de red, revisa que los puertos `5000` y `5173` estén liberados localmente.
+
+### Tecnologias Utilizadas
+Backend Node.js con Express (framework web) Sequelize (ORM para base de datos) MySQL2 (driver MySQL) JWT (autenticación con tokens) Bcrypt (encriptación de contraseñas) Axios (cliente HTTP) CORS (cross-origin resource sharing) node-cron (tareas programadas) dotenv (variables de entorno) Nodemon (recarga automática en desarrollo) Frontend React 19.2.5 Vite (build tool/bundler) React Router DOM (enrutamiento) Axios (cliente HTTP) Chart.js + react-chartjs-2 (gráficos) Lucide React (iconos) ESLint (linting) Base de Datos MySQL con Sequelize ORM

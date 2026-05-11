@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { Edit2, Trash2, Plus, X } from 'lucide-react';
 import { isAdminRole } from '../constants/roles';
 import { showAlert, showConfirm, showToast } from '../utils/swal';
+import PasswordInput from '../components/PasswordInput';
 
 export default function AdminUsers() {
   const [users, setUsers] = useState([]);
@@ -196,7 +197,7 @@ export default function AdminUsers() {
               {!editingUser && (
                 <div>
                   <label className="input-field" style={{ border: 'none', padding: 0, fontWeight: 600, display: 'block', marginBottom: '5px' }}>Contraseña</label>
-                  <input type="password" className="input-field" value={formData.password} onChange={e => setFormData({...formData, password: e.target.value})} required />
+                  <PasswordInput className="input-field" value={formData.password} onChange={e => setFormData({...formData, password: e.target.value})} required />
                 </div>
               )}
               <div>
