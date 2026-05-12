@@ -119,7 +119,7 @@ router.get('/profile', authMiddleware, async (req, res) => {
 // Profile - Actualizar
 router.put('/profile', authMiddleware, async (req, res) => {
   try {
-    const { name, sexo, direccion, fechaNac } = req.body;
+    const { name, sexo, direccion, fechaNac, dni } = req.body;
     const user = await User.findByPk(req.user.id);
     if (!user) return res.status(404).json({ error: 'Usuario no encontrado' });
 
@@ -127,6 +127,23 @@ router.put('/profile', authMiddleware, async (req, res) => {
     if (sexo) user.sexo = sexo;
     if (direccion) user.direccion = direccion;
     if (fechaNac) user.fechaNac = fechaNac;
+    
+    if (dni !== undefined && dni !== '' && dni !== null) {
+      const numericDni = Number(dni);
+      // Verificar colisión
+      const alreadyUsed = await User.findOne({ 
+        where: { 
+          dni: numericDni,
+          id: { [Op.ne]: req.user.id } 
+        } 
+      });
+      if (alreadyUsed) {
+        return res.status(400).json({ error: 'Este número de documento ya está registrado por otro usuario.' });
+      }
+      user.dni = numericDni;
+    } else if (dni === '' || dni === null) {
+      user.dni = null;
+    }
 
     await user.save();
     res.json({
@@ -138,7 +155,8 @@ router.put('/profile', authMiddleware, async (req, res) => {
         tipo_usuario: user.tipoUsuario,
         direccion: user.direccion,
         sexo: user.sexo,
-        fechaNac: user.fechaNac
+        fechaNac: user.fechaNac,
+        dni: user.dni
       }
     });
   } catch (error) {

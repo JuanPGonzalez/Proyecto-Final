@@ -10,7 +10,8 @@ const User = sequelize.define('User', {
   fechaReg: { type: DataTypes.DATE, defaultValue: DataTypes.NOW, field: 'fecha_reg' },
   sexo: { type: DataTypes.STRING, defaultValue: 'Indefinido', field: 'sexo' },
   fechaNac: { type: DataTypes.DATE, defaultValue: DataTypes.NOW, field: 'fecha_nac' },
-  direccion: { type: DataTypes.STRING, defaultValue: 'Desconocida', field: 'direccion' }
+  direccion: { type: DataTypes.STRING, defaultValue: 'Desconocida', field: 'direccion' },
+  dni: { type: DataTypes.INTEGER, allowNull: true, field: 'dni' }
 }, {
   tableName: 'users',
   timestamps: false

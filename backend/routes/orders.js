@@ -45,6 +45,19 @@ router.post('/', authMiddleware, clientMiddleware, upload.single('proof'), async
       }
     }
 
+    // VALIDACIÓN DE STOCK PREVIA A LA COMPRA
+    for (const item of items) {
+      const product = await Product.findByPk(item.productId);
+      if (!product) {
+        return res.status(400).json({ error: `Producto ID ${item.productId} no encontrado` });
+      }
+      if (Number(product.stock) < Number(item.quantity)) {
+        return res.status(400).json({ 
+          error: `Stock insuficiente para "${product.name}". Solicitado: ${item.quantity}, Disponible: ${product.stock}` 
+        });
+      }
+    }
+
     const order = await Order.create({
       total: 0,
       user_id: req.user.id,
@@ -133,13 +146,16 @@ router.get('/preparing/pdf', authMiddleware, async (req, res) => {
     const { Category } = require('../models');
     const orders = await Order.findAll({
       where: { status: 'En preparación' },
-      include: [{
-        model: OrderItem,
-        include: [{
-          model: Product,
-          include: [Category]
-        }]
-      }]
+      include: [
+        { model: User, attributes: ['name', 'dni'] },
+        {
+          model: OrderItem,
+          include: [{
+            model: Product,
+            include: [Category]
+          }]
+        }
+      ]
     });
 
     if (orders.length === 0) {
@@ -161,14 +177,25 @@ router.get('/preparing/pdf', authMiddleware, async (req, res) => {
 
     orders.forEach((order) => {
       // Verificar espacio para nueva orden (encabezado + al menos 1 producto)
-      if (y > 700) {
+      if (y > 680) { // Reduje un poco el margen ya que el encabezado es más largo ahora
         doc.addPage();
         applyHardwareHavenBranding(doc, 'PRODUCTOS PARA PREPARAR (CONTINUACIÓN)');
         y = 180;
       }
 
+      const clientName = order.User?.name || 'Desconocido';
+      const clientDNI = order.User?.dni || 'N/A';
+      const shippingAddr = order.shipping_address || 'Retiro en local';
+
       doc.fillColor('#0f172a').fontSize(12).font('Helvetica-Bold').text(`ORDEN #${order.id}`, 40, y);
-      y += 18;
+      y += 16;
+      doc.fillColor('#334155').fontSize(9).font('Helvetica-Bold').text('Cliente: ', 40, y, { continued: true });
+      doc.font('Helvetica').text(`${clientName} | DNI: ${clientDNI}`);
+      y += 12;
+      doc.font('Helvetica-Bold').text('Envío a: ', 40, y, { continued: true });
+      doc.font('Helvetica').text(shippingAddr);
+      
+      y += 12;
       doc.moveTo(40, y).lineTo(550, y).stroke('#e2e8f0');
       y += 8;
 
@@ -325,6 +352,15 @@ router.put('/:id/close', authMiddleware, async (req, res) => {
 
     if (order.status !== 'En preparación') {
       return res.status(400).json({ error: 'Solo se pueden cerrar pedidos en estado "En preparación".' });
+    }
+
+    // Verificar disponibilidad total antes de restar absolutamente nada (Evita estado parcial corrupto)
+    for (const item of order.OrderItems) {
+      if (item.Product && Number(item.Product.stock) < Number(item.quantity)) {
+        return res.status(400).json({ 
+          error: `No se puede cerrar el pedido. El stock actual de "${item.Product.name}" (${item.Product.stock}) es inferior a lo solicitado (${item.quantity}). Por favor, repone el inventario primero.`
+        });
+      }
     }
 
     // Decremento de stock al cerrar (entrega completada)

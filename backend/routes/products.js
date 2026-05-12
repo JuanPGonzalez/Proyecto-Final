@@ -28,7 +28,9 @@ router.get('/export', adminMiddleware, async (req, res) => {
       name: p.name,
       price: p.price,
       stock: p.stock,
-      categoria_id: p.categoria_id
+      categoria_id: p.categoria_id,
+      precio_min: p.precio_min,
+      precio_max: p.precio_max
     }));
 
     const worksheet = XLSX.utils.json_to_sheet(cleanData);
@@ -80,12 +82,20 @@ router.post('/import', adminMiddleware, upload.single('file'), async (req, res) 
 
         const updateData = {};
 
-        if (row.price !== undefined && !isNaN(row.price)) {
+        if (row.price !== undefined && !isNaN(row.price) && row.price >= 0) {
           updateData.price = Number(row.price);
         }
 
         if (row.stock !== undefined && !isNaN(row.stock) && row.stock >= 0) {
           updateData.stock = Number(row.stock);
+        }
+
+        if (row.precio_min !== undefined && !isNaN(row.precio_min) && row.precio_min >= 0) {
+          updateData.precio_min = Number(row.precio_min);
+        }
+
+        if (row.precio_max !== undefined && !isNaN(row.precio_max) && row.precio_max >= 0) {
+          updateData.precio_max = Number(row.precio_max);
         }
 
         if (Object.keys(updateData).length === 0) {
@@ -426,15 +436,45 @@ router.post('/bulk-price-update', adminMiddleware, async (req, res) => {
     let updatedCount = 0;
     
     await Promise.all(products.map(async (p) => {
+      const updates = {};
+      let hasUpdates = false;
+
       if (p.price) {
-        const newPrice = Math.round(Number(p.price) * factor); // Redondeo simple para evitar muchos decimales
+        const newPrice = Math.round(Number(p.price) * factor);
         if (newPrice > 0) {
-          let boundedPrice = newPrice;
-          if (p.precio_min && boundedPrice < p.precio_min) boundedPrice = Number(p.precio_min);
-          if (p.precio_max && boundedPrice > p.precio_max) boundedPrice = Number(p.precio_max);
-          await p.update({ price: boundedPrice });
-          updatedCount++;
+          updates.price = newPrice;
+          hasUpdates = true;
         }
+      }
+
+      if (p.precio_min) {
+        const newMin = Math.round(Number(p.precio_min) * factor);
+        if (newMin > 0) {
+          updates.precio_min = newMin;
+          hasUpdates = true;
+        }
+      }
+
+      if (p.precio_max) {
+        const newMax = Math.round(Number(p.precio_max) * factor);
+        if (newMax > 0) {
+          updates.precio_max = newMax;
+          hasUpdates = true;
+        }
+      }
+
+      // Re-validar límites en el precio resultante
+      if (updates.price) {
+        const finalMin = updates.precio_min !== undefined ? updates.precio_min : (p.precio_min ? Number(p.precio_min) : null);
+        const finalMax = updates.precio_max !== undefined ? updates.precio_max : (p.precio_max ? Number(p.precio_max) : null);
+        
+        if (finalMin !== null && updates.price < finalMin) updates.price = finalMin;
+        if (finalMax !== null && updates.price > finalMax) updates.price = finalMax;
+      }
+
+      if (hasUpdates) {
+        await p.update(updates);
+        updatedCount++;
       }
     }));
 

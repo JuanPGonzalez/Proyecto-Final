@@ -8,7 +8,7 @@ import { getStatusStyle } from '../constants/statusStyles';
 
 export default function Profile() {
   const [user, setUser] = useState(null);
-  const [formData, setFormData] = useState({ name: '', direccion: '', sexo: '', fechaNac: '' });
+  const [formData, setFormData] = useState({ name: '', direccion: '', sexo: '', fechaNac: '', dni: '' });
   const navigate = useNavigate();
 
   const [orders, setOrders] = useState([]);
@@ -28,7 +28,8 @@ export default function Profile() {
           name: res.data.name || '',
           direccion: res.data.direccion || '',
           sexo: res.data.sexo || '',
-          fechaNac: res.data.fechaNac ? res.data.fechaNac.split('T')[0] : ''
+          fechaNac: res.data.fechaNac ? res.data.fechaNac.split('T')[0] : '',
+          dni: res.data.dni || ''
         });
 
         if (!isAdminRole(res.data)) {
@@ -146,6 +147,16 @@ export default function Profile() {
               <div>
                 <label style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--muted-foreground)', marginBottom: '8px', display: 'block' }}>Nombre</label>
                 <input type="text" className="input-field" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} required />
+              </div>
+              <div>
+                <label style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--muted-foreground)', marginBottom: '8px', display: 'block' }}>DNI / Documento (Solo números)</label>
+                <input 
+                  type="number" 
+                  className="input-field" 
+                  placeholder="Ej: 12345678"
+                  value={formData.dni} 
+                  onChange={e => setFormData({...formData, dni: e.target.value})} 
+                />
               </div>
               {!isAdminRole(user) && (
                 <div>
