@@ -68,7 +68,7 @@ Esta guía contiene los pasos necesarios para desplegar y correr localmente todo
 5. Usa el Chatbot IA flotante en la esquina en cualquier momento.
 
 ### Como Administrador
-1. Regístrate o usa una cuenta seteada con `tipoUsuario = 'admin'` en la tabla MySQL local.
+1. Regístrate o usa una cuenta seteada con `tipoUsuario = 'administrador'` en la tabla MySQL local.
 2. Accede al ícono de engranaje (Settings) para observar el nuevo **Dashboard BI** que consolida ventas y métricas avanzadas.
 3. Ve a **Inventario** (`/admin/productos`) para agregar nuevo hardware a la BD con sólo un clic, el cual inmediatamente podrá ser buscado por los clientes.
 
