@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import axios from 'axios';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { showAlert } from '../utils/swal';
 import PasswordInput from '../components/PasswordInput';
 
@@ -65,6 +65,13 @@ export default function Login({ initialMode = 'login' }) {
             value={formData.password}
             onChange={e => setFormData({ ...formData, password: e.target.value })}
           />
+          {isLogin && (
+            <div style={{ textAlign: 'right', marginTop: '-5px' }}>
+              <Link to="/forgot-password" style={{ fontSize: '0.85rem', color: '#3b82f6', textDecoration: 'none' }}>
+                ¿Olvidaste tu contraseña?
+              </Link>
+            </div>
+          )}
           <button type="submit" className="btn" style={{ marginTop: '10px' }}>
             {isLogin ? 'Ingresar' : 'Registrarse'}
           </button>
