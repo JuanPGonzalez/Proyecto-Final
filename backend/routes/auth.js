@@ -5,6 +5,7 @@ const jwt = require('jsonwebtoken');
 const { User, Notification } = require('../models');
 const { Op } = require('sequelize');
 const { authMiddleware, adminMiddleware, ROLES, isAdminRole, isClientRole } = require('../middleware/roles');
+const { sendPasswordResetEmail } = require('../services/emailService');
 
 router.post('/register', async (req, res) => {
   try {
@@ -161,6 +162,75 @@ router.put('/profile', authMiddleware, async (req, res) => {
     });
   } catch (error) {
     res.status(500).json({ error: 'Error al actualizar perfil' });
+  }
+});
+
+// ==========================================
+// FORGOT PASSWORD
+// ==========================================
+router.post('/forgot-password', async (req, res) => {
+  try {
+    const { email } = req.body;
+    if (!email) return res.status(400).json({ error: 'El email es obligatorio' });
+
+    const user = await User.findOne({ where: { email } });
+    if (!user) {
+      // Don't leak if email exists or not for security, just pretend it sent
+      return res.json({ message: 'Si el correo existe, se ha enviado un enlace de recuperación.' });
+    }
+
+    // Create a one-time use token by attaching the user's current password hash to the secret.
+    // If the password changes, the token automatically becomes invalid.
+    const secret = (process.env.JWT_RESET_SECRET || 'fallback_reset_secret') + user.password;
+    const token = jwt.sign({ id: user.id, email: user.email }, secret, { expiresIn: '15m' });
+
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+    const resetLink = `${frontendUrl}/reset-password/${user.id}/${token}`;
+
+    const emailSent = await sendPasswordResetEmail(user.email, resetLink);
+    
+    if (emailSent) {
+      res.json({ message: 'Se ha enviado un enlace de recuperación a tu correo electrónico.' });
+    } else {
+      // If email failed, log the link for development/testing so we can still use it
+      console.log('RESET LINK (since email failed):', resetLink);
+      res.status(500).json({ error: 'Error al enviar el correo. El enlace se generó en la consola del servidor.' });
+    }
+  } catch (error) {
+    console.error('Forgot password error:', error);
+    res.status(500).json({ error: 'Error en el proceso de recuperación de contraseña' });
+  }
+});
+
+// ==========================================
+// RESET PASSWORD
+// ==========================================
+router.post('/reset-password', async (req, res) => {
+  try {
+    const { id, token, newPassword } = req.body;
+    if (!id || !token || !newPassword) {
+      return res.status(400).json({ error: 'Faltan parámetros requeridos' });
+    }
+
+    const user = await User.findByPk(id);
+    if (!user) return res.status(404).json({ error: 'Usuario no encontrado o enlace inválido' });
+
+    const secret = (process.env.JWT_RESET_SECRET || 'fallback_reset_secret') + user.password;
+    
+    try {
+      jwt.verify(token, secret);
+    } catch (err) {
+      return res.status(400).json({ error: 'El enlace es inválido o ha expirado. Por favor solicita uno nuevo.' });
+    }
+
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+    user.password = hashedPassword;
+    await user.save();
+
+    res.json({ message: 'Contraseña actualizada correctamente' });
+  } catch (error) {
+    console.error('Reset password error:', error);
+    res.status(500).json({ error: 'Error al restablecer la contraseña' });
   }
 });
 

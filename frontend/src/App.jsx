@@ -21,6 +21,8 @@ import Terms from './pages/Terms';
 import Forbidden from './pages/Forbidden';
 import Payment from './pages/Payment';
 import Chatbot from './components/Chatbot';
+import ForgotPassword from './pages/ForgotPassword';
+import ResetPassword from './pages/ResetPassword';
 
 function App() {
   return (
@@ -44,6 +46,10 @@ function App() {
             <Route path="/soporte" element={<SoporteTickets />} />
             <Route path="/about" element={<About />} />
             <Route path="/terms" element={<Terms />} />
+            
+            {/* Auth Routes */}
+            <Route path="/forgot-password" element={<ForgotPassword />} />
+            <Route path="/reset-password/:id/:token" element={<ResetPassword />} />
             
             {/* Admin Routes */}
             <Route path="/admin" element={<AdminDashboard />} />

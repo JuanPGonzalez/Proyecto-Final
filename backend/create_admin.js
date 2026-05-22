@@ -7,12 +7,13 @@ async function createAdmin() {
   
   try {
     const user = await User.create({
-      name: 'Administrador Hardware Haven',
-      email: 'admin@hardwarehaven.com',
+      name: 'Super',
+      email: 'Super@hardwarehaven.com',
       password: hashedPassword,
-      tipoUsuario: 'admin',
+      tipoUsuario: 'Administrador',
       sexo: 'Masculino',
-      direccion: 'Central Técnica UTN'
+      direccion: 'Central Técnica UTN',
+      dni:40000000,
     });
     console.log('Usuario administrador creado exitosamente:');
     console.log('Email: admin@hardwarehaven.com');
