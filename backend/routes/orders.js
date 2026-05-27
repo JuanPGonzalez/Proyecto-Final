@@ -319,11 +319,19 @@ router.put('/:id/cancel', authMiddleware, async (req, res) => {
   try {
     if (!isAdminRole(req.user.tipoUsuario)) return res.status(403).json({ error: 'Prohibido' });
     
-    const order = await Order.findByPk(req.params.id);
+    const order = await Order.findByPk(req.params.id, {
+      include: [{ model: OrderItem, include: [Product] }]
+    });
     if (!order) return res.status(404).json({ error: 'Orden no encontrada' });
 
     if (order.status === 'Cerrada') {
       return res.status(400).json({ error: 'No se puede cancelar una compra ya cerrada.' });
+    }
+
+    for (const item of order.OrderItems) {
+      if (item.Product) {
+        await item.Product.increment('stock', { by: item.quantity });
+      }
     }
 
     await order.update({ status: 'Cancelada' });
