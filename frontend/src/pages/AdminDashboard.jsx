@@ -2,7 +2,8 @@ import React, { useEffect, useState } from 'react';
 import axios from 'axios';
 import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, LineElement, PointElement, Title, Tooltip, Legend, ArcElement } from 'chart.js';
 import { Bar, Line, Pie, Doughnut } from 'react-chartjs-2';
-import { Users, ShoppingBag, DollarSign, Activity, AlertTriangle, Calendar, Award, ChevronLeft, ChevronRight, Search, Globe, History, ArrowUpRight, ArrowDownRight, Info, Check } from 'lucide-react';
+import Select from 'react-select';
+import { Users, ShoppingBag, DollarSign, Activity, AlertTriangle, Calendar, Award, ChevronLeft, ChevronRight, Search, Globe, History, ArrowUpRight, ArrowDownRight, Info, Check, TrendingUp } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { isAdminRole } from '../constants/roles';
 import { showToast } from '../utils/swal';
@@ -658,7 +659,9 @@ export default function AdminDashboard() {
         </div>
       </section>
 
-      {/* SECCIÓN 3: HISTORIAL INTERACTIVO */}
+
+
+      {/* SECCIÓN 4: HISTORIAL INTERACTIVO */}
       <section id="history-section" className="card" style={{ padding: '35px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px', flexWrap: 'wrap', gap: '20px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
@@ -777,6 +780,9 @@ export default function AdminDashboard() {
         )}
       </section>
 
+      {/* SECCIÓN 5: MOTOR DE PRICING Y DEMANDA */}
+      <PricingHistorySection />
+
       {selectedClient && (
         <ClientDetailModal 
           clientId={selectedClient.id} 
@@ -820,5 +826,191 @@ function StatCard({ title, value, icon, bg, color }) {
         <span style={{ fontSize: '1.4rem', fontWeight: 800 }}>{value}</span>
       </div>
     </div>
+  );
+}
+
+function PricingHistorySection() {
+  const [products, setProducts] = useState([]);
+  const [selectedProduct, setSelectedProduct] = useState(null);
+  const [historyLogs, setHistoryLogs] = useState([]);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    axios.get('http://localhost:5000/api/products/pricing/summary', {
+        headers: { Authorization: `Bearer ${token}` }
+      })
+      .then(res => {
+        const options = res.data.map(p => ({ value: p.id, label: p.name, ...p }));
+        setProducts(options);
+      })
+      .catch(err => console.error("Error fetching products summary:", err));
+  }, []);
+
+  const handleProductSelect = async (selectedOption) => {
+    if (!selectedOption) {
+      setSelectedProduct(null);
+      setHistoryLogs([]);
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const token = localStorage.getItem('token');
+      const res = await axios.get(`http://localhost:5000/api/products/${selectedOption.value}/price-history`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setSelectedProduct(res.data.product);
+      setHistoryLogs(res.data.logs);
+    } catch (error) {
+      console.error("Error fetching price history:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const chartData = {
+    labels: historyLogs.map(log => new Date(log.created_at).toLocaleDateString('es-AR')),
+    datasets: [
+      {
+        label: 'Evolución de Precio ($)',
+        data: historyLogs.map(log => Number(log.precio_nuevo)),
+        borderColor: '#10b981',
+        backgroundColor: 'rgba(16, 185, 129, 0.2)',
+        borderWidth: 3,
+        fill: true,
+        tension: 0.1,
+        pointRadius: 5,
+        pointBackgroundColor: '#10b981'
+      }
+    ]
+  };
+
+  if (selectedProduct && historyLogs.length === 0) {
+    chartData.labels = [new Date().toLocaleDateString('es-AR')];
+    chartData.datasets[0].data = [Number(selectedProduct.price)];
+  }
+
+  return (
+    <section style={{ marginTop: '60px', marginBottom: '60px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '15px', marginBottom: '25px' }}>
+        <TrendingUp size={24} color="var(--primary)" />
+        <h3 style={{ margin: 0, fontSize: '1.6rem', fontWeight: 800 }}>Motor de Pricing Automático</h3>
+        <div style={{ flex: 1, height: '1px', backgroundColor: 'var(--border)', marginLeft: '10px' }}></div>
+      </div>
+
+      <div className="card" style={{ padding: '30px' }}>
+        <div style={{ marginBottom: '30px', maxWidth: '600px' }}>
+          <label style={{ display: 'block', marginBottom: '10px', fontWeight: 700 }}>Buscar Producto para analizar fluctuación:</label>
+          <Select
+            options={products}
+            onChange={handleProductSelect}
+            placeholder="Seleccione un producto..."
+            isClearable
+            formatOptionLabel={(option, { context }) => {
+              if (context === 'value') {
+                return <span style={{ fontWeight: 600 }}>{option.name}</span>;
+              }
+              
+              let trendText = 'Se mantuvo estable';
+              let trendColor = 'var(--muted-foreground)';
+              if (option.trend === 'subio') {
+                trendText = 'Subió en último ajuste';
+                trendColor = '#ef4444'; // Red para suba de precio
+              } else if (option.trend === 'bajo') {
+                trendText = 'Bajó en último ajuste';
+                trendColor = '#10b981'; // Verde para baja de precio
+              }
+
+              return (
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column' }}>
+                    <span style={{ fontWeight: 600 }}>{option.name}</span>
+                    {option.Category && <span style={{ fontSize: '0.75rem', color: 'var(--muted-foreground)' }}>{option.Category.descripcion}</span>}
+                  </div>
+                  <div style={{ textAlign: 'right' }}>
+                    <span style={{ fontWeight: 800, color: 'var(--primary)' }}>${Number(option.price).toLocaleString('es-AR')}</span>
+                    <div style={{ fontSize: '0.75rem', color: trendColor, fontWeight: 700 }}>
+                      {trendText}
+                    </div>
+                  </div>
+                </div>
+              );
+            }}
+            styles={{ 
+              control: (base) => ({ ...base, minHeight: '55px', borderRadius: '8px' }),
+              option: (base) => ({ ...base, padding: '10px 15px', borderBottom: '1px solid var(--border)' }),
+              menuPortal: base => ({ ...base, zIndex: 9999 })
+            }}
+            menuPortalTarget={document.body}
+          />
+        </div>
+
+        {loading ? (
+          <div style={{ textAlign: 'center', padding: '40px' }}>Cargando historial de precios...</div>
+        ) : selectedProduct ? (
+          <div>
+            <div style={{ display: 'flex', gap: '20px', marginBottom: '30px', flexWrap: 'wrap' }}>
+              <div style={{ flex: 1, padding: '20px', backgroundColor: 'rgba(59, 130, 246, 0.05)', borderRadius: '12px', border: '1px solid rgba(59, 130, 246, 0.2)' }}>
+                <p style={{ margin: 0, fontSize: '0.8rem', fontWeight: 700, color: 'var(--muted-foreground)' }}>PRECIO ACTUAL</p>
+                <h4 style={{ margin: '5px 0 0 0', fontSize: '1.8rem', color: '#3b82f6', fontWeight: 900 }}>${Number(selectedProduct.price).toLocaleString('es-AR')}</h4>
+              </div>
+              <div style={{ flex: 1, padding: '20px', backgroundColor: 'rgba(16, 185, 129, 0.05)', borderRadius: '12px', border: '1px solid rgba(16, 185, 129, 0.2)' }}>
+                <p style={{ margin: 0, fontSize: '0.8rem', fontWeight: 700, color: 'var(--muted-foreground)' }}>VARIACIONES REGISTRADAS</p>
+                <h4 style={{ margin: '5px 0 0 0', fontSize: '1.8rem', color: '#10b981', fontWeight: 900 }}>{historyLogs.length}</h4>
+              </div>
+              <div style={{ flex: 1, padding: '20px', backgroundColor: 'rgba(245, 158, 11, 0.05)', borderRadius: '12px', border: '1px solid rgba(245, 158, 11, 0.2)' }}>
+                <p style={{ margin: 0, fontSize: '0.8rem', fontWeight: 700, color: 'var(--muted-foreground)' }}>MOTIVO DE ÚLTIMA FLUCTUACIÓN</p>
+                <h4 style={{ margin: '5px 0 0 0', fontSize: '1.2rem', color: '#f59e0b', fontWeight: 700, lineHeight: '1.4' }}>
+                  {historyLogs.length > 0 ? historyLogs[historyLogs.length - 1].detalle : 'Sin registros de fluctuación'}
+                </h4>
+              </div>
+            </div>
+
+            <div style={{ height: '400px', width: '100%' }}>
+              <Line 
+                data={chartData} 
+                options={{ 
+                  responsive: true, 
+                  maintainAspectRatio: false,
+                  plugins: { 
+                    legend: { display: true, position: 'top' },
+                    tooltip: {
+                      callbacks: {
+                        label: function(context) {
+                          let label = context.dataset.label || '';
+                          if (label) label += ': ';
+                          if (context.parsed.y !== null) {
+                            label += '$' + context.parsed.y.toLocaleString('es-AR');
+                          }
+                          return label;
+                        }
+                      }
+                    }
+                  },
+                  scales: { 
+                    y: { 
+                      beginAtZero: false, 
+                      grid: { color: 'rgba(0,0,0,0.05)' },
+                      ticks: { callback: (val) => '$' + val.toLocaleString('es-AR') } 
+                    }, 
+                    x: { grid: { display: false } } 
+                  }
+                }} 
+              />
+            </div>
+            {historyLogs.length === 0 && (
+              <p style={{ textAlign: 'center', marginTop: '15px', color: 'var(--muted-foreground)', fontSize: '0.9rem' }}>
+                Este producto aún no registra fluctuaciones automáticas por demanda. Solo se muestra su precio actual.
+              </p>
+            )}
+          </div>
+        ) : (
+          <div style={{ textAlign: 'center', padding: '60px', backgroundColor: 'var(--secondary)', borderRadius: '12px', color: 'var(--muted-foreground)' }}>
+            Selecciona un producto del buscador para visualizar la demostración del motor de precios automáticos basado en la demanda.
+          </div>
+        )}
+      </div>
+    </section>
   );
 }

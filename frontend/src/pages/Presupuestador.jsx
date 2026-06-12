@@ -23,6 +23,16 @@ export default function Presupuestador() {
     const items = Object.values(budget).filter(p => p !== null);
     if(items.length === 0) return showAlert('Presupuesto vacío', 'Por favor selecciona al menos un componente.', 'info');
     
+    // Validar stock de todos los items seleccionados
+    const sinStock = items.filter(p => Number(p.stock) <= 0);
+    if (sinStock.length > 0) {
+      return showAlert(
+        'Sin Stock',
+        `Los siguientes productos no tienen stock disponible: ${sinStock.map(p => p.name).join(', ')}. Por favor selecciona otra opción.`,
+        'warning'
+      );
+    }
+
     setIsAdding(true);
     const cart = JSON.parse(localStorage.getItem('cart') || '[]');
     
@@ -31,6 +41,8 @@ export default function Presupuestador() {
         if (existingItem) {
             if (existingItem.quantity < product.stock) {
                 existingItem.quantity = (existingItem.quantity || 1) + 1;
+            } else {
+                showAlert('Stock máximo', `Ya tienes el máximo disponible de ${product.name}.`, 'warning');
             }
         } else {
             cart.push({ ...product, quantity: 1 });
@@ -48,7 +60,7 @@ export default function Presupuestador() {
   };
 
   const OptionSelect = ({ category, categoryName, label, icon, filter }) => {
-    let filteredList = products.filter(p => p.Category?.descripcion === categoryName);
+    let filteredList = products.filter(p => p.Category?.descripcion === categoryName && Number(p.stock) > 0);
     
     if (filter) {
       filteredList = filteredList.filter(filter);

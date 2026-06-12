@@ -75,6 +75,9 @@ export default function Home() {
 
   const addToCart = (e, product) => {
     e.stopPropagation();
+    if (Number(product.stock) <= 0) {
+      return showAlert('Sin Stock', `"${product.name}" no tiene stock disponible en este momento.`, 'warning');
+    }
     const cart = JSON.parse(localStorage.getItem('cart') || '[]');
     const existingItem = cart.find(item => item.id === product.id);
     if (existingItem) {

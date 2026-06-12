@@ -44,13 +44,62 @@ export default function Cart() {
 
   const total = cartItems.reduce((acc, item) => acc + (Number(item.price) * (item.quantity || 1)), 0);
 
-  const checkout = () => {
+  const checkout = async () => {
     const token = localStorage.getItem('token');
     if (!token) {
       showAlert('Acceso Restringido', 'Debes iniciar sesión para finalizar la compra.', 'info');
       return navigate('/login');
     }
-    navigate('/envio');
+
+    // Validar stock en tiempo real antes de proceder
+    try {
+      const res = await axios.get('http://localhost:5000/api/products');
+      const currentProducts = res.data;
+      const outOfStockItems = [];
+      let updatedCart = [...cartItems];
+      let cartModified = false;
+
+      updatedCart.forEach((item, idx) => {
+        const current = currentProducts.find(p => p.id === item.id);
+        if (!current || Number(current.stock) <= 0) {
+          outOfStockItems.push({ name: item.name, requested: item.quantity || 1, available: 0 });
+          updatedCart[idx] = null; // marcar para eliminar
+          cartModified = true;
+        } else if (Number(current.stock) < (item.quantity || 1)) {
+          outOfStockItems.push({ name: item.name, requested: item.quantity || 1, available: Number(current.stock) });
+          updatedCart[idx] = { ...item, quantity: Number(current.stock) };
+          cartModified = true;
+        }
+      });
+
+      if (outOfStockItems.length > 0) {
+        // Limpiar items sin stock y actualizar cantidades
+        updatedCart = updatedCart.filter(item => item !== null);
+        setCartItems(updatedCart);
+        localStorage.setItem('cart', JSON.stringify(updatedCart));
+        window.dispatchEvent(new Event('storage'));
+
+        const detailHtml = outOfStockItems.map(i =>
+          `<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #eee;">
+            <span style="font-weight:600;text-align:left;">${i.name}</span>
+            <span style="color:${i.available === 0 ? '#ef4444' : '#f59e0b'};">${i.available === 0 ? 'Sin stock' : `Stock: ${i.available} (pedido: ${i.requested})`}</span>
+          </div>`
+        ).join('');
+
+        showAlert(
+          'Stock Insuficiente',
+          `<p style="margin-bottom:15px;">Algunos productos no tienen stock suficiente. El carrito fue ajustado:</p>${detailHtml}`,
+          'warning'
+        );
+        return;
+      }
+
+      navigate('/envio');
+    } catch (err) {
+      console.error('Error validando stock:', err);
+      // Si falla la validación, proceder igualmente (el backend validará)
+      navigate('/envio');
+    }
   };
 
   const vaciarCarrito = async () => {

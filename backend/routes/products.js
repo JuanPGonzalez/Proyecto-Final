@@ -288,7 +288,60 @@ router.get('/recommendations/cart', async (req, res) => {
     res.status(500).json({ error: 'Error en compatibilidad' });
   }
 });
+// Resumen de tendencias de precio
+router.get('/pricing/summary', adminMiddleware, async (req, res) => {
+  try {
+    const { Category, LogMotorPrecio, Product } = require('../models');
+    
+    const products = await Product.findAll({
+      include: [{ model: Category, attributes: ['descripcion'] }]
+    });
 
+    const logs = await LogMotorPrecio.findAll({
+      order: [['created_at', 'ASC']]
+    });
+    
+    const lastLogsMap = {};
+    for (const log of logs) {
+      lastLogsMap[log.componente_id] = log;
+    }
+
+    const summary = products.map(p => {
+      const pJson = p.toJSON();
+      const lastLog = lastLogsMap[p.id];
+      let trend = 'mantuvo';
+      if (lastLog) {
+        if (Number(lastLog.precio_nuevo) > Number(lastLog.precio_anterior)) trend = 'subio';
+        else if (Number(lastLog.precio_nuevo) < Number(lastLog.precio_anterior)) trend = 'bajo';
+      }
+      return { ...pJson, trend };
+    });
+
+    res.json(summary);
+  } catch (error) {
+    console.error('Error fetching pricing summary:', error);
+    res.status(500).json({ error: 'Error al obtener resumen de precios' });
+  }
+});
+
+// Historial de precios de un producto
+router.get('/:id/price-history', adminMiddleware, async (req, res) => {
+  try {
+    const productId = req.params.id;
+    const { LogMotorPrecio, Product } = require('../models');
+    
+    const product = await Product.findByPk(productId);
+    const logs = await LogMotorPrecio.findAll({
+      where: { componente_id: productId },
+      order: [['created_at', 'ASC']]
+    });
+
+    res.json({ product, logs });
+  } catch (error) {
+    console.error('Error fetching price history:', error);
+    res.status(500).json({ error: 'Error al obtener historial de precios' });
+  }
+});
 
 router.post('/', adminMiddleware, async (req, res) => {
   try {

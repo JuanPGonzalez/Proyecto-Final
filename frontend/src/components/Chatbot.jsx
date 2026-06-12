@@ -76,10 +76,25 @@ export default function Chatbot({ standalone = false }) {
         // Find product in local state or lastProducts
         const addedProd = lastProducts.find(p => p.id === extraParams.productId);
         if (addedProd) {
+          // Validar stock antes de agregar
+          if (Number(addedProd.stock) <= 0) {
+            setMessages(prev => [...prev, { type: 'text', message: `❌ Lo siento, **${addedProd.name}** no tiene stock disponible en este momento.`, sender: 'bot' }]);
+            setIsTyping(false);
+            return;
+          }
+
           const cart = JSON.parse(localStorage.getItem('cart') || '[]');
           const existing = cart.find(i => i.id === addedProd.id);
-          if (existing) existing.quantity = (existing.quantity || 1) + 1;
-          else cart.push({ ...addedProd, quantity: 1 });
+          if (existing) {
+            if ((existing.quantity || 1) >= Number(addedProd.stock)) {
+              setMessages(prev => [...prev, { type: 'text', message: `⚠️ Ya tienes el máximo disponible de **${addedProd.name}** en tu carrito (stock: ${addedProd.stock}).`, sender: 'bot' }]);
+              setIsTyping(false);
+              return;
+            }
+            existing.quantity = (existing.quantity || 1) + 1;
+          } else {
+            cart.push({ ...addedProd, quantity: 1 });
+          }
           localStorage.setItem('cart', JSON.stringify(cart));
           window.dispatchEvent(new Event('storage'));
         }

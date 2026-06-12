@@ -105,6 +105,29 @@ router.post('/', authMiddleware, clientMiddleware, upload.single('proof'), async
       is_read: false
     });
 
+    // Enviar factura por email (fire-and-forget, no bloquea la respuesta)
+    try {
+      const fullOrder = await Order.findByPk(order.id, {
+        include: [User, { model: OrderItem, include: [Product] }]
+      });
+      if (fullOrder && fullOrder.User?.email) {
+        const emailItems = fullOrder.OrderItems.map(oi => ({
+          name: oi.Product?.name || 'Producto',
+          quantity: oi.quantity,
+          priceAtPurchase: oi.priceAtPurchase,
+          productId: oi.componente_id
+        }));
+        sendOrderConfirmation(fullOrder.User.email, fullOrder, emailItems)
+          .then(sent => {
+            if (sent) console.log(`[Orders] Factura enviada por email para orden #${order.id}`);
+            else console.warn(`[Orders] No se pudo enviar email para orden #${order.id}`);
+          })
+          .catch(err => console.error('[Orders] Error enviando email:', err));
+      }
+    } catch (emailErr) {
+      console.error('[Orders] Error preparando email:', emailErr);
+    }
+
     res.status(201).json({ success: true, orderId: order.id });
   } catch (error) {
     console.error(error);
@@ -396,14 +419,22 @@ router.put('/:id/close', authMiddleware, async (req, res) => {
 // 7. Factura PDF
 router.get('/:id/invoice', authMiddleware, async (req, res) => {
   try {
-    const order = await Order.findByPk(req.params.id, { include: [OrderItem, Product] });
+    const order = await Order.findByPk(req.params.id, {
+      include: [User, { model: OrderItem, include: [Product] }]
+    });
     if (!order || (!isAdminRole(req.user.tipoUsuario) && order.user_id !== req.user.id)) return res.status(403).json({ error: 'Prohibido' });
     const { generateInvoicePDF } = require('../services/invoiceService');
-    const items = order.OrderItems.map(oi => ({ name: oi.Product.name, quantity: oi.quantity, priceAtPurchase: oi.priceAtPurchase }));
+    const items = order.OrderItems.map(oi => ({
+      name: oi.Product?.name || 'Producto',
+      quantity: oi.quantity,
+      priceAtPurchase: oi.priceAtPurchase,
+      productId: oi.componente_id
+    }));
     const pdfPath = await generateInvoicePDF(order, items);
     res.setHeader('Content-Type', 'application/pdf');
     fs.createReadStream(pdfPath).pipe(res);
   } catch (error) {
+    console.error('[Invoice PDF Error]:', error);
     res.status(500).json({ error: 'Error en PDF' });
   }
 });
