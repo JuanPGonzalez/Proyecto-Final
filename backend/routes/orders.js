@@ -337,18 +337,24 @@ router.get('/:id', authMiddleware, async (req, res) => {
   }
 });
 
-// 6. Cancelar compra (Admin)
+// 6. Cancelar compra
 router.put('/:id/cancel', authMiddleware, async (req, res) => {
   try {
-    if (!isAdminRole(req.user.tipoUsuario)) return res.status(403).json({ error: 'Prohibido' });
-    
     const order = await Order.findByPk(req.params.id, {
       include: [{ model: OrderItem, include: [Product] }]
     });
     if (!order) return res.status(404).json({ error: 'Orden no encontrada' });
 
+    // Permite cancelar si es Admin o si es el dueño de la orden
+    if (!isAdminRole(req.user.tipoUsuario) && order.user_id !== req.user.id) {
+      return res.status(403).json({ error: 'Prohibido. No puedes cancelar esta orden.' });
+    }
+
     if (order.status === 'Cerrada') {
       return res.status(400).json({ error: 'No se puede cancelar una compra ya cerrada.' });
+    }
+    if (order.status === 'Cancelada') {
+      return res.status(400).json({ error: 'La compra ya se encuentra cancelada.' });
     }
 
     for (const item of order.OrderItems) {
@@ -359,9 +365,13 @@ router.put('/:id/cancel', authMiddleware, async (req, res) => {
 
     await order.update({ status: 'Cancelada' });
 
+    const message = isAdminRole(req.user.tipoUsuario) 
+      ? `Tu pedido #${order.id} ha sido cancelado por el administrador.`
+      : `Has cancelado exitosamente tu pedido #${order.id}.`;
+
     await Notification.create({
       user_id: order.user_id,
-      message: `Tu pedido #${order.id} ha sido cancelado por el administrador.`,
+      message: message,
       type: 'ORDER'
     });
 

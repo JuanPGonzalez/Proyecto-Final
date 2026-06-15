@@ -3,7 +3,7 @@ import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 import { isAdminRole } from '../constants/roles';
 import { ChevronLeft, ChevronRight, Eye, FileText, ExternalLink, MapPin } from 'lucide-react';
-import { showToast, showAlert } from '../utils/swal';
+import { showToast, showAlert, showConfirm } from '../utils/swal';
 import { getStatusStyle } from '../constants/statusStyles';
 
 export default function Profile() {
@@ -127,6 +127,30 @@ export default function Profile() {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
     window.location.href = '/';
+  };
+
+  const handleCancel = async (orderId) => {
+    const confirm = await showConfirm(
+      '¿Cancelar Pedido?',
+      '¿Estás seguro de que deseas cancelar este pedido? Esta acción no se puede deshacer.',
+      'Sí, cancelar'
+    );
+    if (!confirm) return;
+
+    try {
+      const token = localStorage.getItem('token');
+      await axios.put(`http://localhost:5000/api/orders/${orderId}/cancel`, {}, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      showToast('Pedido cancelado correctamente');
+      
+      // Actualizar vista local
+      setOrders(orders.map(o => o.id === orderId ? { ...o, status: 'Cancelada' } : o));
+    } catch (err) {
+      console.error(err);
+      const msg = err.response?.data?.error || 'No se pudo cancelar el pedido';
+      showAlert('Error', msg, 'error');
+    }
   };
 
   if (!user) return <div className="container" style={{paddingTop:'40px'}}>Cargando...</div>;
@@ -280,6 +304,16 @@ export default function Profile() {
                           <ExternalLink size={14} />
                           Comprobante
                         </a>
+                      )}
+                      
+                      {(order.status === 'Pendiente' || order.status === 'En preparación' || order.status === 'Pendiente de Validación') && (
+                        <button 
+                          className="btn btn-outline" 
+                          style={{ fontSize: '0.75rem', padding: '8px 14px', color: 'var(--destructive)', borderColor: 'var(--destructive)', fontWeight: 700 }}
+                          onClick={() => handleCancel(order.id)}
+                        >
+                          Cancelar
+                        </button>
                       )}
                     </div>
                   </div>

@@ -869,6 +869,25 @@ function PricingHistorySection() {
     }
   };
 
+  let ultimoEstado = 'Sin cambios';
+  let ultimoMotivo = 'No hay registros de fluctuación';
+  let colorEstado = 'var(--foreground)';
+  
+  if (historyLogs.length > 0) {
+    const lastLog = historyLogs[historyLogs.length - 1];
+    ultimoMotivo = lastLog.detalle || 'Sin detalle';
+    
+    const prev = Number(lastLog.precio_anterior);
+    const curr = Number(lastLog.precio_nuevo);
+    if (curr > prev) {
+      ultimoEstado = 'Subió';
+    } else if (curr < prev) {
+      ultimoEstado = 'Bajó';
+    } else {
+      ultimoEstado = 'Se mantuvo';
+    }
+  }
+
   const chartData = {
     labels: historyLogs.map(log => new Date(log.created_at).toLocaleDateString('es-AR')),
     datasets: [
@@ -956,13 +975,15 @@ function PricingHistorySection() {
                 <h4 style={{ margin: '5px 0 0 0', fontSize: '1.8rem', color: '#3b82f6', fontWeight: 900 }}>${Number(selectedProduct.price).toLocaleString('es-AR')}</h4>
               </div>
               <div style={{ flex: 1, padding: '20px', backgroundColor: 'rgba(16, 185, 129, 0.05)', borderRadius: '12px', border: '1px solid rgba(16, 185, 129, 0.2)' }}>
-                <p style={{ margin: 0, fontSize: '0.8rem', fontWeight: 700, color: 'var(--muted-foreground)' }}>VARIACIONES REGISTRADAS</p>
-                <h4 style={{ margin: '5px 0 0 0', fontSize: '1.8rem', color: '#10b981', fontWeight: 900 }}>{historyLogs.length}</h4>
+                <p style={{ margin: 0, fontSize: '0.8rem', fontWeight: 700, color: 'var(--muted-foreground)' }}>ESTADO DEL ÚLTIMO MOVIMIENTO</p>
+                <h4 style={{ margin: '5px 0 0 0', fontSize: '1.8rem', color: colorEstado, fontWeight: 900 }}>
+                  {ultimoEstado}
+                </h4>
               </div>
               <div style={{ flex: 1, padding: '20px', backgroundColor: 'rgba(245, 158, 11, 0.05)', borderRadius: '12px', border: '1px solid rgba(245, 158, 11, 0.2)' }}>
-                <p style={{ margin: 0, fontSize: '0.8rem', fontWeight: 700, color: 'var(--muted-foreground)' }}>MOTIVO DE ÚLTIMA FLUCTUACIÓN</p>
+                <p style={{ margin: 0, fontSize: '0.8rem', fontWeight: 700, color: 'var(--muted-foreground)' }}>MOTIVO DEL MOVIMIENTO</p>
                 <h4 style={{ margin: '5px 0 0 0', fontSize: '1.2rem', color: '#f59e0b', fontWeight: 700, lineHeight: '1.4' }}>
-                  {historyLogs.length > 0 ? historyLogs[historyLogs.length - 1].detalle : 'Sin registros de fluctuación'}
+                  {ultimoMotivo}
                 </h4>
               </div>
             </div>

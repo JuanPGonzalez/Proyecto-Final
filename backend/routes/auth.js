@@ -4,15 +4,16 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { User, Notification } = require('../models');
 const { Op } = require('sequelize');
+const sequelize = require('../config/database');
 const { authMiddleware, adminMiddleware, ROLES, isAdminRole, isClientRole } = require('../middleware/roles');
 const { sendPasswordResetEmail } = require('../services/emailService');
 
 router.post('/register', async (req, res) => {
   try {
-    const { name, email, password } = req.body;
+    const { name, email, password, dni, direccion, fechaNac, sexo } = req.body;
     console.log('Register endpoint hit', { name, email });
-    if (!name || !email || !password) {
-      return res.status(400).json({ error: 'Nombre, email y contraseña son obligatorios' });
+    if (!name || !email || !password || !dni || !direccion || !fechaNac || !sexo) {
+      return res.status(400).json({ error: 'Todos los datos personales son obligatorios' });
     }
 
     const existing = await User.findOne({ where: { email } });
@@ -24,7 +25,11 @@ router.post('/register', async (req, res) => {
       email,
       password: hashedPassword,
       tipoUsuario: ROLES.CLIENT,
-      fechaReg: new Date()
+      fechaReg: new Date(),
+      dni: Number(dni),
+      direccion,
+      fechaNac,
+      sexo
     });
 
     // Welcome Notification for new user
@@ -69,11 +74,13 @@ router.post('/register', async (req, res) => {
 router.post('/login', async (req, res) => {
   try {
     const { identifier, password } = req.body;
+    const lowerIdentifier = identifier ? identifier.toLowerCase() : '';
+    
     const user = await User.findOne({
       where: {
         [Op.or]: [
-          { email: identifier },
-          { name: identifier }
+          sequelize.where(sequelize.fn('lower', sequelize.col('email')), lowerIdentifier),
+          sequelize.where(sequelize.fn('lower', sequelize.col('name')), lowerIdentifier)
         ]
       }
     });

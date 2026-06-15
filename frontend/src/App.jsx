@@ -23,6 +23,29 @@ import Payment from './pages/Payment';
 import Chatbot from './components/Chatbot';
 import ForgotPassword from './pages/ForgotPassword';
 import ResetPassword from './pages/ResetPassword';
+import axios from 'axios';
+import { showAlert } from './utils/swal';
+
+// Interceptor global para detectar si el servidor está caído
+axios.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (!error.response || error.code === 'ERR_NETWORK') {
+      showAlert(
+        'Servidor Inaccesible', 
+        'No se pudo conectar con el servidor. Es posible que esté en mantenimiento o tu conexión a internet falló. Por favor, intenta de nuevo más tarde.', 
+        'error'
+      );
+    } else if (error.response.status >= 500) {
+      showAlert(
+        'Error del Servidor',
+        'El servidor está experimentando problemas. Por favor, intenta de nuevo en unos minutos.',
+        'error'
+      );
+    }
+    return Promise.reject(error);
+  }
+);
 
 function App() {
   return (

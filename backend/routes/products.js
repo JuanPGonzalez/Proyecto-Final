@@ -347,6 +347,23 @@ router.post('/', adminMiddleware, async (req, res) => {
   try {
     console.log("REQ.BODY RECEIVED:", JSON.stringify(req.body, null, 2));
     const { name, description, price, stock, imgURL, categoryId, newCategoryName, precio_min, precio_max } = req.body;
+    
+    // --- INICIO DTO VALIDATION ---
+    const errors = [];
+    if (!name || name.trim() === '') errors.push("El campo 'nombre' es obligatorio.");
+    if (price === undefined || price === null || isNaN(Number(price))) errors.push("El campo 'precio base' debe ser un número válido.");
+    else if (Number(price) < 0) errors.push("El 'precio base' no puede ser negativo.");
+    
+    if (stock === undefined || stock === null || isNaN(Number(stock))) errors.push("El campo 'stock' debe ser un número válido.");
+    else if (Number(stock) < 0) errors.push("El 'stock' no puede ser negativo.");
+    
+    if (!categoryId && !newCategoryName) errors.push("Debe proporcionar una categoría existente o un nombre para una nueva categoría.");
+
+    if (errors.length > 0) {
+      return res.status(400).json({ error: "Datos inválidos", details: errors });
+    }
+    // --- FIN DTO VALIDATION ---
+
     const { Category } = require('../models');
     
     const pBase = Number(price);
@@ -354,13 +371,13 @@ router.post('/', adminMiddleware, async (req, res) => {
     const pMax = (precio_max !== undefined && precio_max !== '' && precio_max !== null) ? Number(precio_max) : null;
 
     if (pMin !== null && pMin > pBase) {
-      return res.status(400).json({ error: "El precio mínimo no puede ser mayor al precio base" });
+      return res.status(400).json({ error: "Datos inválidos", details: ["El precio mínimo no puede ser mayor al precio base"] });
     }
     if (pMax !== null && pMax < pBase) {
-      return res.status(400).json({ error: "El precio máximo no puede ser menor al precio base" });
+      return res.status(400).json({ error: "Datos inválidos", details: ["El precio máximo no puede ser menor al precio base"] });
     }
     if (pMin !== null && pMax !== null && pMin > pMax) {
-      return res.status(400).json({ error: "El precio mínimo no puede ser mayor al precio máximo" });
+      return res.status(400).json({ error: "Datos inválidos", details: ["El precio mínimo no puede ser mayor al precio máximo"] });
     }
 
     let finalCategoryId = categoryId;
@@ -397,6 +414,21 @@ router.put('/:id', adminMiddleware, async (req, res) => {
   try {
     console.log("REQ.BODY RECEIVED (UPDATE):", JSON.stringify(req.body, null, 2));
     const { name, description, price, stock, imgURL, categoryId, newCategoryName, precio_min, precio_max } = req.body;
+    
+    // --- INICIO DTO VALIDATION ---
+    const errors = [];
+    if (name !== undefined && name.trim() === '') errors.push("El campo 'nombre' no puede estar vacío.");
+    if (price !== undefined && (price === null || isNaN(Number(price)))) errors.push("El campo 'precio base' debe ser un número válido.");
+    else if (price !== undefined && Number(price) < 0) errors.push("El 'precio base' no puede ser negativo.");
+    
+    if (stock !== undefined && (stock === null || isNaN(Number(stock)))) errors.push("El campo 'stock' debe ser un número válido.");
+    else if (stock !== undefined && Number(stock) < 0) errors.push("El 'stock' no puede ser negativo.");
+
+    if (errors.length > 0) {
+      return res.status(400).json({ error: "Datos inválidos", details: errors });
+    }
+    // --- FIN DTO VALIDATION ---
+
     const { Category } = require('../models');
     
     const pBase = Number(price);
@@ -404,13 +436,13 @@ router.put('/:id', adminMiddleware, async (req, res) => {
     const pMax = (precio_max !== undefined && precio_max !== '' && precio_max !== null) ? Number(precio_max) : null;
 
     if (pMin !== null && pMin > pBase) {
-      return res.status(400).json({ error: "El precio mínimo no puede ser mayor al precio base" });
+      return res.status(400).json({ error: "Datos inválidos", details: ["El precio mínimo no puede ser mayor al precio base"] });
     }
     if (pMax !== null && pMax < pBase) {
-      return res.status(400).json({ error: "El precio máximo no puede ser menor al precio base" });
+      return res.status(400).json({ error: "Datos inválidos", details: ["El precio máximo no puede ser menor al precio base"] });
     }
     if (pMin !== null && pMax !== null && pMin > pMax) {
-      return res.status(400).json({ error: "El precio mínimo no puede ser mayor al precio máximo" });
+      return res.status(400).json({ error: "Datos inválidos", details: ["El precio mínimo no puede ser mayor al precio máximo"] });
     }
 
     const product = await Product.findByPk(req.params.id);

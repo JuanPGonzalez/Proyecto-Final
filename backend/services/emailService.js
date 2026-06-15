@@ -4,18 +4,37 @@ const axios = require('axios');
 const fs = require('fs');
 const { generateInvoicePDF } = require('./invoiceService');
 
+let etherealTestAccount = null;
+
 // 1. Create a robust Transporter configuration
-const createTransporter = () => {
+const createTransporter = async () => {
+  const isDefaultPassword = process.env.EMAIL_PASS?.trim() === 'adminharwarehaven' || !process.env.EMAIL_PASS;
+  
+  if (isDefaultPassword) {
+    if (!etherealTestAccount) {
+      etherealTestAccount = await nodemailer.createTestAccount();
+      console.warn(`[EmailService] ⚠️ Usando cuenta de prueba Ethereal porque no se configuró una App Password de Gmail válida.`);
+    }
+    return nodemailer.createTransport({
+      host: etherealTestAccount.smtp.host,
+      port: etherealTestAccount.smtp.port,
+      secure: etherealTestAccount.smtp.secure,
+      auth: {
+        user: etherealTestAccount.user,
+        pass: etherealTestAccount.pass
+      }
+    });
+  }
+
   return nodemailer.createTransport({
     host: process.env.EMAIL_HOST || 'smtp.gmail.com',
     port: parseInt(process.env.EMAIL_PORT) || 465,
-    secure: true, // true for port 465, false for port 587
+    secure: true,
     auth: {
-      user: process.env.EMAIL_USER?.trim() || 'hardawarehaven.rosario@gmail.com', // .trim() prevents invisible spaces
-      pass: process.env.EMAIL_PASS?.trim() || 'your_app_password' // .trim() prevents invisible spaces
+      user: process.env.EMAIL_USER?.trim() || 'hardawarehaven.rosario@gmail.com',
+      pass: process.env.EMAIL_PASS?.trim()
     },
     tls: {
-      // Prevents local development certificate errors
       rejectUnauthorized: process.env.NODE_ENV === 'production'
     }
   });
@@ -69,9 +88,15 @@ const sendViaResendFallback = async (mailOptions) => {
 // 3. Wrapper Function (Tries SMTP, then Fallback)
 const sendEmailWithFallback = async (mailOptions) => {
   try {
-    const transporter = createTransporter();
+    const transporter = await createTransporter();
     const info = await transporter.sendMail(mailOptions);
     console.log('[EmailService] SUCCESS via SMTP. MessageId:', info.messageId);
+    
+    // Si se usó Ethereal, mostrar el link para ver el email simulado
+    if (nodemailer.getTestMessageUrl(info)) {
+      console.log(`[EmailService] 📧 VER EMAIL SIMULADO AQUÍ: ${nodemailer.getTestMessageUrl(info)}`);
+    }
+    
     return true;
   } catch (smtpError) {
     console.warn(`[EmailService] SMTP FAILED (${smtpError.code || smtpError.message}). Attempting Resend Fallback...`);

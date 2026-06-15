@@ -25,6 +25,8 @@ const shippingRoutes = require('./routes/shipping');
 const app = express();
 app.use(cors());
 app.use(express.json());
+const sanitizeMiddleware = require('./middleware/sanitize');
+app.use(sanitizeMiddleware);
 const session = require('express-session');
 
 // Simple in-memory session for cart handling (suitable for dev).

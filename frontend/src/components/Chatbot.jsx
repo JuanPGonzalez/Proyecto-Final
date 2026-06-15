@@ -163,15 +163,14 @@ export default function Chatbot({ standalone = false }) {
                   
                   {/* TEXT & REDIRECT */}
                   {(msg.type === 'text' || msg.type === 'redirect' || !msg.type) && msg.message && (
-                    <div style={{ padding: '12px 16px', borderRadius: 'var(--radius-md)', backgroundColor: msg.sender === 'user' ? 'var(--accent)' : 'var(--muted)', color: msg.sender === 'user' ? 'var(--accent-foreground)' : 'var(--foreground)', fontSize: '0.95rem', whiteSpace: 'pre-wrap' }}>
-                      {msg.message}
+                    <div style={{ padding: '12px 16px', borderRadius: 'var(--radius-md)', backgroundColor: msg.sender === 'user' ? 'var(--accent)' : 'var(--muted)', color: msg.sender === 'user' ? 'var(--accent-foreground)' : 'var(--foreground)', fontSize: '0.95rem', whiteSpace: 'pre-wrap' }} dangerouslySetInnerHTML={{ __html: msg.message.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>') }}>
                     </div>
                   )}
 
                   {/* PRODUCT LIST */}
                   {msg.type === 'products' && (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                      <div style={{ padding: '12px 16px', borderRadius: 'var(--radius-md)', backgroundColor: 'var(--muted)', fontSize: '0.95rem' }}>{msg.message}</div>
+                      <div style={{ padding: '12px 16px', borderRadius: 'var(--radius-md)', backgroundColor: 'var(--muted)', fontSize: '0.95rem' }} dangerouslySetInnerHTML={{ __html: msg.message.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>') }}></div>
                       <div style={{ display: 'grid', gridTemplateColumns: isPageMode ? 'repeat(auto-fill, minmax(200px, 1fr))' : '1fr', gap: '10px' }}>
                         {msg.products?.map(p => (
                           <div key={p.id} style={{ backgroundColor: 'var(--card)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '12px' }}>
@@ -212,7 +211,7 @@ export default function Chatbot({ standalone = false }) {
                   {/* CART UPDATE + RECOMMENDATIONS */}
                   {msg.type === 'cart_update' && (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-                      <div style={{ padding: '12px 16px', borderRadius: 'var(--radius-md)', backgroundColor: 'var(--success-muted || var(--muted))', border: '1px solid var(--success)', fontSize: '0.95rem' }}>{msg.message}</div>
+                      <div style={{ padding: '12px 16px', borderRadius: 'var(--radius-md)', backgroundColor: 'var(--success-muted || var(--muted))', border: '1px solid var(--success)', fontSize: '0.95rem' }} dangerouslySetInnerHTML={{ __html: msg.message.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>') }}></div>
                       
                       {msg.relatedProducts?.length > 0 && (
                         <div style={{ backgroundColor: 'var(--secondary)', padding: '15px', borderRadius: 'var(--radius-md)', border: '1px dashed var(--primary)' }}>
