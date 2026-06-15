@@ -174,11 +174,12 @@ export default function AdminProducts() {
         }
       });
       
-      const { updated, errors } = res.data;
+      const { updated, created, errors } = res.data;
       if (errors && errors.length > 0) {
-        showAlert('Importación Parcial', `Se actualizaron ${updated} productos. Algunos registros fallaron.`, 'warning');
+        console.error("Errores de Excel:", errors);
+        showAlert('Importación Parcial', `Actualizados: ${updated}. Creados: ${created}. Fallaron: ${errors.length}. Revisa la consola para más detalles, o verifica que las IDs de Categoría sean válidas.`, 'warning');
       } else {
-        showAlert('¡Éxito!', `Productos actualizados correctamente (${updated}).`, 'success');
+        showAlert('¡Éxito!', `Proceso completado. Actualizados: ${updated} | Creados: ${created}`, 'success');
       }
       fetchProducts();
     } catch (error) {

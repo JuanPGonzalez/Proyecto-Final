@@ -131,8 +131,8 @@ const AdminStockManager = () => {
   return (
     <div className="container animate-fade-in" style={{ marginTop: '40px', paddingBottom: '60px' }}>
       <div style={{ marginBottom: '30px' }}>
-        <h2 style={{ fontSize: '2.5rem', fontWeight: 800, letterSpacing: '-1px' }}>Gestión Masiva de Stock</h2>
-        <p style={{ color: 'var(--muted-foreground)' }}>Exporta tus productos a Excel, modifica precios o stock y vuelve a importarlos en segundos.</p>
+        <h2 style={{ fontSize: '2.5rem', fontWeight: 800, letterSpacing: '-1px' }}>Gestión Masiva (Upsert)</h2>
+        <p style={{ color: 'var(--muted-foreground)' }}>Exporta tus productos a Excel, modifica cualquier dato o añade productos nuevos, y vuelve a importarlos en segundos.</p>
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '30px', alignItems: 'stretch' }}>
@@ -171,7 +171,7 @@ const AdminStockManager = () => {
               <h3 style={{ fontSize: '1.4rem', fontWeight: 700, margin: 0 }}>Importar Actualizaciones</h3>
             </div>
             <p style={{ color: 'var(--muted-foreground)', marginBottom: '25px', lineHeight: '1.6' }}>
-              Sube tu archivo Excel modificado. El sistema identificará los productos por su ID y actualizará únicamente el <b>Precio</b> y el <b>Stock</b>.
+              Sube tu archivo Excel modificado. El sistema identificará los productos por su ID y sobreescribirá <b>Todos los datos</b> de cada producto (precio, stock, nombre, descripción, etc.).
             </p>
           </div>
           
@@ -232,11 +232,10 @@ const AdminStockManager = () => {
         </div>
         <ul style={{ color: 'var(--muted-foreground)', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px 40px', paddingLeft: '20px' }}>
           <li>El archivo debe ser formato <b>.xlsx</b> (Excel).</li>
-          <li>Debe contener las columnas: <b>id</b>, <b>price</b>, <b>stock</b>.</li>
-          <li>Solo se actualizarán productos existentes (el ID debe coincidir).</li>
-          <li>El stock no puede ser negativo.</li>
-          <li>Las columnas extras o faltantes (excepto ID) serán ignoradas.</li>
-          <li>No se crearán productos nuevos mediante esta herramienta.</li>
+          <li>Para actualizar: Modifica la fila sin borrar el número de <b>ID</b>.</li>
+          <li>Para crear nuevos: Añade filas al final <b>dejando la columna ID vacía</b>.</li>
+          <li>El stock no puede ser negativo y la Categoría debe ser válida.</li>
+          <li>El sistema ahora actualizará <b>todas</b> las columnas del Excel (nombre, stock, links).</li>
         </ul>
       </div>
     </div>

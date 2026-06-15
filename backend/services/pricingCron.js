@@ -2,15 +2,11 @@ const cron = require('node-cron');
 const { updatePrices } = require('./pricingEngine');
 
 const startPricingCron = () => {
-  // Ejecutar cada hora
-  cron.schedule('0 * * * *', async () => {
+  // Ejecutar una vez al día a las 03:00 AM
+  cron.schedule('0 3 * * *', async () => {
     await updatePrices();
   });
   
-  // Ejecutar una vez al inicio para verificar
-  setTimeout(async () => {
-    await updatePrices();
-  }, 5000);
 };
 
 module.exports = startPricingCron;

@@ -26,11 +26,15 @@ router.get('/export', adminMiddleware, async (req, res) => {
     const cleanData = products.map(p => ({
       id: p.id,
       name: p.name,
+      description: p.description,
+      socket: p.socket,
+      memoryType: p.memoryType,
       price: p.price,
       stock: p.stock,
       categoria_id: p.categoria_id,
       precio_min: p.precio_min,
-      precio_max: p.precio_max
+      precio_max: p.precio_max,
+      imgURL: p.imgURL || ''
     }));
 
     const worksheet = XLSX.utils.json_to_sheet(cleanData);
@@ -65,22 +69,46 @@ router.post('/import', adminMiddleware, upload.single('file'), async (req, res) 
 
     let updated = 0;
     let skipped = 0;
+    let created = 0;
     let errors = [];
 
     const processRow = async (row) => {
       try {
-        if (!row.id) {
-          skipped++;
-          return;
+        let product = null;
+        
+        if (row.id) {
+          product = await Product.findByPk(row.id);
         }
 
-        const product = await Product.findByPk(row.id);
         if (!product) {
-          skipped++;
+          // CREATE NEW PRODUCT (ya sea porque no mandó ID, o mandó un ID que no existe)
+          const newData = {
+            id: row.id || undefined, // Intentar respetar el ID si lo mandó
+            name: row.name || 'Sin Nombre',
+            description: row.description || 'Sin Descripción',
+            price: Number(row.price) || 0,
+            stock: Number(row.stock) || 0,
+            categoria_id: Number(row.categoria_id) || 1,
+            socket: row.socket || null,
+            memoryType: row.memoryType || null,
+            imgURL: row.imgURL || row.imgurl || null,
+            precio_min: Number(row.precio_min) || null,
+            precio_max: Number(row.precio_max) || null,
+            isActive: true
+          };
+          await Product.create(newData);
+          created++;
           return;
         }
 
         const updateData = {};
+
+        // Actualización Completa (Upsert Full)
+        if (row.name !== undefined) updateData.name = row.name;
+        if (row.description !== undefined) updateData.description = row.description;
+        if (row.socket !== undefined) updateData.socket = row.socket;
+        if (row.memoryType !== undefined) updateData.memoryType = row.memoryType;
+        if (row.categoria_id !== undefined && !isNaN(row.categoria_id)) updateData.categoria_id = Number(row.categoria_id);
 
         if (row.price !== undefined && !isNaN(row.price) && row.price >= 0) {
           updateData.price = Number(row.price);
@@ -98,6 +126,12 @@ router.post('/import', adminMiddleware, upload.single('file'), async (req, res) 
           updateData.precio_max = Number(row.precio_max);
         }
 
+        if (row.imgURL !== undefined && typeof row.imgURL === 'string' && row.imgURL.trim() !== '') {
+          updateData.imgURL = row.imgURL.trim();
+        } else if (row.imgurl !== undefined && typeof row.imgurl === 'string' && row.imgurl.trim() !== '') {
+          updateData.imgURL = row.imgurl.trim();
+        }
+
         if (Object.keys(updateData).length === 0) {
           skipped++;
           return;
@@ -107,6 +141,7 @@ router.post('/import', adminMiddleware, upload.single('file'), async (req, res) 
         updated++;
 
       } catch (err) {
+        console.error('Error procesando fila Excel:', row, err.message);
         errors.push({ row, error: err.message });
       }
     };
@@ -122,6 +157,7 @@ router.post('/import', adminMiddleware, upload.single('file'), async (req, res) 
 
     res.json({
       ok: true,
+      created,
       updated,
       skipped,
       errors
@@ -137,6 +173,7 @@ router.get('/', async (req, res) => {
   try {
     const { Category } = require('../models');
     const products = await Product.findAll({
+      where: { isActive: true },
       include: [{ model: Category, attributes: ['descripcion'] }]
     });
     res.json(products);
@@ -484,18 +521,15 @@ router.put('/:id', adminMiddleware, async (req, res) => {
   }
 });
 
-// Eliminar producto
+// Eliminar producto (Borrado Lógico)
 router.delete('/:id', adminMiddleware, async (req, res) => {
   try {
     const product = await Product.findByPk(req.params.id);
     if (!product) return res.status(404).json({ error: 'Producto no encontrado' });
 
-    await product.destroy();
-    res.json({ success: true, message: 'Producto eliminado correctamente' });
+    await product.update({ isActive: false });
+    res.json({ success: true, message: 'Producto ocultado correctamente' });
   } catch (error) {
-    if (error.name === 'SequelizeForeignKeyConstraintError') {
-      return res.status(400).json({ error: 'No se puede eliminar un producto que ya tiene ventas registradas. Considera bajar su stock a cero para ocultarlo.' });
-    }
     res.status(500).json({ error: 'Error al eliminar producto' });
   }
 });

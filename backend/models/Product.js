@@ -14,7 +14,8 @@ const Product = sequelize.define('Product', {
   memoryType: { type: DataTypes.STRING, field: 'memory_type', allowNull: true },
   precio_min: { type: DataTypes.DECIMAL(10, 2), field: 'precio_min', allowNull: true },
   precio_max: { type: DataTypes.DECIMAL(10, 2), field: 'precio_max', allowNull: true },
-  categoria_id: { type: DataTypes.INTEGER.UNSIGNED, field: 'categoria_id', allowNull: false }
+  categoria_id: { type: DataTypes.INTEGER.UNSIGNED, field: 'categoria_id', allowNull: false },
+  isActive: { type: DataTypes.BOOLEAN, field: 'is_active', defaultValue: true }
 }, {
   tableName: 'componente',
   timestamps: false

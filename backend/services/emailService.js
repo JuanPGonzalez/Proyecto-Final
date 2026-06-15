@@ -1,50 +1,14 @@
 require('dotenv').config();
-const nodemailer = require('nodemailer');
 const axios = require('axios');
 const fs = require('fs');
 const { generateInvoicePDF } = require('./invoiceService');
 
-let etherealTestAccount = null;
-
-// 1. Create a robust Transporter configuration
-const createTransporter = async () => {
-  const isDefaultPassword = process.env.EMAIL_PASS?.trim() === 'adminharwarehaven' || !process.env.EMAIL_PASS;
-  
-  if (isDefaultPassword) {
-    if (!etherealTestAccount) {
-      etherealTestAccount = await nodemailer.createTestAccount();
-      console.warn(`[EmailService] ⚠️ Usando cuenta de prueba Ethereal porque no se configuró una App Password de Gmail válida.`);
-    }
-    return nodemailer.createTransport({
-      host: etherealTestAccount.smtp.host,
-      port: etherealTestAccount.smtp.port,
-      secure: etherealTestAccount.smtp.secure,
-      auth: {
-        user: etherealTestAccount.user,
-        pass: etherealTestAccount.pass
-      }
-    });
-  }
-
-  return nodemailer.createTransport({
-    host: process.env.EMAIL_HOST || 'smtp.gmail.com',
-    port: parseInt(process.env.EMAIL_PORT) || 465,
-    secure: true,
-    auth: {
-      user: process.env.EMAIL_USER?.trim() || 'hardawarehaven.rosario@gmail.com',
-      pass: process.env.EMAIL_PASS?.trim()
-    },
-    tls: {
-      rejectUnauthorized: process.env.NODE_ENV === 'production'
-    }
-  });
-};
-
-// 2. Modern Fallback Strategy using Resend (https://resend.com)
-const sendViaResendFallback = async (mailOptions) => {
+// Modern Email Strategy using Resend (https://resend.com)
+const sendEmail = async (mailOptions) => {
   const RESEND_API_KEY = process.env.RESEND_API_KEY;
   if (!RESEND_API_KEY) {
-    throw new Error('Resend API key missing. Cannot use fallback.');
+    console.error('[EmailService] Resend API key missing. Cannot send emails.');
+    return false;
   }
 
   try {
@@ -60,12 +24,16 @@ const sendViaResendFallback = async (mailOptions) => {
       });
     }
 
+    // Bypass para el Sandbox de Resend:
+    // Resend en su plan gratuito solo permite enviar correos a la cuenta con la que te registraste.
+    const recipientEmail = 'hardawarehaven.rosario@gmail.com'; 
+
     const response = await axios.post(
       'https://api.resend.com/emails',
       {
-        from: 'Hardware Haven <onboarding@resend.dev>', // You must verify your domain in production
-        to: [mailOptions.to],
-        subject: mailOptions.subject,
+        from: 'Hardware Haven <onboarding@resend.dev>', // Verificated domain
+        to: [recipientEmail],
+        subject: `[Dev Mode -> ${mailOptions.to}] ` + mailOptions.subject,
         html: mailOptions.html,
         attachments: attachments.length > 0 ? attachments : undefined
       },
@@ -77,36 +45,11 @@ const sendViaResendFallback = async (mailOptions) => {
       }
     );
     
-    console.log('[EmailService] Fallback SUCCESS. Sent via Resend API. ID:', response.data.id);
+    console.log('[EmailService] SUCCESS. Sent via Resend API. ID:', response.data.id);
     return true;
   } catch (error) {
-    console.error('[EmailService] Fallback FAILED:', error.response?.data || error.message);
-    throw error;
-  }
-};
-
-// 3. Wrapper Function (Tries SMTP, then Fallback)
-const sendEmailWithFallback = async (mailOptions) => {
-  try {
-    const transporter = await createTransporter();
-    const info = await transporter.sendMail(mailOptions);
-    console.log('[EmailService] SUCCESS via SMTP. MessageId:', info.messageId);
-    
-    // Si se usó Ethereal, mostrar el link para ver el email simulado
-    if (nodemailer.getTestMessageUrl(info)) {
-      console.log(`[EmailService] 📧 VER EMAIL SIMULADO AQUÍ: ${nodemailer.getTestMessageUrl(info)}`);
-    }
-    
-    return true;
-  } catch (smtpError) {
-    console.warn(`[EmailService] SMTP FAILED (${smtpError.code || smtpError.message}). Attempting Resend Fallback...`);
-    
-    try {
-      return await sendViaResendFallback(mailOptions);
-    } catch (fallbackError) {
-      console.error('[EmailService] FATAL: Both SMTP and Fallback failed.');
-      return false; // Return false gracefully so the user still sees an error in the UI
-    }
+    console.error('[EmailService] Resend FAILED:', error.response?.data || error.message);
+    return false;
   }
 };
 
@@ -128,12 +71,20 @@ async function sendOrderConfirmation(userEmail, order, items) {
       </tr>
     `).join('');
 
+    const path = require('path');
+    const logoPath = path.join(__dirname, '../public/logo.png');
+    let logoHtml = '';
+    if (fs.existsSync(logoPath)) {
+      const b64 = fs.readFileSync(logoPath).toString('base64');
+      logoHtml = `<div style="text-align: center; margin-bottom: 20px;"><img src="data:image/png;base64,${b64}" alt="Hardware Haven Logo" style="max-width: 120px;" /></div>`;
+    }
+
     const mailOptions = {
-      from: process.env.EMAIL_FROM || '"Hardware Haven" <hardawarehaven.rosario@gmail.com>',
       to: userEmail,
       subject: `Comprobante de Compra #${order.id} - Hardware Haven`,
       html: `
         <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; border: 1px solid #eee; padding: 20px;">
+          ${logoHtml}
           <h2 style="color: #3b82f6;">¡Gracias por tu compra!</h2>
           <p>Hola, hemos recibido tu pedido correctamente. Adjunto encontrarás tu factura en formato PDF.</p>
           
@@ -174,7 +125,7 @@ async function sendOrderConfirmation(userEmail, order, items) {
       ]
     };
 
-    return await sendEmailWithFallback(mailOptions);
+    return await sendEmail(mailOptions);
   } catch (error) {
     console.error('[EmailService] Error in sendOrderConfirmation logic:', error);
     return false;
@@ -223,13 +174,12 @@ async function sendPasswordResetEmail(userEmail, resetLink) {
     `;
 
     const mailOptions = {
-      from: process.env.EMAIL_FROM || '"Hardware Haven" <hardawarehaven.rosario@gmail.com>',
       to: userEmail,
       subject: 'Restablecer contraseña - Hardware Haven',
       html: htmlTemplate,
     };
 
-    return await sendEmailWithFallback(mailOptions);
+    return await sendEmail(mailOptions);
   } catch (error) {
     console.error('[EmailService] Error in sendPasswordResetEmail logic:', error);
     return false;

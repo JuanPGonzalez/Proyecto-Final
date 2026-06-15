@@ -20,6 +20,7 @@ async function patchDatabase() {
     await runQuery('ALTER TABLE componente ADD COLUMN stock INTEGER DEFAULT 0;');
     await runQuery('ALTER TABLE componente ADD COLUMN views INTEGER DEFAULT 0;');
     await runQuery('ALTER TABLE componente ADD COLUMN categoria_id INT UNSIGNED;');
+    await runQuery('ALTER TABLE componente ADD COLUMN is_active BOOLEAN DEFAULT TRUE;');
     
     console.log('Aplicando patch de columnas a compra...');
     await runQuery('ALTER TABLE compra ADD COLUMN localidad VARCHAR(255);');

@@ -1,37 +1,33 @@
 const { Op } = require('sequelize');
 const { Product, LogMotorPrecio, Order, OrderItem } = require('../models');
+const Anthropic = require('@anthropic-ai/sdk');
+
+let anthropicClient = null;
+const apiKey = process.env.ANTHROPIC_API_KEY;
+if (apiKey) {
+  anthropicClient = new Anthropic({ apiKey });
+}
 
 async function updatePrices() {
-  console.log('[PricingEngine] Starting advanced price adjustment cycle...');
-  try {
-    const products = await Product.findAll();
-    if (products.length === 0) return;
+  console.log('[PricingEngine] Starting Claude AI price adjustment cycle...');
+  
+  if (!anthropicClient) {
+    console.warn('[PricingEngine] No ANTHROPIC_API_KEY found. Skipping AI pricing cycle.');
+    return;
+  }
 
-    const totalViews = products.reduce((acc, p) => acc + (p.views || 0), 0);
-    const avgViews = totalViews / products.length;
+  try {
+    const products = await Product.findAll({ where: { isActive: true } });
+    if (products.length === 0) return;
 
     // Calcular fecha de hace 7 días
     const sevenDaysAgo = new Date();
     sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
 
+    // Preparar el array de datos
+    const productDataList = [];
+
     for (const product of products) {
-      let currentPrice = Number(product.price);
-      let basePrice = Number(product.base_price) || currentPrice * 0.9;
-      let newPrice = currentPrice;
-      let demandScore = 0;
-      let motivos = [];
-
-      // Factor 1: Vistas
-      const views = product.views || 0;
-      if (views > avgViews * 1.5) {
-        demandScore += 1;
-        motivos.push('Alta demanda de visitas');
-      } else if (views < avgViews * 0.5) {
-        demandScore -= 1;
-        motivos.push('Baja demanda de visitas');
-      }
-
-      // Factor 2: Ventas recientes (Últimos 7 días)
       const recentSalesItems = await OrderItem.findAll({
         where: { componente_id: product.id },
         include: [{
@@ -41,67 +37,101 @@ async function updatePrices() {
       });
       const recentSales = recentSalesItems.reduce((acc, item) => acc + item.quantity, 0);
 
-      if (recentSales > 5) {
-        demandScore += 2;
-        motivos.push('Alta rotación de ventas');
-      } else if (recentSales === 0 && views > avgViews) {
-        demandScore -= 2;
-        motivos.push('Cero conversión (muchas vistas, cero ventas)');
-      } else if (recentSales === 0) {
-        demandScore -= 1;
-      }
+      productDataList.push({
+        id: product.id,
+        name: product.name,
+        current_price: Number(product.price),
+        min_price: Number(product.precio_min) || Number(product.price) * 0.8,
+        max_price: Number(product.precio_max) || Number(product.price) * 1.5,
+        stock: product.stock,
+        views: product.views || 0,
+        recent_sales_7d: recentSales
+      });
+    }
 
-      // Factor 3: Stock
-      const stock = product.stock || 0;
-      if (stock > 0 && stock <= 5) {
-        demandScore += 1;
-        motivos.push('Escasez de stock');
-      } else if (stock > 50) {
-        demandScore -= 1;
-        motivos.push('Sobre-stock');
-      }
+    // Batching (chunks of 25 productos para no saturar a Claude)
+    const chunkSize = 25;
+    for (let i = 0; i < productDataList.length; i += chunkSize) {
+      const chunk = productDataList.slice(i, i + chunkSize);
+      console.log(`[PricingEngine] Analyzing batch ${Math.floor(i/chunkSize) + 1} of ${Math.ceil(productDataList.length/chunkSize)}...`);
 
-      // Decisión Final
-      if (demandScore >= 2) {
-        // Subida de precio (1% a 3%)
-        newPrice *= (1 + (Math.random() * 0.02 + 0.01));
-      } else if (demandScore <= -2) {
-        // Bajada de precio (1% a 2%)
-        newPrice *= (1 - (Math.random() * 0.01 + 0.01));
-      } else {
-        // Estable: fluctuación -0.5 a 0.5%
-        newPrice *= (1 + (Math.random() * 0.01 - 0.005));
-      }
+      const promptMsg = `Eres un Analista de Precios y Demanda de una tienda de hardware. 
+Analiza los siguientes productos y determina un nuevo precio para cada uno basándote en la ley de oferta y demanda.
+Si las vistas y ventas son altas y el stock bajo, sugiere subir el precio. Si no hay ventas y hay mucho stock, sugiere bajarlo. Las variaciones deben ser realistas (entre -5% y +5%).
+DEBES respetar estrictamente los limites de min_price y max_price.
 
-      // Safeguard: Bounds
-      if (newPrice < basePrice) newPrice = basePrice;
-      if (product.precio_min && newPrice < product.precio_min) newPrice = product.precio_min;
-      if (product.precio_max && newPrice > product.precio_max) newPrice = product.precio_max;
+Datos de los productos (JSON):
+${JSON.stringify(chunk, null, 2)}
 
-      // Update if significantly changed (> 0.5%)
-      if (Math.abs(newPrice - currentPrice) / currentPrice > 0.005) {
-        await product.update({ price: newPrice });
-        
-        let motivoFinal = 'Fluctuación normal de mercado';
-        if (demandScore >= 2) motivoFinal = 'Alza por: ' + motivos.join(', ');
-        else if (demandScore <= -2) motivoFinal = 'Baja por: ' + motivos.join(', ');
-        else if (motivos.length > 0) motivoFinal = 'Ajuste leve por: ' + motivos.join(', ');
+Devuelve ÚNICAMENTE un array JSON válido con este formato, sin texto adicional (es crucial que sea un array JSON):
+[
+  {
+    "id": 1,
+    "new_price": 10500,
+    "reason": "Sube 5% por alta demanda y bajo stock"
+  }
+]`;
 
-        if (motivoFinal.length > 250) motivoFinal = motivoFinal.substring(0, 250) + '...';
+      try {
+        const response = await anthropicClient.messages.create({
+          model: "claude-haiku-4-5", // Haiku: rápido y económico
+          max_tokens: 2500,
+          temperature: 0.2,
+          system: "Eres una API que solo devuelve JSON válido. No uses markdown, no digas 'Aquí tienes'. Devuelve EXCLUSIVAMENTE el array JSON.",
+          messages: [
+            { role: "user", content: promptMsg }
+          ]
+        });
 
-        if (LogMotorPrecio) {
-          await LogMotorPrecio.create({
-            componente_id: product.id,
-            precio_anterior: currentPrice,
-            precio_nuevo: newPrice,
-            detalle: motivoFinal
-          });
+        let responseText = response.content[0].text.trim();
+        // Limpiar posible markdown
+        if (responseText.startsWith("```json")) {
+          responseText = responseText.substring(7);
+        } else if (responseText.startsWith("```")) {
+          responseText = responseText.substring(3);
         }
+        if (responseText.endsWith("```")) {
+          responseText = responseText.substring(0, responseText.length - 3);
+        }
+
+        const adjustments = JSON.parse(responseText.trim());
+
+        // Aplicar ajustes a la BD
+        for (const adj of adjustments) {
+          const product = await Product.findByPk(adj.id);
+          if (!product) continue;
+
+          let newPrice = Number(adj.new_price);
+          const currentPrice = Number(product.price);
+          const minP = Number(product.precio_min) || currentPrice * 0.8;
+          const maxP = Number(product.precio_max) || currentPrice * 1.5;
+
+          // Safeguards de backend
+          if (newPrice < minP) newPrice = minP;
+          if (newPrice > maxP) newPrice = maxP;
+
+          // Solo actualizamos si la diferencia de precio es de al menos 1% (para no generar ruido)
+          if (Math.abs(newPrice - currentPrice) / currentPrice >= 0.01) {
+            await product.update({ price: newPrice });
+            
+            if (LogMotorPrecio) {
+              await LogMotorPrecio.create({
+                componente_id: product.id,
+                precio_anterior: currentPrice,
+                precio_nuevo: newPrice,
+                detalle: adj.reason || "Ajuste dinámico sugerido por IA"
+              });
+            }
+          }
+        }
+      } catch (err) {
+        console.error(`[PricingEngine] Error analyzing batch:`, err.message);
       }
     }
-    console.log('[PricingEngine] Advanced cycle completed.');
+
+    console.log('[PricingEngine] Claude AI cycle completed.');
   } catch (error) {
-    console.error('[PricingEngine] Error updating prices:', error);
+    console.error('[PricingEngine] Error in AI cycle:', error);
   }
 }
 

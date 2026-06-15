@@ -52,6 +52,7 @@ async function askClaudeWithTools(userMessage) {
   
   try {
     const products = await Product.findAll({
+      where: { isActive: true },
       include: [{ model: Category, attributes: ['descripcion'] }],
       attributes: ['id', 'name', 'price', 'stock', 'description']
     });
