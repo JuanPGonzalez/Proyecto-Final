@@ -201,4 +201,39 @@ router.get('/logs/:componenteId', async (req, res) => {
   }
 });
 
+const { getSettings, updateSettings } = require('../services/settingsService');
+
+/**
+ * GET /api/pricing/engine-status
+ * Get the current status of the pricing engine
+ */
+router.get('/engine-status', (req, res) => {
+  try {
+    const settings = getSettings();
+    res.json({ enabled: settings.pricingEngineEnabled });
+  } catch (error) {
+    console.error('[Pricing] Error getting engine status:', error);
+    res.status(500).json({ error: 'Error getting engine status' });
+  }
+});
+
+/**
+ * POST /api/pricing/engine-status
+ * Update the status of the pricing engine
+ * Body: { enabled: boolean }
+ */
+router.post('/engine-status', (req, res) => {
+  try {
+    const { enabled } = req.body;
+    if (typeof enabled !== 'boolean') {
+      return res.status(400).json({ error: 'enabled must be a boolean' });
+    }
+    const updatedSettings = updateSettings({ pricingEngineEnabled: enabled });
+    res.json({ success: true, enabled: updatedSettings.pricingEngineEnabled });
+  } catch (error) {
+    console.error('[Pricing] Error updating engine status:', error);
+    res.status(500).json({ error: 'Error updating engine status' });
+  }
+});
+
 module.exports = router;

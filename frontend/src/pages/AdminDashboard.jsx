@@ -3,7 +3,8 @@ import axios from 'axios';
 import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, LineElement, PointElement, Title, Tooltip, Legend, ArcElement } from 'chart.js';
 import { Bar, Line, Pie, Doughnut } from 'react-chartjs-2';
 import Select from 'react-select';
-import { Users, ShoppingBag, DollarSign, Activity, AlertTriangle, Calendar, Award, ChevronLeft, ChevronRight, Search, Globe, History, ArrowUpRight, ArrowDownRight, Info, Check, TrendingUp, Sparkles } from 'lucide-react';
+import { Users, ShoppingBag, DollarSign, Activity, AlertTriangle, Calendar, Award, ChevronLeft, ChevronRight, Search, Globe, History, ArrowUpRight, ArrowDownRight, Info, Check, TrendingUp, Sparkles, Power } from 'lucide-react';
+import Swal from 'sweetalert2';
 import { useNavigate } from 'react-router-dom';
 import { isAdminRole } from '../constants/roles';
 import { showToast } from '../utils/swal';
@@ -1065,6 +1066,7 @@ function PricingHistorySection() {
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [historyLogs, setHistoryLogs] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [engineEnabled, setEngineEnabled] = useState(true);
 
   useEffect(() => {
     const token = localStorage.getItem('token');
@@ -1076,7 +1078,36 @@ function PricingHistorySection() {
         setProducts(options);
       })
       .catch(err => console.error("Error fetching products summary:", err));
+
+    axios.get('http://localhost:5000/api/pricing/engine-status', {
+        headers: { Authorization: `Bearer ${token}` }
+      })
+      .then(res => setEngineEnabled(res.data.enabled))
+      .catch(err => console.error("Error fetching engine status:", err));
   }, []);
+
+  const toggleEngine = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const newState = !engineEnabled;
+      setEngineEnabled(newState);
+      
+      const res = await axios.post('http://localhost:5000/api/pricing/engine-status', { enabled: newState }, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      
+      if (!res.data.success) {
+        setEngineEnabled(!newState);
+        Swal.fire('Error', 'No se pudo actualizar el estado del motor', 'error');
+      } else {
+        showToast(newState ? 'Motor automático activado' : 'Motor automático desactivado', newState ? 'success' : 'info');
+      }
+    } catch (err) {
+      setEngineEnabled(!engineEnabled);
+      console.error(err);
+      Swal.fire('Error', 'Hubo un error de conexión', 'error');
+    }
+  };
 
   const handleProductSelect = async (selectedOption) => {
     if (!selectedOption) {
@@ -1169,10 +1200,35 @@ function PricingHistorySection() {
 
   return (
     <section style={{ marginTop: '60px', marginBottom: '60px' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: '15px', marginBottom: '25px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '15px', marginBottom: '25px', flexWrap: 'wrap' }}>
         <TrendingUp size={24} color="var(--primary)" />
         <h3 style={{ margin: 0, fontSize: '1.6rem', fontWeight: 800 }}>Historial de Precios</h3>
-        <div style={{ flex: 1, height: '1px', backgroundColor: 'var(--border)', marginLeft: '10px' }}></div>
+        
+        <div style={{ display: 'flex', alignItems: 'center', marginLeft: 'auto', gap: '10px' }}>
+          <span style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--muted-foreground)' }}>Motor IA:</span>
+          <button 
+            onClick={toggleEngine}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              padding: '6px 16px',
+              borderRadius: '50px',
+              border: `1px solid ${engineEnabled ? '#10b981' : '#ef4444'}`,
+              backgroundColor: engineEnabled ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.1)',
+              color: engineEnabled ? '#10b981' : '#ef4444',
+              fontWeight: 800,
+              cursor: 'pointer',
+              transition: 'all 0.3s ease',
+              outline: 'none'
+            }}
+          >
+            <Power size={16} />
+            {engineEnabled ? 'ENCENDIDO' : 'APAGADO'}
+          </button>
+        </div>
+
+        <div style={{ flex: 1, minWidth: '50px', height: '1px', backgroundColor: 'var(--border)', marginLeft: '10px' }}></div>
       </div>
 
       <div className="card" style={{ padding: '30px' }}>
