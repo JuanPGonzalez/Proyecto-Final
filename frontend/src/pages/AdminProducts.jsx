@@ -43,6 +43,9 @@ export default function AdminProducts() {
     if (location.state?.filterOutOfStock) {
       setStockStatus('out_of_stock');
     }
+    if (location.state?.filterAllStatuses) {
+      setActiveStatus('all');
+    }
   }, [navigate, location.state]);
 
   // Handle direct edit from navigation state
