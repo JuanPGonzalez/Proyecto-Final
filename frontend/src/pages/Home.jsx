@@ -118,16 +118,24 @@ export default function Home() {
   };
 
   const filteredProducts = useMemo(() => {
-    let result = products.filter(p => Number(p.stock) > 0 || isAdmin); // Admins see everything
+    let result = products.filter(p => (p.isActive !== false && Number(p.stock) > 0) || isAdmin); // Admins see everything
 
     if (searchQuery) {
       const q = searchQuery.toLowerCase();
-      result = result.filter(p => p.name.toLowerCase().includes(q) || (p.description && p.description.toLowerCase().includes(q)));
+      result = result.filter(p => 
+        p.name.toLowerCase().includes(q) || 
+        (p.description && p.description.toLowerCase().includes(q)) ||
+        (p.Category?.descripcion && p.Category.descripcion.toLowerCase().includes(q))
+      );
     }
 
     if (quickFilter) {
       const q = quickFilter.toLowerCase();
-      result = result.filter(p => p.name.toLowerCase().includes(q) || (p.description && p.description.toLowerCase().includes(q)));
+      result = result.filter(p => 
+        p.name.toLowerCase().includes(q) || 
+        (p.description && p.description.toLowerCase().includes(q)) ||
+        (p.Category?.descripcion && p.Category.descripcion.toLowerCase().includes(q))
+      );
     }
 
     if (minPrice) {
