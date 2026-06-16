@@ -191,68 +191,23 @@ router.get('/preparing/pdf', authMiddleware, async (req, res) => {
     res.setHeader('Content-Disposition', 'attachment; filename=productos_para_preparar.pdf');
     doc.pipe(res);
 
-    applyHardwareHavenBranding(doc, 'PRODUCTOS PARA PREPARAR');
-    
-    doc.fillColor('#64748b').fontSize(11).font('Helvetica-Oblique').text('Órdenes en estado: En preparación', 40, 155);
-
-    let y = 190;
     const groupedTotals = {}; // { category: { productName: quantity } }
-
-    orders.forEach((order, index) => {
-      // Nueva página para cada orden excepto la primera
-      if (index > 0) { 
-        doc.addPage();
-        applyHardwareHavenBranding(doc, 'PRODUCTOS PARA PREPARAR');
-        doc.fillColor('#64748b').fontSize(11).font('Helvetica-Oblique').text('Órdenes en estado: En preparación', 40, 155);
-        y = 190;
-      }
-
-      const clientName = order.User?.name || 'Desconocido';
-      const clientDNI = order.User?.dni || 'N/A';
-      const shippingAddr = order.shipping_address || 'Retiro en local';
-
-      doc.fillColor('#0f172a').fontSize(12).font('Helvetica-Bold').text(`ORDEN #${order.id}`, 40, y);
-      y += 16;
-      doc.fillColor('#334155').fontSize(9).font('Helvetica-Bold').text('Cliente: ', 40, y, { continued: true });
-      doc.font('Helvetica').text(`${clientName} | DNI: ${clientDNI}`);
-      y += 12;
-      doc.font('Helvetica-Bold').text('Envío a: ', 40, y, { continued: true });
-      doc.font('Helvetica').text(shippingAddr);
-      
-      y += 12;
-      doc.moveTo(40, y).lineTo(550, y).stroke('#e2e8f0');
-      y += 8;
-
+    orders.forEach(order => {
       order.OrderItems.forEach(item => {
         if (item.Product) {
           const prodName = item.Product.name;
           const qty = item.quantity;
           const categoryName = item.Product.Category?.descripcion || 'Sin categoría';
 
-          // Acumular para el resumen agrupado
           if (!groupedTotals[categoryName]) groupedTotals[categoryName] = {};
           if (!groupedTotals[categoryName][prodName]) groupedTotals[categoryName][prodName] = 0;
           groupedTotals[categoryName][prodName] += qty;
-
-          doc.fillColor('#334155').fontSize(10).font('Helvetica-Bold').text(`${qty}x`, 40, y, { continued: true });
-          doc.font('Helvetica').text(` ${prodName}`, 70, y);
-          y += 16;
-
-          if (y > 760) {
-            doc.addPage();
-            applyHardwareHavenBranding(doc, 'PRODUCTOS PARA PREPARAR (CONTINUACIÓN)');
-            y = 180;
-          }
         }
       });
-
-      y += 25; // Espacio entre órdenes
     });
 
-    // --- RESUMEN TOTAL DE PRODUCTOS ---
-    doc.addPage();
+    // --- 1. RESUMEN TOTAL DE PRODUCTOS ---
     applyHardwareHavenBranding(doc, 'RESUMEN TOTAL DE PRODUCTOS');
-    
     doc.fillColor('#64748b').fontSize(10).font('Helvetica-Oblique').text('Consolidado de todas las órdenes en preparación', 40, 155);
     
     let summaryY = 190;
@@ -262,7 +217,6 @@ router.get('/preparing/pdf', authMiddleware, async (req, res) => {
        doc.text('No hay productos acumulados.', 40, summaryY);
     } else {
        categories.forEach(category => {
-         // Título de Categoría
          if (summaryY > 700) {
            doc.addPage();
            applyHardwareHavenBranding(doc, 'RESUMEN TOTAL DE PRODUCTOS');
@@ -288,9 +242,50 @@ router.get('/preparing/pdf', authMiddleware, async (req, res) => {
            }
          });
          
-         summaryY += 15; // Espacio entre categorías
+         summaryY += 15;
        });
     }
+
+    // --- 2. PEDIDOS INDIVIDUALES ---
+    orders.forEach((order) => {
+      doc.addPage();
+      applyHardwareHavenBranding(doc, 'PRODUCTOS PARA PREPARAR');
+      doc.fillColor('#64748b').fontSize(11).font('Helvetica-Oblique').text('Órdenes en estado: En preparación', 40, 155);
+      let y = 190;
+
+      const clientName = order.User?.name || 'Desconocido';
+      const clientDNI = order.User?.dni || 'N/A';
+      const shippingAddr = order.shipping_address || 'Retiro en local';
+
+      doc.fillColor('#0f172a').fontSize(12).font('Helvetica-Bold').text(`ORDEN #${order.id}`, 40, y);
+      y += 16;
+      doc.fillColor('#334155').fontSize(9).font('Helvetica-Bold').text('Cliente: ', 40, y, { continued: true });
+      doc.font('Helvetica').text(`${clientName} | DNI: ${clientDNI}`);
+      y += 12;
+      doc.font('Helvetica-Bold').text('Envío a: ', 40, y, { continued: true });
+      doc.font('Helvetica').text(shippingAddr);
+      
+      y += 12;
+      doc.moveTo(40, y).lineTo(550, y).stroke('#e2e8f0');
+      y += 8;
+
+      order.OrderItems.forEach(item => {
+        if (item.Product) {
+          const prodName = item.Product.name;
+          const qty = item.quantity;
+
+          doc.fillColor('#334155').fontSize(10).font('Helvetica-Bold').text(`${qty}x`, 40, y, { continued: true });
+          doc.font('Helvetica').text(` ${prodName}`, 70, y);
+          y += 16;
+
+          if (y > 760) {
+            doc.addPage();
+            applyHardwareHavenBranding(doc, 'PRODUCTOS PARA PREPARAR (CONTINUACIÓN)');
+            y = 180;
+          }
+        }
+      });
+    });
 
     applyCommonFooter(doc);
     doc.end();

@@ -191,7 +191,7 @@ export default function Presupuestador() {
 
           <OptionSelect 
             category="Almacenamiento" 
-            categoryName="Semiconductor" 
+            categoryName="Almacenamiento" 
             label="Almacenamiento (SSD/HDD)" 
             icon={<HardDrive size={18} />} 
             filter={(p) => p.name.toLowerCase().includes('ssd') || p.name.toLowerCase().includes('hdd')}
