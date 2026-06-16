@@ -11,6 +11,7 @@ import { showToast } from '../utils/swal';
 import ClientDetailModal from '../components/ClientDetailModal';
 import OrderDetailModal from '../components/OrderDetailModal';
 import CategoryProductsModal from '../components/CategoryProductsModal';
+import TicketHistoryModal from '../components/TicketHistoryModal';
 import { getStatusStyle } from '../constants/statusStyles';
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, LineElement, PointElement, Title, Tooltip, Legend, ArcElement);
@@ -43,6 +44,30 @@ export default function AdminDashboard() {
   const [selectedClient, setSelectedClient] = useState(null);
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [selectedCategoryModal, setSelectedCategoryModal] = useState(null);
+  
+  const [isTicketModalOpen, setIsTicketModalOpen] = useState(false);
+  const [selectedTicketStatus, setSelectedTicketStatus] = useState('');
+  const [selectedStatusTickets, setSelectedStatusTickets] = useState([]);
+  const [loadingTickets, setLoadingTickets] = useState(false);
+
+  const fetchTicketsByStatus = async (status) => {
+    setLoadingTickets(true);
+    try {
+      const token = localStorage.getItem('token');
+      const res = await axios.get('http://localhost:5000/api/admin/tickets-by-status', {
+        headers: { Authorization: `Bearer ${token}` },
+        params: { status, startDate, endDate }
+      });
+      setSelectedStatusTickets(res.data.tickets || []);
+      setSelectedTicketStatus(status);
+      setIsTicketModalOpen(true);
+    } catch (error) {
+      console.error('Error fetching tickets by status:', error);
+      showToast('Error al obtener tickets', 'error');
+    } finally {
+      setLoadingTickets(false);
+    }
+  };
   
   const navigate = useNavigate();
 
@@ -184,6 +209,7 @@ export default function AdminDashboard() {
 
     fetchDashboardData();
     fetchSupportData();
+    fetchPurchaseHistory();
   };
 
   const handleClearFilter = () => {
@@ -431,7 +457,8 @@ export default function AdminDashboard() {
   const prevOrders = previous?.periodOrders || 0;
 
   return (
-    <div className="container animate-fade-in" style={{ marginTop: '40px', paddingBottom: '60px' }}>
+    <>
+      <div className="container animate-fade-in" style={{ marginTop: '40px', paddingBottom: '60px' }}>
       
       {/* SECCIÓN 0: ANALYTICS COMERCIALES */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '15px', marginBottom: '30px' }}>
@@ -607,6 +634,7 @@ export default function AdminDashboard() {
                   maintainAspectRatio: false, 
                   plugins: { 
                     legend: { 
+                      display: true,
                       position: 'top', 
                       align: 'end', 
                       labels: { usePointStyle: true, boxWidth: 6, font: { weight: 700 } } 
@@ -643,7 +671,7 @@ export default function AdminDashboard() {
                   responsive: true, 
                   maintainAspectRatio: false, 
                   plugins: { 
-                    legend: { display: compare, position: 'top', align: 'end', labels: { usePointStyle: true, boxWidth: 6, font: { weight: 700 } } },
+                    legend: { display: true, position: 'top', align: 'end', labels: { usePointStyle: true, boxWidth: 6, font: { weight: 700 } } },
                     tooltip: {
                       callbacks: {
                         label: (item) => ` ${item.dataset.label}: ${item.raw} usuario${item.raw !== 1 ? 's' : ''}`
@@ -671,7 +699,7 @@ export default function AdminDashboard() {
                   options={{ 
                     responsive: true, 
                     maintainAspectRatio: false, 
-                    plugins: { legend: { display: false } },
+                    plugins: { legend: { display: true, position: 'top', labels: { usePointStyle: true, font: { weight: 700 } } } },
                     scales: { y: { beginAtZero: true, grid: { color: 'rgba(0,0,0,0.03)' } }, x: { grid: { display: false } } }
                   }} 
                 />
@@ -690,7 +718,15 @@ export default function AdminDashboard() {
                 options={{ 
                   maintainAspectRatio: false, 
                   cutout: '70%',
-                  plugins: { legend: { position: 'bottom', labels: { usePointStyle: true, font: { weight: 700 } } } }
+                  plugins: { legend: { position: 'bottom', labels: { usePointStyle: true, font: { weight: 700 } } } },
+                  onClick: (event, elements) => {
+                    if (elements.length > 0) {
+                      const idx = elements[0].index;
+                      const label = supportStatusData.labels[idx];
+                      if (label === 'Abiertos') fetchTicketsByStatus('abierto');
+                      if (label === 'Cerrados') fetchTicketsByStatus('cerrado');
+                    }
+                  }
                 }} 
               />
             </div>
@@ -1001,6 +1037,8 @@ export default function AdminDashboard() {
       {/* SECCIÓN 5: MOTOR DE PRICING Y DEMANDA */}
       <PricingHistorySection />
 
+      </div>
+
       {selectedClient && (
         <ClientDetailModal 
           clientId={selectedClient.id} 
@@ -1025,7 +1063,14 @@ export default function AdminDashboard() {
           onClose={() => setSelectedCategoryModal(null)}
         />
       )}
-    </div>
+
+      <TicketHistoryModal 
+        isOpen={isTicketModalOpen} 
+        onClose={() => setIsTicketModalOpen(false)} 
+        status={selectedTicketStatus} 
+        tickets={selectedStatusTickets} 
+      />
+    </>
   );
 }
 

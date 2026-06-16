@@ -129,6 +129,7 @@ router.get('/dashboard-data', async (req, res) => {
       having: sequelize.literal("SUM(CASE WHEN status IN ('Cerrada', 'Entregado') THEN total ELSE 0 END) > 0"),
       order: [[sequelize.literal('totalSpent'), 'DESC']],
       limit: 5,
+      subQuery: false,
       include: [{ 
         model: User, 
         attributes: ['name', 'email'],
@@ -222,8 +223,8 @@ router.get('/dashboard/support', async (req, res) => {
     }
 
     // 1. Métricas
-    const abiertos = await SupportTicket.count({ where: { ...whereClause, status: 'abierto' } });
-    const cerrados = await SupportTicket.count({ where: { ...whereClause, status: 'cerrado' } });
+    const abiertos = await SupportTicket.count({ where: { ...periodWhere, status: 'abierto' } });
+    const cerrados = await SupportTicket.count({ where: { ...periodWhere, status: 'cerrado' } });
     const totalPeriodo = await SupportTicket.count({ where: periodWhere });
 
     // 2. Chart 1: Tickets por período (agrupados por día)
@@ -268,6 +269,40 @@ router.get('/dashboard/support', async (req, res) => {
   } catch (error) {
     console.error('Support Analytics Error:', error);
     res.status(500).json({ error: 'Error al obtener analytics de soporte' });
+  }
+});
+
+// Detalle de tickets por estado y fecha para el modal interactivo
+router.get('/tickets-by-status', async (req, res) => {
+  try {
+    const { status, startDate, endDate } = req.query;
+    let whereClause = {};
+
+    if (status) {
+      // Normalizamos el estado a minúsculas, por si acaso
+      whereClause.status = status.toLowerCase();
+    }
+
+    if (startDate && endDate) {
+      const s = new Date(`${startDate}T00:00:00`);
+      const e = new Date(`${endDate}T23:59:59`);
+      whereClause.created_at = { [Op.between]: [s, e] };
+    }
+
+    const tickets = await SupportTicket.findAll({
+      where: whereClause,
+      include: [{
+        model: User,
+        as: 'user', // Note: Check models/index.js if alias is 'user'. SupportTicket.belongsTo(User, { as: 'user' })
+        attributes: ['name', 'email']
+      }],
+      order: [['created_at', 'DESC']]
+    });
+
+    res.json({ tickets });
+  } catch (error) {
+    console.error('Error fetching tickets by status:', error);
+    res.status(500).json({ error: 'Error al obtener tickets filtrados por estado' });
   }
 });
 
