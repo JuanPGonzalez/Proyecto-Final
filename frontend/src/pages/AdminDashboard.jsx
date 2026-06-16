@@ -67,17 +67,25 @@ export default function AdminDashboard() {
     return new Date(bStart) <= new Date(aEnd) && new Date(bEnd) >= new Date(aStart);
   };
 
-  const fetchDashboardData = async () => {
+  const fetchDashboardData = async (overrides = {}) => {
     setLoading(true);
     try {
       const token = localStorage.getItem('token');
-      const params = { compare };
-      if (startDate) params.startDate = startDate;
-      if (endDate) params.endDate = endDate;
+      const params = { 
+        compare: overrides.compare !== undefined ? overrides.compare : compare 
+      };
       
-      if (compare && compareStart && compareEnd) {
-        params.compareStart = compareStart;
-        params.compareEnd = compareEnd;
+      const finalStart = overrides.startDate !== undefined ? overrides.startDate : startDate;
+      const finalEnd = overrides.endDate !== undefined ? overrides.endDate : endDate;
+      if (finalStart) params.startDate = finalStart;
+      if (finalEnd) params.endDate = finalEnd;
+      
+      const finalCompStart = overrides.compareStart !== undefined ? overrides.compareStart : compareStart;
+      const finalCompEnd = overrides.compareEnd !== undefined ? overrides.compareEnd : compareEnd;
+
+      if (params.compare && finalCompStart && finalCompEnd) {
+        params.compareStart = finalCompStart;
+        params.compareEnd = finalCompEnd;
       }
 
       const res = await axios.get('http://localhost:5000/api/admin/dashboard-data', {
@@ -105,14 +113,17 @@ export default function AdminDashboard() {
     }
   };
 
-  const fetchSupportData = async () => {
+  const fetchSupportData = async (overrides = {}) => {
     setLoadingSupport(true);
     try {
       const token = localStorage.getItem('token');
+      const finalStart = overrides.startDate !== undefined ? overrides.startDate : startDate;
+      const finalEnd = overrides.endDate !== undefined ? overrides.endDate : endDate;
+
       const params = {
-        startDate,
-        endDate,
-        clientId: historyFilters.clientId
+        startDate: finalStart,
+        endDate: finalEnd,
+        clientId: overrides.clientId !== undefined ? overrides.clientId : historyFilters.clientId
       };
 
       const res = await axios.get('http://localhost:5000/api/admin/dashboard/support', {
@@ -175,16 +186,15 @@ export default function AdminDashboard() {
   };
 
   const handleClearFilter = () => {
-    setStartDate(firstDay);
+    setStartDate(firstDayStr);
     setEndDate(todayStr);
     setCompareStart('');
     setCompareEnd('');
     setCompare(false);
     setHistoryFilters({ page: 1, shippingType: 'all', clientId: 'all' });
-    setTimeout(() => {
-      fetchDashboardData();
-      fetchSupportData();
-    }, 100);
+    
+    fetchDashboardData({ compare: false, startDate: firstDayStr, endDate: todayStr, compareStart: '', compareEnd: '' });
+    fetchSupportData({ startDate: firstDayStr, endDate: todayStr, clientId: 'all' });
   };
 
   if (loading && !data) {
@@ -262,7 +272,7 @@ export default function AdminDashboard() {
     labels: salesLabels,
     datasets: [
       {
-        label: compare ? `Período Actual (${startDate} → ${endDate})` : 'Ingresos',
+        label: compare ? 'Período Principal' : 'Ingresos',
         data: salesCurrentData,
         borderColor: '#3b82f6',
         backgroundColor: 'rgba(59,130,246,0.15)',
@@ -273,7 +283,7 @@ export default function AdminDashboard() {
         pointBackgroundColor: '#3b82f6'
       },
       salesPreviousData ? {
-        label: `Período Anterior (${compareStart} → ${compareEnd})`,
+        label: 'Período de Comparación',
         data: salesPreviousData,
         borderColor: '#f59e0b',
         backgroundColor: 'rgba(245,158,11,0.15)',
@@ -312,7 +322,7 @@ export default function AdminDashboard() {
     labels: userLabels,
     datasets: [
       {
-        label: compare ? `Período Actual (${startDate} → ${endDate})` : 'Nuevos Usuarios',
+        label: compare ? 'Período Principal' : 'Nuevos Usuarios',
         data: userCurrentData,
         borderColor: '#ec4899',
         backgroundColor: 'rgba(236, 72, 153, 0.1)',
@@ -323,7 +333,7 @@ export default function AdminDashboard() {
         pointBackgroundColor: '#ec4899'
       },
       userPreviousData ? {
-        label: `Período Anterior (${compareStart} → ${compareEnd})`,
+        label: 'Período de Comparación',
         data: userPreviousData,
         borderColor: '#f59e0b',
         backgroundColor: 'rgba(245, 158, 11, 0.1)',
@@ -466,7 +476,13 @@ export default function AdminDashboard() {
         <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', alignItems: 'flex-end' }}>
           {/* Toggle comparar */}
           <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', backgroundColor: compare ? 'rgba(245,158,11,0.08)' : 'var(--card)', padding: '8px 15px', borderRadius: 'var(--radius-md)', border: `1px solid ${compare ? '#f59e0b' : 'var(--border)'}`, transition: 'all 0.2s' }}>
-            <input type="checkbox" checked={compare} onChange={e => setCompare(e.target.checked)} />
+            <input type="checkbox" checked={compare} onChange={e => {
+                if (e.target.checked) {
+                    setCompare(true);
+                } else {
+                    handleClearFilter();
+                }
+            }} />
             <span style={{ fontSize: '0.85rem', fontWeight: 700, color: compare ? '#f59e0b' : 'inherit' }}>Comparar períodos</span>
           </label>
 

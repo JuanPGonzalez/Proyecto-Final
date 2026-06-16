@@ -424,6 +424,7 @@ router.get('/pricing/summary', adminMiddleware, async (req, res) => {
     const { Category, LogMotorPrecio, Product } = require('../models');
     
     const products = await Product.findAll({
+      where: { isActive: true },
       include: [{ model: Category, attributes: ['descripcion'] }]
     });
 
