@@ -136,7 +136,7 @@ export default function CheckoutSummary() {
                 </div>
                 <div style={{ marginTop: '10px', paddingTop: '10px', borderTop: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', fontSize: '1.1rem', fontWeight: 800 }}>
                    <span>Total</span>
-                   <span style={{ color: 'var(--accent)' }}>${total.toLocaleString()}</span>
+                   <span style={{ color: 'var(--accent)' }}>${total.toLocaleString('es-AR')}</span>
                 </div>
              </div>
           </div>
@@ -226,7 +226,7 @@ export default function CheckoutSummary() {
             {items.map(item => (
               <div key={item.id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem' }}>
                 <span style={{ color: 'var(--muted-foreground)' }}>{item.quantity}x {item.name}</span>
-                <span style={{ fontWeight: 600 }}>${(item.price * item.quantity).toLocaleString()}</span>
+                <span style={{ fontWeight: 600 }}>${(item.price * item.quantity).toLocaleString('es-AR')}</span>
               </div>
             ))}
           </div>
@@ -234,15 +234,15 @@ export default function CheckoutSummary() {
           <div style={{ borderTop: '1px solid var(--border)', paddingTop: '20px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.9rem' }}>
                <span style={{ color: 'var(--muted-foreground)' }}>Subtotal Productos</span>
-               <span>${(total - shipping.cost).toLocaleString()}</span>
+               <span>${(total - shipping.cost).toLocaleString('es-AR')}</span>
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.9rem' }}>
                <span style={{ color: 'var(--muted-foreground)' }}>Costo de Envío</span>
-               <span style={{ color: shipping.cost === 0 ? 'var(--success)' : 'inherit' }}>{shipping.cost === 0 ? 'Gratis' : `$${shipping.cost.toLocaleString()}`}</span>
+               <span style={{ color: shipping.cost === 0 ? 'var(--success)' : 'inherit' }}>{shipping.cost === 0 ? 'Gratis' : `$${shipping.cost.toLocaleString('es-AR')}`}</span>
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 900, fontSize: '1.4rem', marginTop: '10px' }}>
                <span>Total Final</span>
-               <span style={{ color: 'var(--primary)' }}>${total.toLocaleString()}</span>
+               <span style={{ color: 'var(--primary)' }}>${total.toLocaleString('es-AR')}</span>
             </div>
           </div>
 

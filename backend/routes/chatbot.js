@@ -188,7 +188,11 @@ router.post('/message', async (req, res) => {
       
       if (type === 'products' && product_ids && product_ids.length > 0) {
         const foundProducts = await Product.findAll({
-          where: { id: { [Op.in]: product_ids } },
+          where: { 
+            id: { [Op.in]: product_ids },
+            isActive: true,
+            stock: { [Op.gt]: 0 }
+          },
           include: [{ model: Category, attributes: ['descripcion'] }]
         });
         

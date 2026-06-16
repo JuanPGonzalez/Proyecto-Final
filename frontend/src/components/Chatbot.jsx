@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import axios from 'axios';
 import { MessageSquare, X, Send, ShoppingCart, AlertCircle, Eye, ChevronRight } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
+import { isAdminRole } from '../constants/roles';
 
 export default function Chatbot({ standalone = false }) {
   const [isOpen, setIsOpen] = useState(standalone);
@@ -117,9 +118,12 @@ export default function Chatbot({ standalone = false }) {
     sendMessage(null, `Agregar ${product.name} al carrito`, { intent: 'add_to_cart', productId: product.id });
   };
 
+  const user = JSON.parse(localStorage.getItem('user') || '{}');
+  const isAdmin = isAdminRole(user);
   const isPageMode = standalone || location.pathname === '/chatbot';
   
   if (!standalone && location.pathname === '/chatbot') return null;
+  if (isAdmin && !standalone) return null;
 
   return (
     <>
@@ -178,7 +182,7 @@ export default function Chatbot({ standalone = false }) {
                               <img src={p.imgURL} style={{ width: '40px', height: '40px', objectFit: 'contain' }} alt={p.name} />
                               <div style={{ flex: 1 }}>
                                 <h4 style={{ margin: 0, fontSize: '0.8rem', fontWeight: 700 }}>{p.name}</h4>
-                                <p style={{ margin: 0, fontSize: '0.75rem', color: 'var(--accent)', fontWeight: 800 }}>${Number(p.price).toLocaleString()}</p>
+                                <p style={{ margin: 0, fontSize: '0.75rem', color: 'var(--accent)', fontWeight: 800 }}>${Number(p.price).toLocaleString('es-AR')}</p>
                               </div>
                             </div>
                             <div style={{ display: 'flex', gap: '5px' }}>
@@ -200,7 +204,7 @@ export default function Chatbot({ standalone = false }) {
                     <div className="card" style={{ padding: '15px', maxWidth: '300px', border: '1px solid var(--primary)' }}>
                        <img src={msg.product.imgURL} style={{ width: '100%', height: '120px', objectFit: 'contain', marginBottom: '10px' }} alt="" />
                        <h4 style={{ margin: '0 0 5px 0', fontSize: '1rem', fontWeight: 800 }}>{msg.product.name}</h4>
-                       <p style={{ margin: '0 0 10px 0', fontSize: '1.1rem', color: 'var(--primary)', fontWeight: 900 }}>${Number(msg.product.price).toLocaleString()}</p>
+                       <p style={{ margin: '0 0 10px 0', fontSize: '1.1rem', color: 'var(--primary)', fontWeight: 900 }}>${Number(msg.product.price).toLocaleString('es-AR')}</p>
                        <p style={{ fontSize: '0.8rem', color: 'var(--muted-foreground)', marginBottom: '15px', lineHeight: '1.4' }}>{msg.product.description}</p>
                        <button onClick={() => addToCart(msg.product)} style={{ width: '100%', padding: '10px', backgroundColor: 'var(--primary)', color: 'white', border: 'none', borderRadius: 'var(--radius-sm)', fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
                          <ShoppingCart size={16} /> Sumar al Carrito

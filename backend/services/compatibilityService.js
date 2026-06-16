@@ -21,6 +21,7 @@ const getCompatibleProducts = async (cartItems) => {
       where: {
         categoria_id: 2, // Motherboards
         socket: cpu.socket,
+        isActive: true,
         stock: { [Op.gt]: 0 }
       },
       limit: 4
@@ -36,6 +37,7 @@ const getCompatibleProducts = async (cartItems) => {
         where: {
           categoria_id: 3, // RAM
           memoryType: mobo.memoryType,
+          isActive: true,
           stock: { [Op.gt]: 0 }
         },
         limit: 4
@@ -48,6 +50,7 @@ const getCompatibleProducts = async (cartItems) => {
         where: {
           categoria_id: 1, // CPU
           socket: mobo.socket,
+          isActive: true,
           stock: { [Op.gt]: 0 }
         },
         limit: 4
@@ -62,6 +65,7 @@ const getCompatibleProducts = async (cartItems) => {
       compatibleProducts = await Product.findAll({
         where: {
           categoria_id: 7, // PSU
+          isActive: true,
           stock: { [Op.gt]: 0 }
         },
         limit: 4
@@ -87,6 +91,7 @@ const getCompatibleProducts = async (cartItems) => {
       compatibleProducts = await Product.findAll({
         where: {
           categoria_id: { [Op.in]: relatedCatIds },
+          isActive: true,
           stock: { [Op.gt]: 0 },
           id: { [Op.notIn]: cartItems.map(i => i.id) }
         },

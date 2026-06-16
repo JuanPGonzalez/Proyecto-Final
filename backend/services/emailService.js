@@ -67,7 +67,7 @@ async function sendOrderConfirmation(userEmail, order, items) {
     const itemsHtml = items.map(item => `
       <tr>
         <td style="padding: 10px; border-bottom: 1px solid #eee;">${item.name || 'Producto'}</td>
-        <td style="padding: 10px; border-bottom: 1px solid #eee; text-align: right;">$${Number(item.priceAtPurchase).toLocaleString()}</td>
+        <td style="padding: 10px; border-bottom: 1px solid #eee; text-align: right;">$${Number(item.priceAtPurchase).toLocaleString('es-AR')}</td>
       </tr>
     `).join('');
 
@@ -101,11 +101,11 @@ async function sendOrderConfirmation(userEmail, order, items) {
             <tfoot>
               <tr>
                 <td style="padding: 10px; font-weight: bold;">Costo de Envío</td>
-                <td style="padding: 10px; text-align: right; font-weight: bold;">$${Number(order.shipping_cost).toLocaleString()}</td>
+                <td style="padding: 10px; text-align: right; font-weight: bold;">$${Number(order.shipping_cost).toLocaleString('es-AR')}</td>
               </tr>
               <tr style="font-size: 1.2rem; background-color: #f8fafc;">
                 <td style="padding: 10px; font-weight: bold;">TOTAL</td>
-                <td style="padding: 10px; text-align: right; font-weight: bold; color: #3b82f6;">$${Number(order.total).toLocaleString()}</td>
+                <td style="padding: 10px; text-align: right; font-weight: bold; color: #3b82f6;">$${Number(order.total).toLocaleString('es-AR')}</td>
               </tr>
             </tfoot>
           </table>

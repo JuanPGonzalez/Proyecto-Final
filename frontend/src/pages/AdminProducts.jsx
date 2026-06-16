@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Edit2, Trash2, Search, AlertTriangle, Filter, Activity, Download, Upload, Plus, TrendingUp } from 'lucide-react';
+import { Edit2, Trash2, Search, AlertTriangle, Filter, Activity, Download, Upload, Plus, TrendingUp, RefreshCw, Sparkles } from 'lucide-react';
 import { isAdminRole } from '../constants/roles';
 import { showToast, showConfirm, showAlert } from '../utils/swal';
 import Swal from 'sweetalert2';
@@ -10,6 +10,7 @@ import ProductFormModal from '../components/ProductFormModal';
 export default function AdminProducts() {
   const [products, setProducts] = useState([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
+
   const [editingProduct, setEditingProduct] = useState(null);
   const [importing, setImporting] = useState(false);
   
@@ -18,6 +19,7 @@ export default function AdminProducts() {
   const [categories, setCategories] = useState([]);
   const [stockStatus, setStockStatus] = useState('all'); // 'all', 'in_stock', 'low_stock', 'out_of_stock'
   const [stockExact, setStockExact] = useState('');
+  const [activeStatus, setActiveStatus] = useState('active'); // 'all', 'active', 'inactive'
   const [sortBy, setSortBy] = useState('name_asc');
 
   const [currentPage, setCurrentPage] = useState(1);
@@ -56,7 +58,7 @@ export default function AdminProducts() {
   }, [products, location.state]);
 
   const fetchProducts = () => {
-    axios.get('http://localhost:5000/api/products', {
+    axios.get('http://localhost:5000/api/products?includeInactive=true', {
       headers: { Authorization: `Bearer ${token}` }
     })
       .then(res => {
@@ -85,10 +87,16 @@ export default function AdminProducts() {
     let matchesExactStock = true;
     if (stockExact !== '') matchesExactStock = p.stock === parseInt(stockExact);
 
-    return matchesSearch && matchesCategory && matchesStockStatus && matchesExactStock;
+    let matchesActiveStatus = true;
+    if (activeStatus === 'active') matchesActiveStatus = p.isActive === true;
+    if (activeStatus === 'inactive') matchesActiveStatus = p.isActive === false;
+
+    return matchesSearch && matchesCategory && matchesStockStatus && matchesExactStock && matchesActiveStatus;
   });
 
   const sortedProducts = [...filteredProducts].sort((a, b) => {
+    if (a.isActive !== b.isActive) return a.isActive ? -1 : 1;
+    
     if (sortBy === 'name_asc') return a.name.localeCompare(b.name);
     if (sortBy === 'name_desc') return b.name.localeCompare(a.name);
     if (sortBy === 'price_asc') return Number(a.price) - Number(b.price);
@@ -125,12 +133,28 @@ export default function AdminProducts() {
     }
   };
 
+
+  const handleReactivate = async (id) => {
+    const confirm = await showConfirm('¿Restaurar producto?', 'Este producto volverá a estar visible en la tienda.', 'Sí, restaurar');
+    if (!confirm.isConfirmed) return;
+    try {
+      await axios.patch(`http://localhost:5000/api/products/${id}/reactivate`, {}, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      showToast('Producto restaurado correctamente', 'success');
+      fetchProducts();
+    } catch (err) {
+      showAlert('Error', err.response?.data?.error || 'Error al restaurar', 'error');
+    }
+  };
+
   const clearFilters = () => {
     setSearchTerm('');
     setFilterCategoryId('');
     setStockStatus('all');
     setStockExact('');
     setSortBy('name_asc');
+    setActiveStatus('active');
     setCurrentPage(1);
   };
   
@@ -191,10 +215,15 @@ export default function AdminProducts() {
   };
 
   const handleBulkPriceUpdate = async () => {
+    if (filteredProducts.length === 0) {
+      return showAlert('Aviso', 'No hay productos que coincidan con los filtros actuales para aplicar la corrección.', 'warning');
+    }
+
     const { value: formValues } = await Swal.fire({
       title: 'Corrección Masiva de Precios',
       html: `
         <div style="text-align: left; margin-top: 10px;">
+          <p style="font-size: 0.9rem; color: var(--muted-foreground); margin-bottom: 15px;">Se aplicará a los <b>${filteredProducts.length}</b> productos actualmente filtrados.</p>
           <label style="display: block; margin-bottom: 5px; font-weight: 600;">Acción:</label>
           <select id="swal-action" class="input-field" style="width: 100%; margin: 0 0 15px 0; height: 42px;">
             <option value="increase">Subir precios</option>
@@ -223,12 +252,14 @@ export default function AdminProducts() {
       try {
         const confirm = await showConfirm(
           '¿Estás seguro?', 
-          `Vas a ${formValues.action === 'increase' ? 'SUBIR' : 'BAJAR'} todos los precios en un ${formValues.percentage}%.`, 
+          `Vas a ${formValues.action === 'increase' ? 'SUBIR' : 'BAJAR'} los precios de los ${filteredProducts.length} productos filtrados en un ${formValues.percentage}%.`, 
           'Sí, proceder'
         );
         if (!confirm.isConfirmed) return;
 
-        await axios.post('http://localhost:5000/api/products/bulk-price-update', formValues, {
+        const productIds = filteredProducts.map(p => p.id);
+
+        await axios.post('http://localhost:5000/api/products/bulk-price-update', { ...formValues, productIds }, {
           headers: { Authorization: `Bearer ${token}` }
         });
         showToast('Precios actualizados correctamente', 'success');
@@ -305,6 +336,11 @@ export default function AdminProducts() {
             <option value="low_stock">En Alerta</option>
             <option value="out_of_stock">Agotados</option>
          </select>
+         <select className="input-field" style={{ width: '150px' }} value={activeStatus} onChange={e => { setActiveStatus(e.target.value); setCurrentPage(1); }}>
+            <option value="all">Estados (Todos)</option>
+            <option value="active">Activos</option>
+            <option value="inactive">Dados de baja</option>
+         </select>
          <button className="btn btn-outline" onClick={clearFilters} style={{ padding: '10px 20px' }}>Limpiar</button>
       </div>
 
@@ -323,17 +359,31 @@ export default function AdminProducts() {
             </thead>
             <tbody>
               {paginatedProducts.map(p => (
-                <tr key={p.id} style={{ borderBottom: '1px solid var(--border)' }}>
+                <tr key={p.id} style={{ 
+                  borderBottom: '1px solid var(--border)', 
+                  backgroundColor: p.isActive === false ? 'rgba(239, 68, 68, 0.05)' : 'transparent', 
+                  opacity: p.isActive === false ? 0.7 : 1 
+                }}>
                   <td style={{ padding: '16px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                      <img src={p.imgURL || 'https://via.placeholder.com/40'} alt="p" style={{ width: '40px', height: '40px', objectFit: 'contain', borderRadius: '4px' }} />
+                      <img src={p.imgURL || 'https://via.placeholder.com/40'} alt="p" onError={(e) => { e.target.onerror = null; e.target.src = 'https://via.placeholder.com/40'; }} style={{ width: '40px', height: '40px', objectFit: 'contain', borderRadius: '4px' }} />
                       <div>
-                        <div style={{ fontWeight: 600 }}>{p.name}</div>
-                        <div style={{ fontSize: '0.75rem', color: 'var(--muted-foreground)' }}>ID: #{p.id}</div>
+                        <div style={{ fontWeight: 600, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          {p.name}
+                          {p.isActive === false && <span style={{ fontSize: '0.65rem', backgroundColor: 'var(--destructive)', color: 'white', padding: '2px 6px', borderRadius: '4px' }}>DADO DE BAJA</span>}
+                        </div>
+                        <div style={{ fontSize: '0.75rem', color: 'var(--muted-foreground)', display: 'flex', alignItems: 'center', gap: '8px', marginTop: '4px' }}>
+                          <span>ID: #{p.id}</span>
+                          {p.recentAIUpdate && (
+                            <span title="Precio modificado por el Motor de IA en las últimas 24hs" style={{ display: 'flex', alignItems: 'center', gap: '4px', color: '#8b5cf6', backgroundColor: 'rgba(139, 92, 246, 0.1)', padding: '2px 6px', borderRadius: '4px', fontWeight: 600 }}>
+                              <Sparkles size={10} /> IA Pricing
+                            </span>
+                          )}
+                        </div>
                       </div>
                     </div>
                   </td>
-                  <td style={{ padding: '16px', fontWeight: 700 }}>${Number(p.price).toLocaleString()}</td>
+                  <td style={{ padding: '16px', fontWeight: 700 }}>${Number(p.price).toLocaleString('es-AR')}</td>
                   <td style={{ padding: '16px', fontSize: '0.85rem', color: 'var(--muted-foreground)' }}>
                     ${p.precio_min || 0} - {p.precio_max ? `$${p.precio_max}` : '∞'}
                   </td>
@@ -348,8 +398,12 @@ export default function AdminProducts() {
                   </td>
                   <td style={{ padding: '16px' }}>
                     <div style={{ display: 'flex', gap: '10px', justifyContent: 'center' }}>
-                      <button onClick={() => handleEdit(p)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted-foreground)' }}><Edit2 size={18} /></button>
-                      <button onClick={() => handleDelete(p.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--destructive)' }}><Trash2 size={18} /></button>
+                      <button onClick={() => handleEdit(p)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted-foreground)' }} title="Editar"><Edit2 size={18} /></button>
+                      {p.isActive === false ? (
+                        <button onClick={() => handleReactivate(p.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--success)' }} title="Reactivar"><RefreshCw size={18} /></button>
+                      ) : (
+                        <button onClick={() => handleDelete(p.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--destructive)' }} title="Dar de baja"><Trash2 size={18} /></button>
+                      )}
                     </div>
                   </td>
                 </tr>

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import { useNavigate } from 'react-router-dom';
-import { Package, CheckCircle, XCircle, Clock, ChevronLeft, ChevronRight, User, MapPin, Download, CreditCard, Landmark, Banknote, FileText, Play, FileDown, Loader2, ExternalLink } from 'lucide-react';
+import { useNavigate, useLocation } from 'react-router-dom';
+import { Package, CheckCircle, XCircle, Clock, ChevronLeft, ChevronRight, User, MapPin, Download, CreditCard, Landmark, Banknote, FileText, Play, FileDown, Loader2, ExternalLink, Search } from 'lucide-react';
 import { isAdminRole } from '../constants/roles';
 import { showToast, showAlert, showConfirm } from '../utils/swal';
 
@@ -15,6 +15,8 @@ export default function AdminOrders() {
   const [statusFilter, setStatusFilter] = useState('');
   const [sortBy, setSortBy] = useState('date_desc');
   const [generatingPdf, setGeneratingPdf] = useState(false);
+  const location = useLocation();
+  const [searchQuery, setSearchQuery] = useState(location.state?.searchUserId || '');
   
   const navigate = useNavigate();
   const token = localStorage.getItem('token');
@@ -23,14 +25,14 @@ export default function AdminOrders() {
     const user = JSON.parse(localStorage.getItem('user') || '{}');
     if (!token || !isAdminRole(user)) return navigate('/forbidden');
     fetchOrders();
-  }, [currentPage, statusFilter, sortBy]);
+  }, [currentPage, statusFilter, sortBy, searchQuery, location.state]);
 
   const fetchOrders = async () => {
     setLoading(true);
     try {
       const res = await axios.get('http://localhost:5000/api/orders', {
         headers: { Authorization: `Bearer ${token}` },
-        params: { page: currentPage, limit: 8, status: statusFilter, sortBy }
+        params: { page: currentPage, limit: 8, status: statusFilter, sortBy, search: searchQuery, tipo_envio: location.state?.tipo_envio }
       });
       setOrders(res.data.orders);
       setTotalPages(res.data.totalPages);
@@ -48,6 +50,10 @@ export default function AdminOrders() {
       case "transfer": return "Transferencia";
       default: return method || "Desconocido";
     }
+  };
+
+  const getShippingLabel = (tipo) => {
+    return tipo || "Normal";
   };
 
   const handlePrepare = async (id) => {
@@ -199,14 +205,30 @@ export default function AdminOrders() {
         </button>
       </header>
 
-      <div style={{ display: 'flex', gap: '15px', marginBottom: '25px' }}>
-        <select className="input-field" value={statusFilter} onChange={e => setStatusFilter(e.target.value)} style={{ width: '220px' }}>
+      <div style={{ display: 'flex', gap: '15px', marginBottom: '25px', flexWrap: 'wrap' }}>
+        <div style={{ position: 'relative', flex: 1, minWidth: '250px' }}>
+           <Search size={18} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--muted-foreground)' }} />
+           <input 
+             type="text" 
+             className="input-field" 
+             placeholder="Buscar por ID de orden o Nombre de cliente..." 
+             style={{ paddingLeft: '40px' }}
+             value={searchQuery}
+             onChange={e => { setSearchQuery(e.target.value); setCurrentPage(1); }}
+           />
+        </div>
+        <select className="input-field" value={statusFilter} onChange={e => { setStatusFilter(e.target.value); setCurrentPage(1); }} style={{ width: '220px' }}>
           <option value="">Todos los estados</option>
           <option value="Pendiente">Pendientes (Efectivo/Tarjeta)</option>
           <option value="Pendiente de Validación">Por Validar (Transferencia)</option>
           <option value="En preparación">En preparación</option>
           <option value="Cerrada">Cerradas</option>
           <option value="Cancelada">Canceladas</option>
+        </select>
+        <select className="input-field" value={location.state?.tipo_envio || ''} onChange={e => { navigate(location.pathname, { state: { ...location.state, tipo_envio: e.target.value } }); setCurrentPage(1); }} style={{ width: '220px' }}>
+          <option value="">Todos los envíos</option>
+          <option value="Retiro en tienda">Retiro en tienda</option>
+          <option value="Envío a domicilio">Envío a domicilio</option>
         </select>
       </div>
 
@@ -216,6 +238,7 @@ export default function AdminOrders() {
             <tr>
               <th style={{ padding: '16px' }}>Orden ID</th>
               <th style={{ padding: '16px' }}>Pago / Comprobante</th>
+              <th style={{ padding: '16px' }}>Envío</th>
               <th style={{ padding: '16px' }}>Estado Actual</th>
               <th style={{ padding: '16px', textAlign: 'center' }}>Acción Requerida</th>
             </tr>
@@ -234,6 +257,11 @@ export default function AdminOrders() {
                       </a>
                     )}
                   </div>
+                </td>
+                <td style={{ padding: '16px' }}>
+                  <span style={{ fontSize: '0.85rem', fontWeight: 600, padding: '4px 8px', borderRadius: '4px', backgroundColor: 'var(--background)' }}>
+                    {getShippingLabel(o.tipo_envio || o.shipping_method)}
+                  </span>
                 </td>
                 <td style={{ padding: '16px' }}>
                   <StatusBadge status={o.status} />

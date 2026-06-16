@@ -35,6 +35,10 @@ export default function AdminTickets() {
       });
       setTickets(res.data.tickets);
       setTotalPages(res.data.totalPages);
+      
+      if (currentPage > res.data.totalPages && res.data.totalPages > 0) {
+        setCurrentPage(res.data.totalPages);
+      }
     } catch (err) {
       console.error(err);
     }
@@ -103,7 +107,7 @@ export default function AdminTickets() {
           </div>
           <div style={{ maxHeight: '600px', overflowY: 'auto' }}>
             {tickets.length === 0 ? (
-              <div style={{ padding: '40px', textAlign: 'center', color: 'var(--muted-foreground)' }}>No hay reclamos pendientes.</div>
+              <div style={{ padding: '40px', textAlign: 'center', color: 'var(--muted-foreground)' }}>No hay tickets que coincidan con los filtros aplicados.</div>
             ) : (
               tickets.map(t => (
                 <div 
@@ -149,7 +153,7 @@ export default function AdminTickets() {
                 </div>
                 <div>
                   <div style={{ fontWeight: 700 }}>ID Usuario: {selectedTicket.user_id}</div>
-                  <div style={{ fontSize: '0.85rem', color: 'var(--muted-foreground)' }}>Fecha del reclamo: {new Date(selectedTicket.created_at).toLocaleString()}</div>
+                  <div style={{ fontSize: '0.85rem', color: 'var(--muted-foreground)' }}>Fecha del reclamo: {new Date(selectedTicket.created_at).toLocaleString('es-AR')}</div>
                 </div>
               </div>
 
@@ -165,6 +169,13 @@ export default function AdminTickets() {
                   </h4>
                   <p style={{ color: 'var(--muted-foreground)' }}>{selectedTicket.respuesta}</p>
                 </div>
+              ) : selectedTicket.status === 'cerrado' ? (
+                <div style={{ padding: '20px', borderLeft: '4px solid var(--muted-foreground)', backgroundColor: 'var(--secondary)', marginBottom: '20px' }}>
+                  <h4 style={{ marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--muted-foreground)' }}>
+                    <CheckCircle size={18} /> Ticket cerrado sin respuesta oficial
+                  </h4>
+                  <p style={{ color: 'var(--muted-foreground)' }}>El administrador cerró este ticket de forma manual. Ya no es posible enviar una respuesta.</p>
+                </div>
               ) : (
                 <form onSubmit={handleReply}>
                   <h4 style={{ marginBottom: '15px' }}>Responder al Cliente:</h4>
@@ -178,10 +189,10 @@ export default function AdminTickets() {
                   />
                   <div style={{ display: 'flex', gap: '10px' }}>
                     <button className="btn" type="submit" disabled={loading} style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '10px', justifyContent: 'center' }}>
-                      {loading ? 'Enviando...' : <><Send size={18} /> Enviar Respuesta</>}
+                      {loading ? 'Enviando...' : <><Send size={18} /> Enviar Respuesta y Cerrar</>}
                     </button>
                     <button className="btn btn-outline" type="button" onClick={handleClose} style={{ color: 'var(--destructive)', borderColor: 'var(--destructive)' }}>
-                      Cerrar Ticket
+                      Cerrar sin responder
                     </button>
                   </div>
                 </form>

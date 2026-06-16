@@ -144,6 +144,31 @@ router.post('/calculate', async (req, res) => {
   }
 });
 
+const { updatePrices } = require('../services/pricingEngine');
+
+/**
+ * POST /api/pricing/run-engine
+ * Manually trigger the global pricing update engine
+ */
+router.post('/run-engine', async (req, res) => {
+  try {
+    console.log('[Pricing] Manual execution of pricing engine requested');
+    // Start background process
+    updatePrices().catch(err => console.error('[Pricing] Background execution failed:', err));
+    
+    res.json({
+      success: true,
+      message: 'Motor de precios iniciado en segundo plano. Esto puede demorar varios minutos.'
+    });
+  } catch (error) {
+    console.error('[Pricing] Run engine error:', error);
+    res.status(500).json({
+      error: 'Error iniciando motor de precios',
+      details: error.message
+    });
+  }
+});
+
 /**
  * GET /api/pricing/logs/:componenteId
  * Get pricing logs for a componente

@@ -97,12 +97,12 @@ export default function Profile() {
           ${order.OrderItems?.map(i => `
             <div style="display: flex; justify-content: space-between; margin-bottom: 6px; font-size: 0.85rem;">
               <span>${i.quantity}x ${i.Product?.name || 'Producto'}</span>
-              <span style="font-weight: 600;">$${Number(i.priceAtPurchase * i.quantity).toLocaleString()}</span>
+              <span style="font-weight: 600;">$${Number(i.priceAtPurchase * i.quantity).toLocaleString('es-AR')}</span>
             </div>
           `).join('')}
         </div>
         <div style="text-align: right; font-weight: 900; font-size: 1.2rem; color: var(--primary); border-top: 2px solid var(--border); padding-top: 10px; margin-top: 10px;">
-          TOTAL: $${Number(order.total).toLocaleString()}
+          TOTAL: $${Number(order.total).toLocaleString('es-AR')}
         </div>
       </div>
     `;
@@ -246,7 +246,7 @@ export default function Profile() {
                       }}>
                         {(order.status || 'pendiente').toUpperCase()}
                       </span>
-                      <p style={{ fontSize: '1.2rem', fontWeight: 800, marginTop: '5px' }}>${Number(order.total || 0).toLocaleString()}</p>
+                      <p style={{ fontSize: '1.2rem', fontWeight: 800, marginTop: '5px' }}>${Number(order.total || 0).toLocaleString('es-AR')}</p>
                     </div>
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '20px', flexWrap: 'wrap' }}>

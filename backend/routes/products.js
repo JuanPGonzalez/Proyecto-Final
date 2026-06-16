@@ -27,14 +27,17 @@ router.get('/export', adminMiddleware, async (req, res) => {
       id: p.id,
       name: p.name,
       description: p.description,
-      socket: p.socket,
-      memoryType: p.memoryType,
-      price: p.price,
+      precio_actual: p.price,
+      precio_base: p.base_price,
       stock: p.stock,
-      categoria_id: p.categoria_id,
+      views: p.views,
+      img_url: p.imgURL || '',
+      socket: p.socket,
+      memory_type: p.memoryType,
       precio_min: p.precio_min,
       precio_max: p.precio_max,
-      imgURL: p.imgURL || ''
+      categoria_id: p.categoria_id,
+      is_active: p.isActive
     }));
 
     const worksheet = XLSX.utils.json_to_sheet(cleanData);
@@ -86,16 +89,24 @@ router.post('/import', adminMiddleware, upload.single('file'), async (req, res) 
             id: row.id || undefined, // Intentar respetar el ID si lo mandó
             name: row.name || 'Sin Nombre',
             description: row.description || 'Sin Descripción',
-            price: Number(row.price) || 0,
+            price: Number(row.precio_actual !== undefined ? row.precio_actual : row.price) || 0,
+            base_price: Number(row.precio_base) || 0,
             stock: Number(row.stock) || 0,
             categoria_id: Number(row.categoria_id) || 1,
             socket: row.socket || null,
-            memoryType: row.memoryType || null,
-            imgURL: row.imgURL || row.imgurl || null,
+            memoryType: row.memory_type || row.memoryType || null,
             precio_min: Number(row.precio_min) || null,
             precio_max: Number(row.precio_max) || null,
-            isActive: true
+            isActive: row.is_active !== undefined ? Boolean(row.is_active) : true
           };
+          
+          const imgValCreate = row.img_url || row.imgURL || row.imgurl || row.image || row['URL Imagen'];
+          if (imgValCreate) {
+            newData.imgURL = String(imgValCreate).trim();
+          } else {
+            newData.imgURL = null;
+          }
+          
           await Product.create(newData);
           created++;
           return;
@@ -107,11 +118,19 @@ router.post('/import', adminMiddleware, upload.single('file'), async (req, res) 
         if (row.name !== undefined) updateData.name = row.name;
         if (row.description !== undefined) updateData.description = row.description;
         if (row.socket !== undefined) updateData.socket = row.socket;
-        if (row.memoryType !== undefined) updateData.memoryType = row.memoryType;
+        
+        const memoryVal = row.memory_type !== undefined ? row.memory_type : row.memoryType;
+        if (memoryVal !== undefined) updateData.memoryType = memoryVal;
+        
         if (row.categoria_id !== undefined && !isNaN(row.categoria_id)) updateData.categoria_id = Number(row.categoria_id);
 
-        if (row.price !== undefined && !isNaN(row.price) && row.price >= 0) {
-          updateData.price = Number(row.price);
+        const priceVal = row.precio_actual !== undefined ? row.precio_actual : row.price;
+        if (priceVal !== undefined && !isNaN(priceVal) && priceVal >= 0) {
+          updateData.price = Number(priceVal);
+        }
+
+        if (row.precio_base !== undefined && !isNaN(row.precio_base) && row.precio_base >= 0) {
+          updateData.base_price = Number(row.precio_base);
         }
 
         if (row.stock !== undefined && !isNaN(row.stock) && row.stock >= 0) {
@@ -126,10 +145,13 @@ router.post('/import', adminMiddleware, upload.single('file'), async (req, res) 
           updateData.precio_max = Number(row.precio_max);
         }
 
-        if (row.imgURL !== undefined && typeof row.imgURL === 'string' && row.imgURL.trim() !== '') {
-          updateData.imgURL = row.imgURL.trim();
-        } else if (row.imgurl !== undefined && typeof row.imgurl === 'string' && row.imgurl.trim() !== '') {
-          updateData.imgURL = row.imgurl.trim();
+        const imgValUpdate = row.img_url || row.imgURL || row.imgurl || row.image || row['URL Imagen'];
+        if (imgValUpdate !== undefined && imgValUpdate !== null) {
+          updateData.imgURL = String(imgValUpdate).trim();
+        }
+
+        if (row.is_active !== undefined) {
+           updateData.isActive = Boolean(row.is_active);
         }
 
         if (Object.keys(updateData).length === 0) {
@@ -137,8 +159,23 @@ router.post('/import', adminMiddleware, upload.single('file'), async (req, res) 
           return;
         }
 
+        const oldPrice = Number(product.price);
         await product.update(updateData);
         updated++;
+
+        if (updateData.price && Number(updateData.price) !== oldPrice) {
+          const { LogMotorPrecio } = require('../models');
+          if (LogMotorPrecio) {
+            await LogMotorPrecio.create({
+              componente_id: product.id,
+              precio_anterior: oldPrice,
+              precio_nuevo: Number(updateData.price),
+              detalle: "Carga Masiva de Precios (Excel)",
+              origen: 'masivo',
+              estado: 'success'
+            });
+          }
+        }
 
       } catch (err) {
         console.error('Error procesando fila Excel:', row, err.message);
@@ -171,12 +208,49 @@ router.post('/import', adminMiddleware, upload.single('file'), async (req, res) 
 // Obtener todos los productos
 router.get('/', async (req, res) => {
   try {
-    const { Category } = require('../models');
+    const { Category, LogMotorPrecio } = require('../models');
+    const { Op } = require('sequelize');
+    const whereClause = {};
+    if (req.query.includeInactive !== 'true') {
+      whereClause.isActive = true;
+    }
+
+    if (req.query.search) {
+      whereClause.name = {
+        [Op.like]: `%${req.query.search}%`
+      };
+    }
+
+    if (req.query.categoryId) {
+      whereClause.categoria_id = req.query.categoryId;
+    }
+
     const products = await Product.findAll({
-      where: { isActive: true },
+      where: whereClause,
       include: [{ model: Category, attributes: ['descripcion'] }]
     });
-    res.json(products);
+
+    // Check recent AI updates (last 24 hours)
+    let recentAIPIds = new Set();
+    if (LogMotorPrecio) {
+      const recentLogs = await LogMotorPrecio.findAll({
+        attributes: ['componente_id'],
+        where: {
+          origen: 'motor',
+          created_at: { [Op.gte]: new Date(Date.now() - 24 * 60 * 60 * 1000) }
+        },
+        group: ['componente_id']
+      });
+      recentAIPIds = new Set(recentLogs.map(l => l.componente_id));
+    }
+
+    const enrichedProducts = products.map(p => {
+      const pJson = p.toJSON();
+      pJson.recentAIUpdate = recentAIPIds.has(p.id);
+      return pJson;
+    });
+
+    res.json(enrichedProducts);
   } catch (error) {
     res.status(500).json({ error: 'Error al obtener productos' });
   }
@@ -230,7 +304,7 @@ router.get('/recommendations', async (req, res) => {
         where: { user_id: userId },
         order: [['count', 'DESC']],
         limit: 10,
-        include: [Product]
+        include: [{ model: Product, where: { isActive: true, stock: { [Op.gt]: 0 } } }]
       });
       userViews.forEach(v => {
         if (v.Product) sources.userViews.push(v.Product);
@@ -252,7 +326,11 @@ router.get('/recommendations', async (req, res) => {
 
       if (boughtCategories.size > 0) {
         const categoryProducts = await Product.findAll({
-          where: { categoria_id: { [Op.in]: Array.from(boughtCategories) } },
+          where: { 
+            categoria_id: { [Op.in]: Array.from(boughtCategories) },
+            isActive: true,
+            stock: { [Op.gt]: 0 }
+          },
           limit: 10
         });
         sources.userPurchases = categoryProducts;
@@ -261,6 +339,7 @@ router.get('/recommendations', async (req, res) => {
 
     // 3. Tendencias globales (Más vistos)
     const trends = await Product.findAll({
+      where: { isActive: true, stock: { [Op.gt]: 0 } },
       order: [['views', 'DESC']],
       limit: 10
     });
@@ -297,23 +376,37 @@ router.get('/recommendations/cart', async (req, res) => {
     const cats = String(categoryIds).split(',').map(Number);
     const pids = String(productIds || '').split(',').map(Number);
 
-    // Lógica simple de compatibilidad
-    // Si hay Motherboard (3), sugerir CPU (1) y RAM (2)
-    // Si hay CPU (1), sugerir Cooler (6)
-    let searchCats = [];
-    if (cats.includes(3)) searchCats.push(1, 2);
-    if (cats.includes(1)) searchCats.push(6, 3);
-    if (cats.includes(4)) searchCats.push(5); // GPU -> Fuente/Gabinete
+    // Lógica avanzada de "Completa tu Setup"
+    const userHas = new Set(cats);
+    let searchCats = new Set();
 
-    if (searchCats.length === 0) {
-      // Fallback: Accesorios generales (9)
-      searchCats.push(9);
+    // Reglas de armado de PC (intentar ofrecer lo que falta)
+    if (userHas.has(1) || userHas.has(3) || userHas.has(4)) { // Si tiene CPU, Mother o GPU
+      if (!userHas.has(1)) searchCats.add(1); // Le falta CPU
+      if (!userHas.has(3)) searchCats.add(3); // Le falta Mother
+      if (!userHas.has(2)) searchCats.add(2); // Le falta RAM
+      if (!userHas.has(6)) searchCats.add(6); // Le falta Cooler
+      if (!userHas.has(23)) searchCats.add(23); // Le falta Almacenamiento
+      if (!userHas.has(4)) searchCats.add(4); // Le falta GPU
+      if (!userHas.has(5)) searchCats.add(5); // Le falta Gabinete
+    } else {
+      // Si está comprando cosas sueltas (ej: solo RAM, solo Periféricos)
+      if (userHas.has(2) && !userHas.has(23)) searchCats.add(23); // Compró RAM, sugerir disco
+      if (userHas.has(23) && !userHas.has(2)) searchCats.add(2); // Compró disco, sugerir RAM
     }
+
+    // Agregar periféricos / accesorios de forma aleatoria para llenar cupos
+    if (!userHas.has(9)) searchCats.add(9);
+    if (!userHas.has(27)) searchCats.add(27);
+    if (!userHas.has(28)) searchCats.add(28);
+
+    const categoriesToSearch = Array.from(searchCats);
 
     const recommendations = await Product.findAll({
       where: {
-        categoria_id: { [Op.in]: searchCats },
+        categoria_id: { [Op.in]: categoriesToSearch },
         id: { [Op.notIn]: pids },
+        isActive: true,
         stock: { [Op.gt]: 0 }
       },
       limit: 4,
@@ -350,6 +443,13 @@ router.get('/pricing/summary', adminMiddleware, async (req, res) => {
       if (lastLog) {
         if (Number(lastLog.precio_nuevo) > Number(lastLog.precio_anterior)) trend = 'subio';
         else if (Number(lastLog.precio_nuevo) < Number(lastLog.precio_anterior)) trend = 'bajo';
+
+        if (lastLog.origen === 'motor') {
+            const timeDiff = Date.now() - new Date(lastLog.created_at).getTime();
+            if (timeDiff <= 24 * 60 * 60 * 1000) {
+                pJson.recentAIUpdate = true;
+            }
+        }
       }
       return { ...pJson, trend };
     });
@@ -368,8 +468,19 @@ router.get('/:id/price-history', adminMiddleware, async (req, res) => {
     const { LogMotorPrecio, Product } = require('../models');
     
     const product = await Product.findByPk(productId);
+    const { Op } = require('sequelize');
+    const { startDate, endDate } = req.query;
+    const whereClause = { componente_id: productId };
+    if (startDate && endDate) {
+      whereClause.created_at = { [Op.between]: [new Date(startDate), new Date(endDate + 'T23:59:59Z')] };
+    } else if (startDate) {
+      whereClause.created_at = { [Op.gte]: new Date(startDate) };
+    } else if (endDate) {
+      whereClause.created_at = { [Op.lte]: new Date(endDate + 'T23:59:59Z') };
+    }
+
     const logs = await LogMotorPrecio.findAll({
-      where: { componente_id: productId },
+      where: whereClause,
       order: [['created_at', 'ASC']]
     });
 
@@ -508,11 +619,26 @@ router.put('/:id', adminMiddleware, async (req, res) => {
     if (finalCategoryId) updateData.categoria_id = finalCategoryId;
 
     console.log("DATA TO BE UPDATED:", JSON.stringify(updateData, null, 2));
+    const oldPrice = Number(product.price);
     await product.update(updateData);
     
     // VERIFICACIÓN INMEDIATA DE LECTURA DESPUÉS DE ESCRITURA
     const updatedProduct = await Product.findByPk(req.params.id);
     console.log("PRODUCT AFTER UPDATE IN DB:", JSON.stringify(updatedProduct.toJSON(), null, 2));
+
+    if (updateData.price && Number(updateData.price) !== oldPrice) {
+      const { LogMotorPrecio } = require('../models');
+      if (LogMotorPrecio) {
+        await LogMotorPrecio.create({
+          componente_id: updatedProduct.id,
+          precio_anterior: oldPrice,
+          precio_nuevo: Number(updateData.price),
+          detalle: "Actualización Manual de Administrador",
+          origen: 'manual',
+          estado: 'success'
+        });
+      }
+    }
 
     res.json(updatedProduct);
   } catch (error) {
@@ -534,10 +660,23 @@ router.delete('/:id', adminMiddleware, async (req, res) => {
   }
 });
 
+// Reactivar producto
+router.patch('/:id/reactivate', adminMiddleware, async (req, res) => {
+  try {
+    const product = await Product.findByPk(req.params.id);
+    if (!product) return res.status(404).json({ error: 'Producto no encontrado' });
+
+    await product.update({ isActive: true });
+    res.json({ success: true, message: 'Producto reactivado correctamente' });
+  } catch (error) {
+    res.status(500).json({ error: 'Error al reactivar producto' });
+  }
+});
+
 // Actualización Masiva de Precios
 router.post('/bulk-price-update', adminMiddleware, async (req, res) => {
   try {
-    const { percentage, action } = req.body;
+    const { percentage, action, productIds } = req.body;
     
     if (!percentage || isNaN(percentage) || percentage <= 0) {
       return res.status(400).json({ error: 'Debe proveer un porcentaje válido mayor a 0.' });
@@ -549,8 +688,13 @@ router.post('/bulk-price-update', adminMiddleware, async (req, res) => {
 
     const factor = action === 'increase' ? (1 + (Number(percentage) / 100)) : (1 - (Number(percentage) / 100));
 
-    // Obtener todos los productos y actualizar cada uno
-    const products = await Product.findAll();
+    // Obtener todos los productos (o los filtrados) y actualizar cada uno
+    const whereClause = {};
+    if (productIds && Array.isArray(productIds) && productIds.length > 0) {
+      whereClause.id = productIds;
+    }
+
+    const products = await Product.findAll({ where: whereClause });
     
     let updatedCount = 0;
     
@@ -592,8 +736,23 @@ router.post('/bulk-price-update', adminMiddleware, async (req, res) => {
       }
 
       if (hasUpdates) {
+        const oldPrice = Number(p.price);
         await p.update(updates);
         updatedCount++;
+        
+        if (updates.price && Number(updates.price) !== oldPrice) {
+          const { LogMotorPrecio } = require('../models');
+          if (LogMotorPrecio) {
+            await LogMotorPrecio.create({
+              componente_id: p.id,
+              precio_anterior: oldPrice,
+              precio_nuevo: Number(updates.price),
+              detalle: `Ajuste masivo general: ${action === 'increase' ? '+' : '-'}${percentage}%`,
+              origen: 'masivo',
+              estado: 'success'
+            });
+          }
+        }
       }
     }));
 

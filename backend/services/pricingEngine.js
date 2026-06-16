@@ -119,7 +119,9 @@ Devuelve ÚNICAMENTE un array JSON válido con este formato, sin texto adicional
                 componente_id: product.id,
                 precio_anterior: currentPrice,
                 precio_nuevo: newPrice,
-                detalle: adj.reason || "Ajuste dinámico sugerido por IA"
+                detalle: adj.reason || "Ajuste dinámico sugerido por IA",
+                origen: 'motor',
+                estado: 'success'
               });
             }
           }

@@ -4,12 +4,14 @@ import axios from 'axios';
 import { X, ShoppingBag, Calendar, DollarSign, User, AlertTriangle, MessageSquare } from 'lucide-react';
 
 import { getStatusStyle } from '../constants/statusStyles';
+import OrderDetailModal from './OrderDetailModal';
 
 export default function ClientDetailModal({ clientId, clientName, startDate, endDate, onClose }) {
   const [orders, setOrders] = useState([]);
   const [tickets, setTickets] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState('tickets'); // User focused on tickets now
+  const [activeTab, setActiveTab] = useState('tickets');
+  const [selectedOrder, setSelectedOrder] = useState(null);
 
   useEffect(() => {
     if (clientId) {
@@ -53,6 +55,7 @@ export default function ClientDetailModal({ clientId, clientName, startDate, end
   if (!clientId) return null;
 
   const modalRoot = (
+    <>
     <div 
       className="modal-portal-overlay"
       onClick={onClose}
@@ -129,7 +132,7 @@ export default function ClientDetailModal({ clientId, clientName, startDate, end
         </div>
 
         {/* Content */}
-        <div style={{ padding: '25px', overflowY: 'auto', flex: 1 }}>
+        <div style={{ padding: '25px', overflowY: 'auto' }}>
           {loading ? (
             <div style={{ textAlign: 'center', padding: '40px' }}>Cargando información...</div>
           ) : activeTab === 'tickets' ? (
@@ -170,42 +173,62 @@ export default function ClientDetailModal({ clientId, clientName, startDate, end
             orders.length === 0 ? (
               <div style={{ textAlign: 'center', padding: '40px', color: 'var(--muted-foreground)' }}>Este cliente no tiene órdenes registradas en este período.</div>
             ) : (
-              <div className="animate-slide-in">
-                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                  <thead>
-                    <tr style={{ borderBottom: '2px solid var(--border)', textAlign: 'left' }}>
-                      <th style={{ padding: '12px', fontSize: '0.85rem', color: 'var(--muted-foreground)' }}>ORDEN</th>
-                      <th style={{ padding: '12px', fontSize: '0.85rem', color: 'var(--muted-foreground)' }}>FECHA</th>
-                      <th style={{ padding: '12px', fontSize: '0.85rem', color: 'var(--muted-foreground)' }}>PRODUCTOS</th>
-                      <th style={{ padding: '12px', fontSize: '0.85rem', color: 'var(--muted-foreground)' }}>TOTAL</th>
-                      <th style={{ padding: '12px', fontSize: '0.85rem', color: 'var(--muted-foreground)' }}>ESTADO</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {orders.map(order => (
-                      <tr key={order.id} style={{ borderBottom: '1px solid var(--border)' }}>
-                        <td style={{ padding: '12px', fontWeight: 700 }}>#{order.id}</td>
-                        <td style={{ padding: '12px', fontSize: '0.85rem' }}>{new Date(order.fecha_compra).toLocaleDateString('es-AR')}</td>
-                        <td style={{ padding: '12px' }}>
-                           <div style={{ fontSize: '0.75rem', color: 'var(--muted-foreground)' }}>
-                              {order.OrderItems?.map(i => i.Product?.name).join(', ').substring(0, 40)}...
-                           </div>
-                        </td>
-                        <td style={{ padding: '12px', fontWeight: 700 }}>${Number(order.total).toLocaleString('es-AR')}</td>
-                        <td style={{ padding: '12px' }}>
-                          <span style={{ 
-                            padding: '4px 10px', borderRadius: '50px', fontSize: '0.7rem', fontWeight: 800,
-                            backgroundColor: getStatusStyle(order.status).bg,
-                            color: getStatusStyle(order.status).text,
-                            textTransform: 'uppercase'
-                          }}>
-                            {(order.status || 'PENDIENTE').toUpperCase()}
-                          </span>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+              <div className="animate-slide-in" style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+                {orders.map(order => (
+                  <div 
+                    key={order.id} 
+                    onClick={() => setSelectedOrder(order.id)}
+                    style={{ 
+                      display: 'grid', 
+                      gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', 
+                      gap: '15px', 
+                      padding: '20px', 
+                      backgroundColor: 'var(--card)', 
+                      borderRadius: '12px', 
+                      border: '1px solid var(--border)', 
+                      cursor: 'pointer', 
+                      transition: 'all 0.2s',
+                      alignItems: 'center'
+                    }} 
+                    onMouseOver={e => { e.currentTarget.style.borderColor = 'var(--primary)'; e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 10px 25px -5px rgba(0,0,0,0.1)'; }} 
+                    onMouseOut={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.transform = 'none'; e.currentTarget.style.boxShadow = 'none'; }}
+                  >
+                    <div>
+                      <span style={{ display: 'block', fontSize: '0.75rem', color: 'var(--muted-foreground)', textTransform: 'uppercase', fontWeight: 700, marginBottom: '5px' }}>Orden</span>
+                      <span style={{ fontWeight: 800, fontSize: '1.1rem' }}>#{order.id}</span>
+                    </div>
+                    
+                    <div>
+                      <span style={{ display: 'block', fontSize: '0.75rem', color: 'var(--muted-foreground)', textTransform: 'uppercase', fontWeight: 700, marginBottom: '5px' }}>Fecha</span>
+                      <span style={{ fontWeight: 600 }}>{new Date(order.fecha_compra).toLocaleDateString('es-AR')}</span>
+                    </div>
+                    
+                    <div style={{ gridColumn: 'span 2' }}>
+                      <span style={{ display: 'block', fontSize: '0.75rem', color: 'var(--muted-foreground)', textTransform: 'uppercase', fontWeight: 700, marginBottom: '5px' }}>Productos</span>
+                      <div style={{ fontSize: '0.85rem', color: 'var(--muted-foreground)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        {order.OrderItems?.length > 0 
+                          ? order.OrderItems.map(i => i.Product?.name).filter(Boolean).join(', ') || 'Productos Eliminados'
+                          : 'Sin registros de artículos'}
+                      </div>
+                    </div>
+                    
+                    <div>
+                      <span style={{ display: 'block', fontSize: '0.75rem', color: 'var(--muted-foreground)', textTransform: 'uppercase', fontWeight: 700, marginBottom: '5px' }}>Estado</span>
+                      <span style={{ 
+                        padding: '6px 12px', borderRadius: '50px', fontSize: '0.75rem', fontWeight: 800, 
+                        backgroundColor: getStatusStyle(order.status).bg, 
+                        color: getStatusStyle(order.status).text 
+                      }}>
+                        {(order.status || 'PENDIENTE').toUpperCase()}
+                      </span>
+                    </div>
+
+                    <div style={{ textAlign: 'right' }}>
+                      <span style={{ display: 'block', fontSize: '0.75rem', color: 'var(--muted-foreground)', textTransform: 'uppercase', fontWeight: 700, marginBottom: '5px' }}>Total</span>
+                      <span style={{ fontWeight: 900, color: 'var(--primary)', fontSize: '1.2rem' }}>${Number(order.total).toLocaleString('es-AR')}</span>
+                    </div>
+                  </div>
+                ))}
               </div>
             )
           )}
@@ -217,6 +240,13 @@ export default function ClientDetailModal({ clientId, clientName, startDate, end
         </div>
       </div>
     </div>
+    {selectedOrder && (
+      <OrderDetailModal 
+        orderId={selectedOrder} 
+        onClose={() => setSelectedOrder(null)} 
+      />
+    )}
+    </>
   );
 
   return createPortal(modalRoot, document.body);

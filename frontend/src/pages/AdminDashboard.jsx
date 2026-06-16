@@ -3,11 +3,13 @@ import axios from 'axios';
 import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, LineElement, PointElement, Title, Tooltip, Legend, ArcElement } from 'chart.js';
 import { Bar, Line, Pie, Doughnut } from 'react-chartjs-2';
 import Select from 'react-select';
-import { Users, ShoppingBag, DollarSign, Activity, AlertTriangle, Calendar, Award, ChevronLeft, ChevronRight, Search, Globe, History, ArrowUpRight, ArrowDownRight, Info, Check, TrendingUp } from 'lucide-react';
+import { Users, ShoppingBag, DollarSign, Activity, AlertTriangle, Calendar, Award, ChevronLeft, ChevronRight, Search, Globe, History, ArrowUpRight, ArrowDownRight, Info, Check, TrendingUp, Sparkles } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { isAdminRole } from '../constants/roles';
 import { showToast } from '../utils/swal';
 import ClientDetailModal from '../components/ClientDetailModal';
+import OrderDetailModal from '../components/OrderDetailModal';
+import CategoryProductsModal from '../components/CategoryProductsModal';
 import { getStatusStyle } from '../constants/statusStyles';
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, LineElement, PointElement, Title, Tooltip, Legend, ArcElement);
@@ -20,13 +22,15 @@ export default function AdminDashboard() {
   const [supportData, setSupportData] = useState(null);
   const [loadingSupport, setLoadingSupport] = useState(false);
   
+  const getLocalDateStr = (d) => d.toLocaleDateString('en-CA', { timeZone: 'America/Argentina/Buenos_Aires' });
   const today = new Date();
-  const firstDay = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().split('T')[0];
-  const lastDay = new Date(today.getFullYear(), today.getMonth() + 1, 0).toISOString().split('T')[0];
+  const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
+  const todayStr = getLocalDateStr(today);
+  const firstDayStr = getLocalDateStr(firstDay);
   
   // Período Principal
-  const [startDate, setStartDate] = useState(firstDay);
-  const [endDate, setEndDate] = useState(lastDay);
+  const [startDate, setStartDate] = useState(firstDayStr);
+  const [endDate, setEndDate] = useState(todayStr);
 
   // Período de Comparación
   const [compareStart, setCompareStart] = useState('');
@@ -36,6 +40,8 @@ export default function AdminDashboard() {
   const [historyFilters, setHistoryFilters] = useState({ page: 1, shippingType: 'all', clientId: 'all', specificDate: '', categoryName: '', productName: '' });
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [selectedClient, setSelectedClient] = useState(null);
+  const [selectedOrder, setSelectedOrder] = useState(null);
+  const [selectedCategoryModal, setSelectedCategoryModal] = useState(null);
   
   const navigate = useNavigate();
 
@@ -170,7 +176,7 @@ export default function AdminDashboard() {
 
   const handleClearFilter = () => {
     setStartDate(firstDay);
-    setEndDate(lastDay);
+    setEndDate(todayStr);
     setCompareStart('');
     setCompareEnd('');
     setCompare(false);
@@ -202,55 +208,129 @@ export default function AdminDashboard() {
     topProducts: data.topProducts || []
   };
 
+  // ── Helpers para normalización del Eje X ──────────────────────────────────
+  // Genera un array de strings YYYY-MM-DD entre dos fechas inclusive
+  const generateDateRange = (start, end) => {
+    if (!start || !end) return [];
+    const dates = [];
+    const cur = new Date(start + 'T00:00:00');
+    const last = new Date(end + 'T00:00:00');
+    while (cur <= last) {
+      dates.push(cur.toISOString().split('T')[0]);
+      cur.setDate(cur.getDate() + 1);
+    }
+    return dates;
+  };
+
+  // Mapea un array de { date, [valueKey] } a un rango de fechas completo, rellenando con 0
+  const mapDataToRange = (dataArr, dateRange, valueKey) => {
+    const map = {};
+    (dataArr || []).forEach(item => {
+      if (item.date) {
+        const d = item.date.split('T')[0];
+        map[d] = Number(item[valueKey]) || 0;
+      }
+    });
+    return dateRange.map(d => map[d] ?? 0);
+  };
+  // ────────────────────────────────────────────────────────────────────────────
+
+  // Construir datos de evolución de ingresos
+  let salesLabels, salesCurrentData, salesPreviousData;
+  if (compare && previous?.salesTrend) {
+    const currRange = generateDateRange(startDate, endDate);
+    const prevRange = generateDateRange(compareStart, compareEnd);
+    const maxLen = Math.max(currRange.length, prevRange.length);
+    salesLabels = Array.from({ length: maxLen }, (_, i) => `Día ${i + 1}`);
+    salesCurrentData = mapDataToRange(current?.salesTrend, currRange, 'total');
+    salesPreviousData = mapDataToRange(previous.salesTrend, prevRange, 'total');
+    // Pad shorter arrays with 0s
+    while (salesCurrentData.length < maxLen) salesCurrentData.push(0);
+    while (salesPreviousData.length < maxLen) salesPreviousData.push(0);
+  } else {
+    const currRange = generateDateRange(startDate, endDate);
+    salesLabels = currRange.length > 0
+      ? currRange.map(d => new Date(d + 'T00:00:00').toLocaleDateString('es-AR'))
+      : (current?.salesTrend?.map(t => t.date ? new Date(t.date).toLocaleDateString('es-AR') : '') || []);
+    salesCurrentData = currRange.length > 0
+      ? mapDataToRange(current?.salesTrend, currRange, 'total')
+      : (current?.salesTrend?.map(t => t.total || 0) || []);
+    salesPreviousData = null;
+  }
+
   const salesChartData = {
-    labels: current?.salesTrend?.map(t => t.date ? new Date(t.date).toLocaleDateString('es-AR') : '') || [],
+    labels: salesLabels,
     datasets: [
       {
-        label: 'Periodo actual',
-        data: current?.salesTrend?.map(t => t.total || 0) || [],
+        label: compare ? `Período Actual (${startDate} → ${endDate})` : 'Ingresos',
+        data: salesCurrentData,
         borderColor: '#3b82f6',
-        backgroundColor: 'rgba(59,130,246,0.2)',
+        backgroundColor: 'rgba(59,130,246,0.15)',
         borderWidth: 3,
         fill: true,
-        tension: 0.3,
-        pointRadius: 4,
+        tension: 0.4,
+        pointRadius: salesCurrentData.length <= 31 ? 4 : 2,
         pointBackgroundColor: '#3b82f6'
       },
-      compare && previous?.salesTrend ? {
-        label: 'Periodo anterior',
-        data: previous.salesTrend.map(t => t.total || 0) || [],
+      salesPreviousData ? {
+        label: `Período Anterior (${compareStart} → ${compareEnd})`,
+        data: salesPreviousData,
         borderColor: '#f59e0b',
-        backgroundColor: 'rgba(245,158,11,0.2)',
+        backgroundColor: 'rgba(245,158,11,0.15)',
         borderWidth: 2,
-        borderDash: [5, 5],
+        borderDash: [6, 4],
         fill: true,
-        tension: 0.3,
+        tension: 0.4,
         pointRadius: 0
       } : null
     ].filter(Boolean)
   };
 
+  // Construir datos de crecimiento de usuarios
+  let userLabels, userCurrentData, userPreviousData;
+  if (compare && previous?.userRegistrations) {
+    const currRange = generateDateRange(startDate, endDate);
+    const prevRange = generateDateRange(compareStart, compareEnd);
+    const maxLen = Math.max(currRange.length, prevRange.length);
+    userLabels = Array.from({ length: maxLen }, (_, i) => `Día ${i + 1}`);
+    userCurrentData = mapDataToRange(current?.userRegistrations, currRange, 'count');
+    userPreviousData = mapDataToRange(previous.userRegistrations, prevRange, 'count');
+    while (userCurrentData.length < maxLen) userCurrentData.push(0);
+    while (userPreviousData.length < maxLen) userPreviousData.push(0);
+  } else {
+    const currRange = generateDateRange(startDate, endDate);
+    userLabels = currRange.length > 0
+      ? currRange.map(d => new Date(d + 'T00:00:00').toLocaleDateString('es-AR'))
+      : (current?.userRegistrations?.map(u => u.date ? new Date(u.date).toLocaleDateString('es-AR') : '') || []);
+    userCurrentData = currRange.length > 0
+      ? mapDataToRange(current?.userRegistrations, currRange, 'count')
+      : (current?.userRegistrations?.map(u => u.count || 0) || []);
+    userPreviousData = null;
+  }
+
   const userGrowthData = {
-    labels: current?.userRegistrations?.map(u => u.date ? new Date(u.date).toLocaleDateString('es-AR') : '') || [],
+    labels: userLabels,
     datasets: [
       {
-        label: 'Periodo actual',
-        data: current?.userRegistrations?.map(u => u.count || 0) || [],
+        label: compare ? `Período Actual (${startDate} → ${endDate})` : 'Nuevos Usuarios',
+        data: userCurrentData,
         borderColor: '#ec4899',
         backgroundColor: 'rgba(236, 72, 153, 0.1)',
         borderWidth: 3,
         fill: true,
-        tension: 0.3
+        tension: 0.4,
+        pointRadius: userCurrentData.length <= 31 ? 4 : 2,
+        pointBackgroundColor: '#ec4899'
       },
-      compare && previous?.userRegistrations ? {
-        label: 'Periodo anterior',
-        data: previous.userRegistrations.map(u => u.count || 0) || [],
+      userPreviousData ? {
+        label: `Período Anterior (${compareStart} → ${compareEnd})`,
+        data: userPreviousData,
         borderColor: '#f59e0b',
         backgroundColor: 'rgba(245, 158, 11, 0.1)',
         borderWidth: 2,
-        borderDash: [5, 5],
+        borderDash: [6, 4],
         fill: true,
-        tension: 0.3,
+        tension: 0.4,
         pointRadius: 0
       } : null
     ].filter(Boolean)
@@ -269,7 +349,7 @@ export default function AdminDashboard() {
   };
 
   const shippingData = {
-    labels: rankings?.shippingMethods?.map(s => s.method === 'tienda' ? 'Retiro en Tienda' : (s.method?.toUpperCase() || 'OTRO')) || [],
+    labels: rankings?.shippingMethods?.map(s => s.method || 'OTRO') || [],
     datasets: [{
       data: rankings?.shippingMethods?.map(s => s.count || 0) || [],
       backgroundColor: ['#3b82f6', '#f59e0b', '#10b981', '#8b5cf6'],
@@ -278,12 +358,17 @@ export default function AdminDashboard() {
   };
 
   const topSellingData = {
-    labels: rankings?.topSellingProducts?.map(p => (p.name || 'Desconocido').substring(0, 15) + '...') || [],
+    labels: rankings?.topSellingProducts?.map(p => {
+      const n = p.name || 'Desconocido';
+      return n.length > 25 ? n.substring(0, 25) + '...' : n;
+    }) || [],
     datasets: [{
       label: 'Unidades Vendidas',
       data: rankings?.topSellingProducts?.map(p => p.totalQuantity || 0) || [],
-      backgroundColor: '#8b5cf6',
-      borderRadius: 6
+      backgroundColor: ['#3b82f6', '#8b5cf6', '#ec4899', '#f59e0b', '#10b981'],
+      borderRadius: 6,
+      barThickness: 25,
+      maxBarThickness: 30
     }]
   };
 
@@ -296,6 +381,15 @@ export default function AdminDashboard() {
         borderColor: '#f97316',
         backgroundColor: 'rgba(249, 115, 22, 0.2)',
         borderWidth: 3,
+        fill: true,
+        tension: 0.3
+      },
+      {
+        label: 'Tickets Resueltos',
+        data: supportData?.charts?.ticketsTrend?.map(t => t.resolvedCount || 0) || [],
+        borderColor: '#10b981',
+        backgroundColor: 'rgba(16, 185, 129, 0.2)',
+        borderWidth: 2,
         fill: true,
         tension: 0.3
       }
@@ -360,7 +454,7 @@ export default function AdminDashboard() {
       </div>
 
       {/* HEADER & CONTROLES */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '40px', flexWrap: 'wrap', gap: '25px' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '40px', flexWrap: 'wrap', gap: '25px' }}>
         <div>
           <h2 style={{ fontSize: '2.8rem', fontWeight: 900, letterSpacing: '-1.5px', marginBottom: '5px', background: 'linear-gradient(90deg, var(--primary) 0%, var(--accent) 100%)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', display: 'inline-block' }}>Business Intelligence</h2>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
@@ -369,45 +463,58 @@ export default function AdminDashboard() {
           </div>
         </div>
         
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '15px', alignItems: 'flex-end' }}>
-          <div style={{ display: 'flex', gap: '20px', alignItems: 'center' }}>
-            <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', backgroundColor: 'var(--card)', padding: '10px 15px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)' }}>
-              <input type="checkbox" checked={compare} onChange={e => setCompare(e.target.checked)} />
-              <span style={{ fontSize: '0.9rem', fontWeight: 600 }}>Comparar periodos</span>
-            </label>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', alignItems: 'flex-end' }}>
+          {/* Toggle comparar */}
+          <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', backgroundColor: compare ? 'rgba(245,158,11,0.08)' : 'var(--card)', padding: '8px 15px', borderRadius: 'var(--radius-md)', border: `1px solid ${compare ? '#f59e0b' : 'var(--border)'}`, transition: 'all 0.2s' }}>
+            <input type="checkbox" checked={compare} onChange={e => setCompare(e.target.checked)} />
+            <span style={{ fontSize: '0.85rem', fontWeight: 700, color: compare ? '#f59e0b' : 'inherit' }}>Comparar períodos</span>
+          </label>
 
-            <div className="card" style={{ display: 'flex', gap: '12px', alignItems: 'flex-end', padding: '12px', border: '1px solid var(--border)', flexDirection: 'row' }}>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
-                <span style={{ fontSize: '0.7rem', fontWeight: 800, color: 'var(--muted-foreground)', marginLeft: '5px' }}>PERÍODO PRINCIPAL</span>
+          {/* Controles de fechas — inline cuando compare está activo */}
+          <div className="card" style={{ display: 'flex', gap: '0', alignItems: 'stretch', padding: '0', border: `1px solid ${compare ? '#f59e0b' : 'var(--border)'}`, borderRadius: 'var(--radius-lg)', overflow: 'hidden', transition: 'border-color 0.2s' }}>
+            
+            {/* Período Principal */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', padding: '10px 14px', backgroundColor: 'var(--card)' }}>
+              <span style={{ fontSize: '0.65rem', fontWeight: 800, color: 'var(--muted-foreground)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Período Principal</span>
+              <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                <input type="date" className="input-field" value={startDate} onChange={e => setStartDate(e.target.value)} style={{ height: '34px', fontSize: '0.82rem', padding: '0 8px', minWidth: '130px' }} />
+                <span style={{ color: 'var(--muted-foreground)', fontSize: '0.9rem' }}>→</span>
+                <input type="date" className="input-field" value={endDate} onChange={e => setEndDate(e.target.value)} style={{ height: '34px', fontSize: '0.82rem', padding: '0 8px', minWidth: '130px' }} />
+              </div>
+            </div>
+
+            {/* Divisor vertical + "VS" — solo cuando compare está activo */}
+            {compare && (
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 14px', backgroundColor: 'rgba(245,158,11,0.08)', borderLeft: '1px solid #f59e0b', borderRight: '1px solid #f59e0b' }}>
+                <span style={{ fontSize: '0.7rem', fontWeight: 900, color: '#f59e0b', letterSpacing: '0.1em' }}>VS</span>
+              </div>
+            )}
+
+            {/* Período de Comparación — solo cuando compare está activo */}
+            {compare && (
+              <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '4px', padding: '10px 14px', backgroundColor: 'rgba(245,158,11,0.04)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <span style={{ fontSize: '0.65rem', fontWeight: 800, color: '#f59e0b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Período de Comparación</span>
+                  <Info size={11} color="#f59e0b" title="Seleccioná un período distinto para comparar resultados" />
+                </div>
                 <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                  <input type="date" className="input-field" value={startDate} onChange={e => setStartDate(e.target.value)} style={{ height: '38px', fontSize: '0.85rem' }} />
-                  <span style={{ color: 'var(--muted-foreground)' }}>→</span>
-                  <input type="date" className="input-field" value={endDate} onChange={e => setEndDate(e.target.value)} style={{ height: '38px', fontSize: '0.85rem' }} />
+                  <input type="date" className="input-field" value={compareStart} onChange={e => setCompareStart(e.target.value)} style={{ height: '34px', fontSize: '0.82rem', padding: '0 8px', minWidth: '130px', borderColor: '#f59e0b' }} />
+                  <span style={{ color: 'var(--muted-foreground)', fontSize: '0.9rem' }}>→</span>
+                  <input type="date" className="input-field" value={compareEnd} onChange={e => setCompareEnd(e.target.value)} style={{ height: '34px', fontSize: '0.82rem', padding: '0 8px', minWidth: '130px', borderColor: '#f59e0b' }} />
                 </div>
               </div>
-              
-              <button onClick={handleFilter} className="btn" style={{ height: '38px', padding: '0 20px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <Search size={16}/> {compare ? 'Comparar períodos' : 'Filtrar'}
+            )}
+
+            {/* Botón Aplicar — siempre visible al final */}
+            <div style={{ display: 'flex', alignItems: 'center', padding: '8px 10px', gap: '6px', backgroundColor: 'var(--secondary)', borderLeft: '1px solid var(--border)' }}>
+              <button onClick={handleFilter} className="btn" style={{ height: '34px', padding: '0 16px', fontWeight: 700, fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '6px', whiteSpace: 'nowrap' }}>
+                <Search size={14}/> {compare ? 'Comparar' : 'Aplicar'}
               </button>
-              {(startDate !== firstDay || compare) && <button type="button" className="btn btn-outline" onClick={handleClearFilter} style={{ height: '38px', padding: '0 15px' }}>×</button>}
+              {(startDate !== firstDay || compare) && (
+                <button type="button" className="btn btn-outline" onClick={handleClearFilter} style={{ height: '34px', padding: '0 10px', fontWeight: 700, fontSize: '0.85rem' }} title="Limpiar filtros">×</button>
+              )}
             </div>
           </div>
-
-          {compare && (
-            <div className="animate-slide-in card" style={{ display: 'flex', gap: '12px', alignItems: 'flex-end', padding: '12px', border: '1px solid var(--warning)', backgroundColor: 'rgba(245, 158, 11, 0.05)' }}>
-               <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginLeft: '5px' }}>
-                    <span style={{ fontSize: '0.7rem', fontWeight: 800, color: '#f59e0b' }}>PERÍODO DE COMPARACIÓN</span>
-                    <Info size={12} color="#f59e0b" title="Seleccioná un período distinto para comparar resultados" />
-                  </div>
-                  <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                    <input type="date" className="input-field" value={compareStart} onChange={e => setCompareStart(e.target.value)} style={{ height: '38px', fontSize: '0.85rem', borderColor: '#f59e0b' }} />
-                    <span style={{ color: 'var(--muted-foreground)' }}>→</span>
-                    <input type="date" className="input-field" value={compareEnd} onChange={e => setCompareEnd(e.target.value)} style={{ height: '38px', fontSize: '0.85rem', borderColor: '#f59e0b' }} />
-                  </div>
-               </div>
-            </div>
-          )}
         </div>
       </div>
       
@@ -481,12 +588,27 @@ export default function AdminDashboard() {
                 options={{ 
                   responsive: true, 
                   maintainAspectRatio: false, 
-                  plugins: { legend: { position: 'top', align: 'end', labels: { usePointStyle: true, boxWidth: 6, font: { weight: 700 } } } },
-                  scales: { y: { beginAtZero: true, grid: { color: 'rgba(0,0,0,0.03)' } }, x: { grid: { display: false } } },
+                  plugins: { 
+                    legend: { 
+                      position: 'top', 
+                      align: 'end', 
+                      labels: { usePointStyle: true, boxWidth: 6, font: { weight: 700 } } 
+                    },
+                    tooltip: {
+                      callbacks: {
+                        title: (items) => compare ? items[0].label : items[0].label,
+                        label: (item) => ` ${item.dataset.label}: $${Number(item.raw).toLocaleString('es-AR')}`
+                      }
+                    }
+                  },
+                  scales: { 
+                    y: { beginAtZero: true, grid: { color: 'rgba(0,0,0,0.03)' }, ticks: { callback: v => `$${Number(v).toLocaleString('es-AR')}` } }, 
+                    x: { grid: { display: false }, ticks: { maxTicksLimit: 10, maxRotation: 0 } } 
+                  },
                   onClick: (event, elements) => {
-                    if (elements.length > 0) {
+                    if (!compare && elements.length > 0) {
                       const dataIndex = elements[0].index;
-                      const label = salesChartData.labels[dataIndex]; // Date string e.g., '2023-01-01'
+                      const label = salesChartData.labels[dataIndex];
                       setHistoryFilters(prev => ({ ...prev, specificDate: label, page: 1 }));
                       document.getElementById('history-section')?.scrollIntoView({ behavior: 'smooth' });
                     }
@@ -503,8 +625,18 @@ export default function AdminDashboard() {
                 options={{ 
                   responsive: true, 
                   maintainAspectRatio: false, 
-                  plugins: { legend: { display: false } },
-                  scales: { y: { beginAtZero: true, grid: { color: 'rgba(0,0,0,0.03)' } }, x: { grid: { display: false } } }
+                  plugins: { 
+                    legend: { display: compare, position: 'top', align: 'end', labels: { usePointStyle: true, boxWidth: 6, font: { weight: 700 } } },
+                    tooltip: {
+                      callbacks: {
+                        label: (item) => ` ${item.dataset.label}: ${item.raw} usuario${item.raw !== 1 ? 's' : ''}`
+                      }
+                    }
+                  },
+                  scales: { 
+                    y: { beginAtZero: true, grid: { color: 'rgba(0,0,0,0.03)' }, ticks: { stepSize: 1 } }, 
+                    x: { grid: { display: false }, ticks: { maxTicksLimit: 10, maxRotation: 0 } } 
+                  }
                 }} 
               />
             </div>
@@ -547,49 +679,8 @@ export default function AdminDashboard() {
             </div>
           </div>
         </div>
-      </section>
 
-      {/* SECCIÓN 2: MÉTRICAS GENERALES */}
-      <section style={{ marginBottom: '60px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '15px', marginBottom: '25px' }}>
-          <Globe size={24} color="var(--primary)" />
-          <h3 style={{ margin: 0, fontSize: '1.6rem', fontWeight: 800 }}>Métricas Generales</h3>
-          <div style={{ flex: 1, height: '1px', backgroundColor: 'var(--border)', marginLeft: '10px' }}></div>
-        </div>
-
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '20px', marginBottom: '40px' }}>
-          <StatCard title="Total Órdenes" value={global?.totalOrders || 0} icon={<ShoppingBag size={20} />} bg="rgba(56, 189, 248, 0.1)" color="#38bdf8" />
-          <StatCard title="Base Usuarios" value={global?.totalUsers || 0} icon={<Users size={20} />} bg="rgba(139, 92, 246, 0.1)" color="#8b5cf6" />
-          <StatCard title="Productos Activos" value={global?.totalProducts || 0} icon={<Activity size={20} />} bg="rgba(245, 158, 11, 0.1)" color="#f59e0b" />
-        </div>
-
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '30px', marginBottom: '40px' }}>
-          <div className="card" style={{ padding: '25px' }}>
-            <h5 style={{ marginBottom: '20px', fontWeight: 800, textAlign: 'center' }}>Distribución de Stock</h5>
-            <div style={{ height: '300px' }}>
-              <Doughnut data={categoryStockData} options={{ maintainAspectRatio: false, cutout: '75%', plugins: { legend: { position: 'bottom', labels: { usePointStyle: true, font: { size: 10 } } } } }} />
-            </div>
-          </div>
-          <div className="card" style={{ padding: '25px' }}>
-            <h5 style={{ marginBottom: '20px', fontWeight: 800, textAlign: 'center' }}>Top Productos (Views)</h5>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-              {rankings?.topProducts?.map((p, i) => (
-                <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px', backgroundColor: 'var(--secondary)', borderRadius: 'var(--radius-sm)' }}>
-                  <span style={{ fontSize: '0.85rem', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '160px' }}>{p.name || 'Desconocido'}</span>
-                  <span style={{ fontSize: '0.75rem', backgroundColor: 'var(--card)', padding: '2px 8px', borderRadius: '10px', fontWeight: 700 }}>{p.views || 0} views</span>
-                </div>
-              ))}
-            </div>
-          </div>
-          <div className="card" style={{ padding: '25px' }}>
-            <h5 style={{ marginBottom: '20px', fontWeight: 800, textAlign: 'center' }}>Métodos de Envío</h5>
-            <div style={{ height: '300px', cursor: 'pointer' }}>
-              <Pie data={shippingData} options={{ maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { usePointStyle: true, font: { size: 10 } } } }, onClick: (event, elements) => { if(elements.length > 0){ const idx = elements[0].index; const label = shippingData.labels[idx]; const val = label.toLowerCase().includes('retiro') ? 'retiro' : 'envio'; setHistoryFilters(prev => ({...prev, shippingType: val, page: 1})); document.getElementById('history-section')?.scrollIntoView({behavior: 'smooth'}); } } }} />
-            </div>
-          </div>
-        </div>
-
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.5fr', gap: '30px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.2fr 0.8fr', gap: '20px', marginTop: '30px', alignItems: 'start' }}>
           <div className="card" style={{ padding: '30px' }}>
              <h4 style={{ marginBottom: '25px', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '10px' }}><Award color="#f59e0b" /> Top Clientes</h4>
              <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
@@ -634,35 +725,75 @@ export default function AdminDashboard() {
              </div>
           </div>
           <div className="card" style={{ padding: '30px' }}>
-            <h4 style={{ marginBottom: '25px', fontWeight: 800 }}>Productos Más Vendidos (Periodo)</h4>
-            <div style={{ height: '350px' }}>
-              <Bar 
-                data={topSellingData} 
-                options={{ 
-                  indexAxis: 'y', 
-                  responsive: true, 
-                  maintainAspectRatio: false, 
-                  plugins: { legend: { display: false } },
-                  scales: { x: { grid: { display: false } }, y: { grid: { display: false } } },
-                  onClick: (event, elements) => {
-                    if (elements.length > 0) {
-                      const dataIndex = elements[0].index;
-                      const label = topSellingData.labels[dataIndex];
-                      setHistoryFilters(prev => ({ ...prev, productName: label, page: 1 }));
+            <h4 style={{ marginBottom: '25px', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <TrendingUp color="#8b5cf6" /> Productos Más Vendidos
+            </h4>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+              {(() => {
+                const products = rankings?.topSellingProducts || [];
+                const maxQuantity = Math.max(...products.map(p => p.totalQuantity), 1);
+                const colors = ['#3b82f6', '#8b5cf6', '#ec4899', '#f59e0b', '#10b981'];
+                
+                if (products.length === 0) {
+                  return <div style={{ textAlign: 'center', padding: '40px', color: 'var(--muted-foreground)' }}>Sin datos de ventas en este periodo.</div>;
+                }
+
+                return products.map((p, i) => (
+                  <div 
+                    key={i} 
+                    onClick={() => {
+                      setHistoryFilters(prev => ({ ...prev, productName: p.name, page: 1 }));
                       document.getElementById('history-section')?.scrollIntoView({ behavior: 'smooth' });
-                    }
-                  }
+                    }}
+                    style={{ cursor: 'pointer', transition: 'all 0.2s', padding: '12px', borderRadius: '12px', border: '1px solid transparent' }}
+                    onMouseOver={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.backgroundColor = 'var(--secondary)'; }}
+                    onMouseOut={e => { e.currentTarget.style.borderColor = 'transparent'; e.currentTarget.style.backgroundColor = 'transparent'; }}
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px' }}>
+                      <span style={{ fontSize: '0.9rem', fontWeight: 700, display: 'block', maxWidth: '70%', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.name || 'Desconocido'}</span>
+                      <span style={{ fontSize: '0.9rem', fontWeight: 900, color: colors[i % colors.length] }}>{p.totalQuantity} ud.</span>
+                    </div>
+                    <div style={{ width: '100%', height: '8px', backgroundColor: 'var(--border)', borderRadius: '4px', overflow: 'hidden' }}>
+                      <div style={{ 
+                        width: `${(p.totalQuantity / maxQuantity) * 100}%`, 
+                        height: '100%', 
+                        backgroundColor: colors[i % colors.length], 
+                        borderRadius: '4px',
+                        transition: 'width 1s ease-in-out'
+                      }}></div>
+                    </div>
+                  </div>
+                ));
+              })()}
+            </div>
+          </div>
+
+          <div className="card" style={{ padding: '30px' }}>
+            <h4 style={{ marginBottom: '25px', fontWeight: 800, textAlign: 'center' }}>Métodos de Envío</h4>
+            <div style={{ height: '350px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <Pie 
+                data={shippingData} 
+                options={{ 
+                  maintainAspectRatio: false, 
+                  plugins: { legend: { position: 'bottom', labels: { usePointStyle: true, font: { size: 11, weight: '600' } } } }, 
+                  onClick: (event, elements) => { 
+                    if(elements.length > 0){ 
+                      const idx = elements[0].index; 
+                      const label = shippingData.labels[idx]; 
+                      setHistoryFilters(prev => ({...prev, shippingType: label, page: 1})); 
+                      document.getElementById('history-section')?.scrollIntoView({behavior: 'smooth'}); 
+                    } 
+                  } 
                 }} 
               />
             </div>
           </div>
         </div>
+
       </section>
 
-
-
       {/* SECCIÓN 4: HISTORIAL INTERACTIVO */}
-      <section id="history-section" className="card" style={{ padding: '35px' }}>
+      <section id="history-section" className="card" style={{ padding: '35px', marginBottom: '60px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px', flexWrap: 'wrap', gap: '20px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
             <History size={24} color="var(--primary)" />
@@ -687,8 +818,8 @@ export default function AdminDashboard() {
 
              <select className="input-field" value={historyFilters.shippingType} onChange={e => setHistoryFilters(p => ({...p, shippingType: e.target.value, page: 1}))}>
                <option value="all">Todos</option>
-               <option value="retiro">Retiro en tienda</option>
-               <option value="envio">Envío a domicilio</option>
+               <option value="Retiro en tienda">Retiro en tienda</option>
+               <option value="Envío a domicilio">Envío a domicilio</option>
              </select>
              
              {(historyFilters.shippingType !== 'all' || (historyFilters.clientId && historyFilters.clientId !== 'all') || historyFilters.specificDate || historyFilters.categoryName || historyFilters.productName) && (
@@ -724,50 +855,69 @@ export default function AdminDashboard() {
         {loadingHistory ? (
           <div style={{ padding: '50px', textAlign: 'center' }}>Procesando historial...</div>
         ) : (
-          <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-              <thead>
-                <tr style={{ borderBottom: '2px solid var(--border)', textAlign: 'left' }}>
-                  <th style={{ padding: '15px', color: 'var(--muted-foreground)', fontSize: '0.8rem', textTransform: 'uppercase' }}>Orden</th>
-                  <th style={{ padding: '15px', color: 'var(--muted-foreground)', fontSize: '0.8rem', textTransform: 'uppercase' }}>Fecha</th>
-                  <th style={{ padding: '15px', color: 'var(--muted-foreground)', fontSize: '0.8rem', textTransform: 'uppercase' }}>Cliente</th>
-                  <th style={{ padding: '15px', color: 'var(--muted-foreground)', fontSize: '0.8rem', textTransform: 'uppercase' }}>Envío</th>
-                  <th style={{ padding: '15px', color: 'var(--muted-foreground)', fontSize: '0.8rem', textTransform: 'uppercase' }}>Estado</th>
-                  <th style={{ padding: '15px', color: 'var(--muted-foreground)', fontSize: '0.8rem', textTransform: 'uppercase' }}>Total</th>
-                </tr>
-              </thead>
-              <tbody>
-                {history.orders?.length > 0 ? history.orders.map(o => (
-                  <tr key={o.id} style={{ borderBottom: '1px solid var(--border)', transition: 'background 0.2s' }} onMouseOver={e => e.currentTarget.style.backgroundColor = 'var(--secondary)'} onMouseOut={e => e.currentTarget.style.backgroundColor = 'transparent'}>
-                    <td style={{ padding: '15px', fontWeight: 700 }}>#{o.id}</td>
-                    <td style={{ padding: '15px' }}>{o.fecha_compra ? new Date(o.fecha_compra).toLocaleDateString('es-AR') : 'S/F'}</td>
-                    <td style={{ padding: '15px' }}>
-                      <div style={{ display: 'flex', flexDirection: 'column' }}>
-                        <span style={{ fontWeight: 600 }}>{o.User?.name || 'Anon'}</span>
-                        <span style={{ fontSize: '0.75rem', color: 'var(--muted-foreground)' }}>{o.User?.email || ''}</span>
-                      </div>
-                    </td>
-                    <td style={{ padding: '15px' }}>
-                      <span style={{ fontSize: '0.8rem', padding: '4px 10px', borderRadius: '12px', backgroundColor: 'var(--card)', border: '1px solid var(--border)', textTransform: 'capitalize' }}>
-                        {o.tipo_envio === 'retiro' ? 'Retiro en tienda' : (o.tipo_envio === 'envio' ? 'Envío a domicilio' : (o.shipping_method || 'Normal'))}
-                      </span>
-                    </td>
-                    <td style={{ padding: '15px' }}>
-                      <span style={{ 
-                        padding: '4px 10px', borderRadius: '50px', fontSize: '0.7rem', fontWeight: 800, 
-                        backgroundColor: getStatusStyle(o.status).bg, 
-                        color: getStatusStyle(o.status).text 
-                      }}>
-                        {(o.status || 'Pendiente').toUpperCase()}
-                      </span>
-                    </td>
-                    <td style={{ padding: '15px', fontWeight: 800, color: 'var(--primary)' }}>${Number(o.total || 0).toLocaleString('es-AR')}</td>
-                  </tr>
-                )) : (
-                  <tr><td colSpan="6" style={{ padding: '50px', textAlign: 'center', color: 'var(--muted-foreground)' }}>Sin resultados.</td></tr>
-                )}
-              </tbody>
-            </table>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+            {history.orders?.length > 0 ? history.orders.map(o => (
+              <div 
+                key={o.id} 
+                onClick={() => setSelectedOrder(o.id)}
+                style={{ 
+                  display: 'grid', 
+                  gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', 
+                  gap: '15px', 
+                  padding: '20px', 
+                  backgroundColor: 'var(--card)', 
+                  borderRadius: '12px', 
+                  border: '1px solid var(--border)', 
+                  cursor: 'pointer', 
+                  transition: 'all 0.2s',
+                  alignItems: 'center'
+                }} 
+                onMouseOver={e => { e.currentTarget.style.borderColor = 'var(--primary)'; e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 10px 25px -5px rgba(0,0,0,0.1)'; }} 
+                onMouseOut={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.transform = 'none'; e.currentTarget.style.boxShadow = 'none'; }}
+              >
+                <div>
+                  <span style={{ display: 'block', fontSize: '0.75rem', color: 'var(--muted-foreground)', textTransform: 'uppercase', fontWeight: 700, marginBottom: '5px' }}>Orden</span>
+                  <span style={{ fontWeight: 800, fontSize: '1.1rem' }}>#{o.id}</span>
+                </div>
+                
+                <div>
+                  <span style={{ display: 'block', fontSize: '0.75rem', color: 'var(--muted-foreground)', textTransform: 'uppercase', fontWeight: 700, marginBottom: '5px' }}>Fecha</span>
+                  <span style={{ fontWeight: 600 }}>{o.fecha_compra ? new Date(o.fecha_compra).toLocaleDateString('es-AR') : 'S/F'}</span>
+                </div>
+                
+                <div>
+                  <span style={{ display: 'block', fontSize: '0.75rem', color: 'var(--muted-foreground)', textTransform: 'uppercase', fontWeight: 700, marginBottom: '5px' }}>Cliente</span>
+                  <div style={{ display: 'flex', flexDirection: 'column' }}>
+                    <span style={{ fontWeight: 700 }}>{o.User?.name || 'Anon'}</span>
+                  </div>
+                </div>
+                
+                <div>
+                  <span style={{ display: 'block', fontSize: '0.75rem', color: 'var(--muted-foreground)', textTransform: 'uppercase', fontWeight: 700, marginBottom: '5px' }}>Envío</span>
+                  <span style={{ fontSize: '0.85rem', padding: '6px 12px', borderRadius: '8px', backgroundColor: 'var(--secondary)', fontWeight: 600, textTransform: 'capitalize' }}>
+                    {o.tipo_envio || o.shipping_method || 'Normal'}
+                  </span>
+                </div>
+
+                <div>
+                  <span style={{ display: 'block', fontSize: '0.75rem', color: 'var(--muted-foreground)', textTransform: 'uppercase', fontWeight: 700, marginBottom: '5px' }}>Estado</span>
+                  <span style={{ 
+                    padding: '6px 12px', borderRadius: '50px', fontSize: '0.75rem', fontWeight: 800, 
+                    backgroundColor: getStatusStyle(o.status).bg, 
+                    color: getStatusStyle(o.status).text 
+                  }}>
+                    {(o.status || 'Pendiente').toUpperCase()}
+                  </span>
+                </div>
+
+                <div style={{ textAlign: 'right' }}>
+                  <span style={{ display: 'block', fontSize: '0.75rem', color: 'var(--muted-foreground)', textTransform: 'uppercase', fontWeight: 700, marginBottom: '5px' }}>Total</span>
+                  <span style={{ fontWeight: 900, color: 'var(--primary)', fontSize: '1.2rem' }}>${Number(o.total || 0).toLocaleString('es-AR')}</span>
+                </div>
+              </div>
+            )) : (
+              <div style={{ padding: '50px', textAlign: 'center', color: 'var(--muted-foreground)', backgroundColor: 'var(--card)', borderRadius: '12px', border: '1px dashed var(--border)' }}>Sin resultados.</div>
+            )}
           </div>
         )}
 
@@ -778,6 +928,57 @@ export default function AdminDashboard() {
             <button className="pagination-btn" disabled={history.currentPage === history.totalPages} onClick={() => setHistoryFilters(p => ({ ...p, page: p.page + 1 }))}><ChevronRight size={18} /></button>
           </div>
         )}
+      </section>
+
+      {/* SECCIÓN 2: MÉTRICAS GENERALES */}
+      <section style={{ marginBottom: '60px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '15px', marginBottom: '25px' }}>
+          <Globe size={24} color="var(--primary)" />
+          <h3 style={{ margin: 0, fontSize: '1.6rem', fontWeight: 800 }}>Métricas Generales</h3>
+          <div style={{ flex: 1, height: '1px', backgroundColor: 'var(--border)', marginLeft: '10px' }}></div>
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '20px', marginBottom: '40px' }}>
+          <StatCard title="Total Órdenes" value={global?.totalOrders || 0} icon={<ShoppingBag size={20} />} bg="rgba(56, 189, 248, 0.1)" color="#38bdf8" />
+          <StatCard title="Base Usuarios" value={global?.totalUsers || 0} icon={<Users size={20} />} bg="rgba(139, 92, 246, 0.1)" color="#8b5cf6" />
+          <StatCard title="Productos Activos" value={global?.totalProducts || 0} icon={<Activity size={20} />} bg="rgba(245, 158, 11, 0.1)" color="#f59e0b" />
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '30px', marginBottom: '40px' }}>
+          <div className="card" style={{ padding: '25px' }}>
+            <h5 style={{ marginBottom: '20px', fontWeight: 800, textAlign: 'center' }}>Distribución de Stock</h5>
+            <div style={{ height: '300px' }}>
+              <Doughnut 
+                data={categoryStockData} 
+                options={{ 
+                  maintainAspectRatio: false, 
+                  cutout: '75%', 
+                  plugins: { legend: { position: 'bottom', labels: { usePointStyle: true, font: { size: 10 } } } },
+                  onClick: (event, elements) => {
+                    if (elements.length > 0) {
+                      const idx = elements[0].index;
+                      const catData = rankings?.productsByCategory?.[idx];
+                      if (catData && catData.id) {
+                        setSelectedCategoryModal({ id: catData.id, name: catData.category });
+                      }
+                    }
+                  }
+                }} 
+              />
+            </div>
+          </div>
+          <div className="card" style={{ padding: '25px' }}>
+            <h5 style={{ marginBottom: '20px', fontWeight: 800, textAlign: 'center' }}>Top Productos (Views)</h5>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+              {rankings?.topProducts?.map((p, i) => (
+                <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px', backgroundColor: 'var(--secondary)', borderRadius: 'var(--radius-sm)' }}>
+                  <span style={{ fontSize: '0.85rem', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '160px' }}>{p.name || 'Desconocido'}</span>
+                  <span style={{ fontSize: '0.75rem', backgroundColor: 'var(--card)', padding: '2px 8px', borderRadius: '10px', fontWeight: 700 }}>{p.views || 0} views</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
       </section>
 
       {/* SECCIÓN 5: MOTOR DE PRICING Y DEMANDA */}
@@ -793,6 +994,20 @@ export default function AdminDashboard() {
         />
       )}
 
+      {selectedOrder && (
+        <OrderDetailModal 
+          orderId={selectedOrder} 
+          onClose={() => setSelectedOrder(null)} 
+        />
+      )}
+
+      {selectedCategoryModal && (
+        <CategoryProductsModal 
+          categoryId={selectedCategoryModal.id}
+          categoryName={selectedCategoryModal.name}
+          onClose={() => setSelectedCategoryModal(null)}
+        />
+      )}
     </div>
   );
 }
@@ -857,11 +1072,11 @@ function PricingHistorySection() {
     setLoading(true);
     try {
       const token = localStorage.getItem('token');
-      const res = await axios.get(`http://localhost:5000/api/products/${selectedOption.value}/price-history`, {
+      const res = await axios.get(`http://localhost:5000/api/products/${selectedOption.value || selectedOption.id}/price-history`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       setSelectedProduct(res.data.product);
-      setHistoryLogs(res.data.logs);
+      setHistoryLogs(res.data.logs.slice(-7));
     } catch (error) {
       console.error("Error fetching price history:", error);
     } finally {
@@ -871,25 +1086,48 @@ function PricingHistorySection() {
 
   let ultimoEstado = 'Sin cambios';
   let ultimoMotivo = 'No hay registros de fluctuación';
+  let origenTexto = 'Ninguno';
   let colorEstado = 'var(--foreground)';
   
   if (historyLogs.length > 0) {
     const lastLog = historyLogs[historyLogs.length - 1];
+    
+    if (lastLog.origen === 'motor') origenTexto = '⚙️ Motor Automático';
+    else if (lastLog.origen === 'manual') origenTexto = '👤 Admin Manual';
+    else if (lastLog.origen === 'masivo') origenTexto = '📦 Modificación Masiva';
+    else origenTexto = 'Desconocido';
+
     ultimoMotivo = lastLog.detalle || 'Sin detalle';
     
     const prev = Number(lastLog.precio_anterior);
     const curr = Number(lastLog.precio_nuevo);
     if (curr > prev) {
       ultimoEstado = 'Subió';
+      colorEstado = '#ef4444';
     } else if (curr < prev) {
       ultimoEstado = 'Bajó';
+      colorEstado = '#10b981';
     } else {
       ultimoEstado = 'Se mantuvo';
     }
   }
 
+  const getOriginColor = (origen) => {
+    if (origen === 'motor') return '#10b981';
+    if (origen === 'manual') return '#f59e0b';
+    if (origen === 'masivo') return '#8b5cf6';
+    return '#10b981';
+  };
+
+  const getOriginName = (origen) => {
+    if (origen === 'motor') return 'Motor IA';
+    if (origen === 'manual') return 'Edición Manual';
+    if (origen === 'masivo') return 'Actualización Masiva';
+    return 'Desconocido';
+  };
+
   const chartData = {
-    labels: historyLogs.map(log => new Date(log.created_at).toLocaleDateString('es-AR')),
+    labels: historyLogs.map(log => new Date(log.created_at).toLocaleString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })),
     datasets: [
       {
         label: 'Evolución de Precio ($)',
@@ -899,14 +1137,17 @@ function PricingHistorySection() {
         borderWidth: 3,
         fill: true,
         tension: 0.1,
-        pointRadius: 5,
-        pointBackgroundColor: '#10b981'
+        pointRadius: 6,
+        pointBackgroundColor: historyLogs.map(log => getOriginColor(log.origen)),
+        pointBorderColor: '#fff',
+        pointBorderWidth: 2,
+        pointHoverRadius: 8
       }
     ]
   };
 
   if (selectedProduct && historyLogs.length === 0) {
-    chartData.labels = [new Date().toLocaleDateString('es-AR')];
+    chartData.labels = [new Date().toLocaleString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })];
     chartData.datasets[0].data = [Number(selectedProduct.price)];
   }
 
@@ -914,7 +1155,7 @@ function PricingHistorySection() {
     <section style={{ marginTop: '60px', marginBottom: '60px' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: '15px', marginBottom: '25px' }}>
         <TrendingUp size={24} color="var(--primary)" />
-        <h3 style={{ margin: 0, fontSize: '1.6rem', fontWeight: 800 }}>Motor de Pricing Automático</h3>
+        <h3 style={{ margin: 0, fontSize: '1.6rem', fontWeight: 800 }}>Historial de Precios</h3>
         <div style={{ flex: 1, height: '1px', backgroundColor: 'var(--border)', marginLeft: '10px' }}></div>
       </div>
 
@@ -944,7 +1185,14 @@ function PricingHistorySection() {
               return (
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <div style={{ display: 'flex', flexDirection: 'column' }}>
-                    <span style={{ fontWeight: 600 }}>{option.name}</span>
+                    <span style={{ fontWeight: 600, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      {option.name}
+                      {option.recentAIUpdate && (
+                        <span title="Precio modificado por el Motor de IA en las últimas 24hs" style={{ display: 'flex', alignItems: 'center', gap: '4px', color: '#8b5cf6', backgroundColor: 'rgba(139, 92, 246, 0.1)', padding: '2px 6px', borderRadius: '4px', fontWeight: 600, fontSize: '0.65rem' }}>
+                          <Sparkles size={10} /> IA Pricing
+                        </span>
+                      )}
+                    </span>
                     {option.Category && <span style={{ fontSize: '0.75rem', color: 'var(--muted-foreground)' }}>{option.Category.descripcion}</span>}
                   </div>
                   <div style={{ textAlign: 'right' }}>
@@ -975,14 +1223,17 @@ function PricingHistorySection() {
                 <h4 style={{ margin: '5px 0 0 0', fontSize: '1.8rem', color: '#3b82f6', fontWeight: 900 }}>${Number(selectedProduct.price).toLocaleString('es-AR')}</h4>
               </div>
               <div style={{ flex: 1, padding: '20px', backgroundColor: 'rgba(16, 185, 129, 0.05)', borderRadius: '12px', border: '1px solid rgba(16, 185, 129, 0.2)' }}>
-                <p style={{ margin: 0, fontSize: '0.8rem', fontWeight: 700, color: 'var(--muted-foreground)' }}>ESTADO DEL ÚLTIMO MOVIMIENTO</p>
+                <p style={{ margin: 0, fontSize: '0.8rem', fontWeight: 700, color: 'var(--muted-foreground)' }}>ÚLTIMO MOVIMIENTO</p>
                 <h4 style={{ margin: '5px 0 0 0', fontSize: '1.8rem', color: colorEstado, fontWeight: 900 }}>
                   {ultimoEstado}
                 </h4>
               </div>
-              <div style={{ flex: 1, padding: '20px', backgroundColor: 'rgba(245, 158, 11, 0.05)', borderRadius: '12px', border: '1px solid rgba(245, 158, 11, 0.2)' }}>
-                <p style={{ margin: 0, fontSize: '0.8rem', fontWeight: 700, color: 'var(--muted-foreground)' }}>MOTIVO DEL MOVIMIENTO</p>
-                <h4 style={{ margin: '5px 0 0 0', fontSize: '1.2rem', color: '#f59e0b', fontWeight: 700, lineHeight: '1.4' }}>
+              <div style={{ flex: 1.5, padding: '20px', backgroundColor: 'rgba(245, 158, 11, 0.05)', borderRadius: '12px', border: '1px solid rgba(245, 158, 11, 0.2)', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '5px' }}>
+                  <p style={{ margin: 0, fontSize: '0.8rem', fontWeight: 700, color: 'var(--muted-foreground)' }}>ORIGEN DEL AJUSTE</p>
+                  <span style={{ fontSize: '0.8rem', fontWeight: 800, color: '#f59e0b', backgroundColor: 'rgba(245, 158, 11, 0.1)', padding: '2px 8px', borderRadius: '12px' }}>{origenTexto}</span>
+                </div>
+                <h4 style={{ margin: 0, fontSize: '1.1rem', color: 'var(--foreground)', fontWeight: 600, lineHeight: '1.4' }}>
                   {ultimoMotivo}
                 </h4>
               </div>
@@ -1004,6 +1255,10 @@ function PricingHistorySection() {
                           if (context.parsed.y !== null) {
                             label += '$' + context.parsed.y.toLocaleString('es-AR');
                           }
+                          const log = historyLogs[context.dataIndex];
+                          if (log && log.origen) {
+                             label += ' | Origen: ' + getOriginName(log.origen);
+                          }
                           return label;
                         }
                       }
@@ -1015,11 +1270,35 @@ function PricingHistorySection() {
                       grid: { color: 'rgba(0,0,0,0.05)' },
                       ticks: { callback: (val) => '$' + val.toLocaleString('es-AR') } 
                     }, 
-                    x: { grid: { display: false } } 
+                    x: { 
+                      grid: { display: false },
+                      ticks: {
+                        callback: function(val) {
+                          const label = this.getLabelForValue(val);
+                          return label ? label.split(',')[0] : '';
+                        }
+                      }
+                    } 
                   }
                 }} 
               />
             </div>
+            
+            <div style={{ display: 'flex', gap: '20px', justifyContent: 'center', marginTop: '15px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <div style={{ width: '14px', height: '14px', borderRadius: '50%', backgroundColor: '#10b981', border: '2px solid #fff', boxShadow: '0 0 0 1px #10b981' }}></div>
+                <span style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--muted-foreground)' }}>Motor IA</span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <div style={{ width: '14px', height: '14px', borderRadius: '50%', backgroundColor: '#f59e0b', border: '2px solid #fff', boxShadow: '0 0 0 1px #f59e0b' }}></div>
+                <span style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--muted-foreground)' }}>Edición Manual</span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <div style={{ width: '14px', height: '14px', borderRadius: '50%', backgroundColor: '#8b5cf6', border: '2px solid #fff', boxShadow: '0 0 0 1px #8b5cf6' }}></div>
+                <span style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--muted-foreground)' }}>Actualización Masiva</span>
+              </div>
+            </div>
+
             {historyLogs.length === 0 && (
               <p style={{ textAlign: 'center', marginTop: '15px', color: 'var(--muted-foreground)', fontSize: '0.9rem' }}>
                 Este producto aún no registra fluctuaciones automáticas por demanda. Solo se muestra su precio actual.

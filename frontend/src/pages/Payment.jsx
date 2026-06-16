@@ -261,17 +261,17 @@ export default function Payment() {
           <div style={{ display: 'flex', flexDirection: 'column', gap: '15px', marginBottom: '20px' }}>
              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                 <span style={{ color: 'var(--muted-foreground)' }}>Subtotal ({cart.length} ítems)</span>
-                <span>${subtotal.toLocaleString()}</span>
+                <span>${subtotal.toLocaleString('es-AR')}</span>
              </div>
              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                 <span style={{ color: 'var(--muted-foreground)' }}>Costo de Envío</span>
                 <span style={{ color: shippingInfo.cost === 0 && shippingInfo.method !== 'standard' ? 'var(--success)' : 'inherit' }}>
-                  {shippingInfo.method === 'tienda' ? 'Gratis' : `$${shippingInfo.cost.toLocaleString()}`}
+                  {shippingInfo.method === 'tienda' ? 'Gratis' : `$${shippingInfo.cost.toLocaleString('es-AR')}`}
                 </span>
              </div>
              <div style={{ borderTop: '1px solid var(--border)', paddingTop: '15px', display: 'flex', justifyContent: 'space-between', fontWeight: 800, fontSize: '1.2rem' }}>
                 <span>Total</span>
-                <span>${total.toLocaleString()}</span>
+                <span>${total.toLocaleString('es-AR')}</span>
              </div>
           </div>
 

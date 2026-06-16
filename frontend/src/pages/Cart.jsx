@@ -150,7 +150,7 @@ export default function Cart() {
             {cartItems.map((item, idx) => (
               <div key={idx} className="card animate-fade-in" style={{ display: 'flex', padding: '24px', alignItems: 'center', gap: '24px' }}>
                 <div style={{ width: '100px', height: '100px', backgroundColor: 'var(--background)', borderRadius: 'var(--radius-md)', padding: '10px' }}>
-                   <img src={item.imgURL || 'data:image/svg+xml;base64,...'} alt={item.name} style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+                   <img src={item.imgURL || 'data:image/svg+xml;base64,...'} alt={item.name} onError={(e) => { e.target.onerror = null; e.target.src = 'https://via.placeholder.com/100'; }} style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
                 </div>
                 <div style={{ flex: 1 }}>
                   <h4 style={{ fontSize: '1.1rem', fontWeight: 600, marginBottom: '4px' }}>{item.name}</h4>
@@ -158,7 +158,7 @@ export default function Cart() {
                 </div>
                 <div style={{ textAlign: 'right', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '10px' }}>
                   <span style={{ fontSize: '1.25rem', fontWeight: 800, display: 'block' }}>
-                    ${(Number(item.price) * (item.quantity || 1)).toLocaleString()}
+                    ${(Number(item.price) * (item.quantity || 1)).toLocaleString('es-AR')}
                   </span>
                   
                   <div style={{ display: 'flex', alignItems: 'center', gap: '10px', backgroundColor: 'var(--background)', borderRadius: 'var(--radius-sm)', padding: '4px 8px' }}>
@@ -180,7 +180,7 @@ export default function Cart() {
              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginBottom: '24px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--muted-foreground)' }}>
                    <span>Subtotal</span>
-                   <span>${total.toLocaleString()}</span>
+                   <span>${total.toLocaleString('es-AR')}</span>
                 </div>
                  <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--muted-foreground)' }}>
                     <span>Envío</span>
@@ -190,7 +190,7 @@ export default function Cart() {
               
               <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid var(--border)', paddingTop: '24px', marginBottom: '32px' }}>
                 <span style={{ fontWeight: 600 }}>Subtotal Compra</span>
-                <span style={{ fontSize: '1.75rem', fontWeight: 800 }}>${total.toLocaleString()}</span>
+                <span style={{ fontSize: '1.75rem', fontWeight: 800 }}>${total.toLocaleString('es-AR')}</span>
               </div>
 
             <button 
@@ -259,8 +259,8 @@ function CartRecommendations({ cartItems }) {
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: '20px' }}>
         {recommendations.map(p => (
           <div key={p.id} className="card" style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-            <img src={p.imgURL} alt="p" style={{ height: '120px', objectFit: 'contain' }} />
-            <div style={{ fontWeight: 700 }}>${Number(p.price).toLocaleString()}</div>
+            <img src={p.imgURL} alt="p" onError={(e) => { e.target.onerror = null; e.target.src = 'https://via.placeholder.com/120'; }} style={{ height: '120px', objectFit: 'contain' }} />
+            <div style={{ fontWeight: 700 }}>${Number(p.price).toLocaleString('es-AR')}</div>
             <div style={{ fontSize: '0.85rem', color: 'var(--muted-foreground)', flex: 1 }}>{p.name}</div>
             <button className="btn btn-outline" style={{ fontSize: '0.8rem', padding: '8px' }} onClick={() => addToCart(p)}>Agregar</button>
           </div>

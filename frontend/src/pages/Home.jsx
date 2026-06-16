@@ -15,6 +15,7 @@ export default function Home() {
   const [editingProduct, setEditingProduct] = useState(null);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
+  const [categories, setCategories] = useState([]);
 
   const location = useLocation();
   const searchParams = new URLSearchParams(location.search);
@@ -23,7 +24,7 @@ export default function Home() {
   const [minPrice, setMinPrice] = useState('');
   const [maxPrice, setMaxPrice] = useState('');
   const [sortBy, setSortBy] = useState('relevance');
-  const [quickFilter, setQuickFilter] = useState('');
+  const [categoryId, setCategoryId] = useState('');
   const navigate = useNavigate();
   const user = JSON.parse(localStorage.getItem('user') || '{}');
   const isAdmin = isAdminRole(user);
@@ -33,7 +34,9 @@ export default function Home() {
   const [recommendations, setRecommendations] = useState([]);
 
   const fetchProducts = () => {
-    axios.get('http://localhost:5000/api/products')
+    axios.get('http://localhost:5000/api/products', {
+      params: { search: searchQuery, categoryId: categoryId }
+    })
       .then(res => setProducts(res.data))
       .catch(err => console.error(err));
   };
@@ -45,12 +48,18 @@ export default function Home() {
         .then(res => setRecommendations(res.data))
         .catch(err => console.error(err));
     }
-  }, [user.id]);
+  }, [user.id, searchQuery, categoryId]);
+
+  useEffect(() => {
+    axios.get('http://localhost:5000/api/products/categories')
+      .then(res => setCategories(res.data))
+      .catch(console.error);
+  }, []);
 
   useEffect(() => {
     setCurrentPage(1);
     window.scrollTo(0, 0);
-  }, [searchQuery, quickFilter, minPrice, maxPrice, sortBy]);
+  }, [searchQuery, categoryId, minPrice, maxPrice, sortBy]);
 
   useEffect(() => {
     window.scrollTo(0, 0);
@@ -120,24 +129,6 @@ export default function Home() {
   const filteredProducts = useMemo(() => {
     let result = products.filter(p => (p.isActive !== false && Number(p.stock) > 0) || isAdmin); // Admins see everything
 
-    if (searchQuery) {
-      const q = searchQuery.toLowerCase();
-      result = result.filter(p => 
-        p.name.toLowerCase().includes(q) || 
-        (p.description && p.description.toLowerCase().includes(q)) ||
-        (p.Category?.descripcion && p.Category.descripcion.toLowerCase().includes(q))
-      );
-    }
-
-    if (quickFilter) {
-      const q = quickFilter.toLowerCase();
-      result = result.filter(p => 
-        p.name.toLowerCase().includes(q) || 
-        (p.description && p.description.toLowerCase().includes(q)) ||
-        (p.Category?.descripcion && p.Category.descripcion.toLowerCase().includes(q))
-      );
-    }
-
     if (minPrice) {
       result = result.filter(p => Number(p.price) >= Number(minPrice));
     }
@@ -151,7 +142,7 @@ export default function Home() {
     else if (sortBy === 'relevance') sorted.sort((a, b) => (b.views || 0) - (a.views || 0));
 
     return sorted;
-  }, [products, searchQuery, quickFilter, minPrice, maxPrice, sortBy, isAdmin]);
+  }, [products, minPrice, maxPrice, sortBy, isAdmin]);
 
   const totalPages = Math.ceil(filteredProducts.length / ITEMS_PER_PAGE);
   const paginatedProducts = useMemo(() => {
@@ -172,24 +163,18 @@ export default function Home() {
               </h3>
 
               <div style={{ marginBottom: '24px' }}>
-                 <h4 style={{ fontSize: '0.9rem', color: 'var(--muted-foreground)', marginBottom: '12px' }}>Categorías Populares</h4>
-                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
-                    {['Intel', 'AMD', 'Nvidia', 'Motherboard', 'RAM'].map(cat => (
-                      <button 
-                        key={cat}
-                        onClick={() => setQuickFilter(quickFilter === cat ? '' : cat)}
-                        style={{ 
-                          padding: '6px 12px', fontSize: '0.85rem', borderRadius: 'var(--radius-sm)', cursor: 'pointer',
-                          border: quickFilter === cat ? '1px solid var(--foreground)' : '1px solid var(--border)',
-                          backgroundColor: quickFilter === cat ? 'var(--foreground)' : 'var(--background)',
-                          color: quickFilter === cat ? 'var(--background)' : 'var(--foreground)',
-                          transition: 'all 0.2s'
-                        }}
-                      >
-                        {cat}
-                      </button>
-                    ))}
-                 </div>
+                 <h4 style={{ fontSize: '0.9rem', color: 'var(--muted-foreground)', marginBottom: '12px' }}>Categoría</h4>
+                 <select 
+                   className="input-field" 
+                   value={categoryId} 
+                   onChange={e => setCategoryId(e.target.value)}
+                   style={{ width: '100%', padding: '10px' }}
+                 >
+                   <option value="">Todas las categorías</option>
+                   {categories.map(cat => (
+                     <option key={cat.id} value={cat.id}>{cat.descripcion}</option>
+                   ))}
+                 </select>
               </div>
 
               <div style={{ marginBottom: '24px' }}>
@@ -237,7 +222,7 @@ export default function Home() {
         </aside>
 
         <section>
-          {isLoggedIn && !isAdmin && recommendations.length > 0 && !searchQuery && !quickFilter && (
+          {isLoggedIn && !isAdmin && recommendations.length > 0 && !searchQuery && !categoryId && (
             <div style={{ marginBottom: '50px' }}>
               <h2 style={{ fontSize: '1.4rem', fontWeight: 700, marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '10px' }}>
                 <div style={{ width: '8px', height: '24px', backgroundColor: 'var(--accent)', borderRadius: '4px' }}></div>
@@ -246,7 +231,7 @@ export default function Home() {
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '20px' }}>
                 {recommendations.map(p => (
                   <div key={`rec-${p.id}`} className="card" onClick={() => openProductModal(p)} style={{ cursor: 'pointer', padding: '15px' }}>
-                    <img src={fixImageUrl(p.imgURL) || placeholderImg} alt={p.name} style={{ width: '100%', height: '120px', objectFit: 'contain', marginBottom: '10px' }} />
+                    <img src={fixImageUrl(p.imgURL) || placeholderImg} alt={p.name} onError={(e) => { e.target.onerror = null; e.target.src = placeholderImg; }} style={{ width: '100%', height: '120px', objectFit: 'contain', marginBottom: '10px' }} />
                     <div style={{ fontWeight: 700, fontSize: '1rem' }}>{formatCurrency(p.price)}</div>
                     <div style={{ fontSize: '0.8rem', color: 'var(--muted-foreground)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.name}</div>
                   </div>
@@ -298,7 +283,7 @@ export default function Home() {
                       <img 
                         src={fixImageUrl(product.imgURL) || placeholderImg} 
                         alt={product.name} 
-                        onError={(e) => { e.target.src = placeholderImg; }}
+                        onError={(e) => { e.target.onerror = null; e.target.src = placeholderImg; }}
                         style={{ maxHeight: '100%', maxWidth: '100%', objectFit: 'contain' }}
                       />
                     </div>
@@ -410,7 +395,7 @@ export default function Home() {
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: '15px' }}>
                     {recommendations.filter(p => p.id !== selectedProduct.id).slice(0, 3).map(rec => (
                       <div key={rec.id} className="card" onClick={() => setSelectedProduct(rec)} style={{ cursor: 'pointer', padding: '10px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                         <img src={fixImageUrl(rec.imgURL) || placeholderImg} alt={rec.name} style={{ width: '100%', height: '80px', objectFit: 'contain' }} />
+                         <img src={fixImageUrl(rec.imgURL) || placeholderImg} alt={rec.name} onError={(e) => { e.target.onerror = null; e.target.src = placeholderImg; }} style={{ width: '100%', height: '80px', objectFit: 'contain' }} />
                          <span style={{ fontSize: '0.9rem', fontWeight: 700 }}>{formatCurrency(rec.price)}</span>
                          <span style={{ fontSize: '0.75rem', color: 'var(--muted-foreground)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{rec.name}</span>
                       </div>
@@ -439,14 +424,7 @@ export default function Home() {
                     >
                       {selectedProduct.stock > 0 ? 'Agregar al Carrito' : 'Agotado'}
                     </button>
-                    <button 
-                      className="btn btn-outline" 
-                      disabled={selectedProduct.stock <= 0}
-                      style={{ flex: '0 0 120px', opacity: selectedProduct.stock <= 0 ? 0.5 : 1 }} 
-                      onClick={(e) => { addToCart(e, selectedProduct); closeModal(); navigate('/cart'); }}
-                    >
-                      Comprar
-                    </button>
+
                   </>
                 )}
                 <button className="btn btn-outline" style={{ flex: '0 0 120px' }} onClick={closeModal}>Cerrar</button>

@@ -66,7 +66,7 @@ router.post('/', authMiddleware, clientMiddleware, upload.single('proof'), async
       shipping_address: shippingAddress,
       provincia, localidad, codigo_postal: codigoPostal,
       shipping_method: shippingMethod,
-      tipo_envio: shippingMethod === 'tienda' ? 'retiro' : 'envio',
+      tipo_envio: shippingMethod === 'tienda' ? 'Retiro en tienda' : 'Envío a domicilio',
       shipping_cost: Number(shippingCost) || 0,
       payment_method: paymentMethod,
       payment_receipt: req.file ? req.file.path.replace(/\\/g, '/') : null
@@ -198,12 +198,13 @@ router.get('/preparing/pdf', authMiddleware, async (req, res) => {
     let y = 190;
     const groupedTotals = {}; // { category: { productName: quantity } }
 
-    orders.forEach((order) => {
-      // Verificar espacio para nueva orden (encabezado + al menos 1 producto)
-      if (y > 680) { // Reduje un poco el margen ya que el encabezado es más largo ahora
+    orders.forEach((order, index) => {
+      // Nueva página para cada orden excepto la primera
+      if (index > 0) { 
         doc.addPage();
-        applyHardwareHavenBranding(doc, 'PRODUCTOS PARA PREPARAR (CONTINUACIÓN)');
-        y = 180;
+        applyHardwareHavenBranding(doc, 'PRODUCTOS PARA PREPARAR');
+        doc.fillColor('#64748b').fontSize(11).font('Helvetica-Oblique').text('Órdenes en estado: En preparación', 40, 155);
+        y = 190;
       }
 
       const clientName = order.User?.name || 'Desconocido';
@@ -302,15 +303,31 @@ router.get('/preparing/pdf', authMiddleware, async (req, res) => {
 // 4. Obtener órdenes
 router.get('/', authMiddleware, async (req, res) => {
   try {
-    const { status, page = 1, limit = 10, clientId } = req.query;
+    const { status, page = 1, limit = 10, clientId, search, tipo_envio } = req.query;
     const where = {};
+    const userInclude = { model: User };
     if (status && status !== 'all') where.status = status;
     if (clientId && clientId !== 'all') where.user_id = Number(clientId);
     if (!isAdminRole(req.user.tipoUsuario)) where.user_id = req.user.id;
+    if (tipo_envio && tipo_envio !== 'all') where.tipo_envio = tipo_envio;
+
+    if (search && search.trim() !== '') {
+      const searchNum = Number(search);
+      if (!isNaN(searchNum)) {
+        where[Op.or] = [
+          { id: searchNum },
+          { user_id: searchNum }
+        ];
+      } else {
+        userInclude.where = {
+          name: { [Op.like]: `%${search}%` }
+        };
+      }
+    }
 
     const { count, rows } = await Order.findAndCountAll({
       where,
-      include: [User, { model: OrderItem, include: [Product] }],
+      include: [userInclude, { model: OrderItem, include: [Product] }],
       order: [['id', 'DESC']],
       limit: Number(limit),
       offset: (Number(page) - 1) * Number(limit),

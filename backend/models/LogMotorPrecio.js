@@ -12,6 +12,10 @@ const LogMotorPrecio = sequelize.define('LogMotorPrecio', {
     type: DataTypes.ENUM('success', 'warning', 'error', 'pending'),
     defaultValue: 'pending'
   },
+  origen: {
+    type: DataTypes.ENUM('motor', 'manual', 'masivo'),
+    defaultValue: 'motor'
+  },
   detalle: { type: DataTypes.TEXT, allowNull: true },
   razon_rechazo: { type: DataTypes.STRING, allowNull: true },
   validaciones: { type: DataTypes.JSON, allowNull: true },

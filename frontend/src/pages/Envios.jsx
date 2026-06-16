@@ -326,7 +326,7 @@ export default function Envios() {
             <div>
               <div style={{ fontSize: '0.85rem', color: 'var(--muted-foreground)' }}>Costo de envío</div>
               <div style={{ fontSize: '1.2rem', fontWeight: 800, color: (method === 'tienda' || precioEnvio === 0) && method !== 'standard' ? 'var(--success)' : 'var(--foreground)' }}>
-                {method === 'tienda' ? '¡Gratis!' : (precioEnvio === 0 && method === 'standard' ? '$0.00' : `$${precioEnvio.toLocaleString()}`)}
+                {method === 'tienda' ? '¡Gratis!' : (precioEnvio === 0 && method === 'standard' ? '$0.00' : `$${precioEnvio.toLocaleString('es-AR')}`)}
               </div>
             </div>
           </div>

@@ -59,11 +59,21 @@ router.get('/dashboard-data', async (req, res) => {
     };
 
     // 1. Métricas Globales (No afectadas por filtros)
+    const globalSalesTrend = await Order.findAll({
+      attributes: [
+        [sequelize.fn('DATE', sequelize.col('fecha_compra')), 'date'],
+        [sequelize.fn('SUM', sequelize.col('total')), 'total']
+      ],
+      group: [sequelize.fn('DATE', sequelize.col('fecha_compra'))],
+      order: [[sequelize.fn('DATE', sequelize.col('fecha_compra')), 'ASC']]
+    });
+
     const globalStats = {
       totalUsers: await User.count(),
-      totalProducts: await Product.count(),
+      totalProducts: await Product.count({ where: { isActive: true } }),
       totalOrders: await Order.count(),
-      totalRevenue: await Order.sum('total') || 0
+      totalRevenue: await Order.sum('total') || 0,
+      globalSalesTrend
     };
 
     // 2. Métricas del Periodo Actual
@@ -116,6 +126,7 @@ router.get('/dashboard-data', async (req, res) => {
         fecha_compra: { [Op.between]: [new Date(`${startDate}T00:00:00`), new Date(`${endDate}T23:59:59`)] } 
       } : {},
       group: ['user_id'],
+      having: sequelize.literal("SUM(CASE WHEN status IN ('Cerrada', 'Entregado') THEN total ELSE 0 END) > 0"),
       order: [[sequelize.literal('totalSpent'), 'DESC']],
       limit: 5,
       include: [{ 
@@ -132,8 +143,11 @@ router.get('/dashboard-data', async (req, res) => {
     });
 
     const shippingMethods = await Order.findAll({
-      attributes: ['shipping_method', [sequelize.fn('COUNT', sequelize.col('id')), 'count']],
-      group: ['shipping_method']
+      where: (startDate && endDate) ? { 
+        fecha_compra: { [Op.between]: [new Date(`${startDate}T00:00:00`), new Date(`${endDate}T23:59:59`)] } 
+      } : {},
+      attributes: ['tipo_envio', [sequelize.fn('COUNT', sequelize.col('id')), 'count']],
+      group: ['tipo_envio']
     });
 
     const topSellingProducts = await OrderItem.findAll({
@@ -167,11 +181,12 @@ router.get('/dashboard-data', async (req, res) => {
           pendingCount: u.get('pendingCount') || 0
         })),
         productsByCategory: productsByCategory.map(c => ({
+          id: c.categoria_id,
           category: c.Category?.descripcion || 'Sin Cat.',
           count: c.get('count')
         })),
         shippingMethods: shippingMethods.map(s => ({
-          method: s.shipping_method || 'Desconocido',
+          method: s.tipo_envio || 'Desconocido',
           count: s.get('count')
         })),
         topSellingProducts: topSellingProducts.map(p => ({
@@ -218,10 +233,12 @@ router.get('/dashboard/support', async (req, res) => {
         where: periodWhere,
         attributes: [
           [sequelize.fn('DATE', sequelize.col('created_at')), 'date'],
-          [sequelize.fn('COUNT', sequelize.col('id')), 'count']
+          [sequelize.fn('COUNT', sequelize.col('id')), 'count'],
+          [sequelize.fn('SUM', sequelize.literal("CASE WHEN status = 'cerrado' THEN 1 ELSE 0 END")), 'resolvedCount']
         ],
         group: [sequelize.fn('DATE', sequelize.col('created_at'))],
-        order: [[sequelize.fn('DATE', sequelize.col('created_at')), 'ASC']]
+        order: [[sequelize.fn('DATE', sequelize.col('created_at')), 'ASC']],
+        raw: true
       });
     }
 
@@ -239,8 +256,9 @@ router.get('/dashboard/support', async (req, res) => {
       metrics: { abiertos, cerrados, totalPeriodo },
       charts: {
         ticketsTrend: ticketsTrend.map(t => ({
-          date: t.get('date'),
-          count: t.get('count')
+          date: t.date,
+          count: t.count,
+          resolvedCount: t.resolvedCount
         })),
         statusDistribution: { abiertos, cerrados }
       },
@@ -266,11 +284,11 @@ router.get('/purchase-history', async (req, res) => {
     }
     
     if (shippingType && shippingType !== 'all') {
-      if (shippingType === 'retiro') {
-        whereClause.tipo_envio = 'retiro';
+      if (shippingType === 'Retiro en tienda') {
+        whereClause.tipo_envio = 'Retiro en tienda';
       }
-      if (shippingType === 'envio') {
-        whereClause.tipo_envio = 'envio';
+      if (shippingType === 'Envío a domicilio') {
+        whereClause.tipo_envio = 'Envío a domicilio';
       }
     }
 
@@ -287,12 +305,12 @@ router.get('/purchase-history', async (req, res) => {
     const requiresProductFilter = !!categoryName || !!productName;
     const productIncludeParams = {
       model: Product,
-      attributes: ['name'],
-      required: requiresProductFilter
+      attributes: ['name']
     };
 
     if (productName) {
       productIncludeParams.where = { name: productName };
+      productIncludeParams.required = true;
     }
 
     if (categoryName) {
@@ -301,8 +319,29 @@ router.get('/purchase-history', async (req, res) => {
         where: { descripcion: categoryName },
         required: true
       }];
+      productIncludeParams.required = true;
     }
 
+    if (requiresProductFilter) {
+      const matchedItems = await OrderItem.findAll({
+        include: [productIncludeParams],
+        attributes: ['compra_id']
+      });
+      const matchingOrderIds = matchedItems.map(item => item.compra_id);
+      
+      // If no orders match the product/category filter, return empty early
+      if (matchingOrderIds.length === 0) {
+        return res.json({ total: 0, totalPages: 0, currentPage: parseInt(page), orders: [] });
+      }
+      
+      whereClause.id = { [Op.in]: matchingOrderIds };
+    }
+
+    // Now productIncludeParams doesn't need to enforce required in the main query,
+    // because we already filtered whereClause.id.
+    // However, to only show the relevant items or to just load all items for those orders:
+    // We will just load all items for the matched orders to show the full order.
+    
     const { count, rows } = await Order.findAndCountAll({
       where: whereClause,
       include: [
@@ -313,8 +352,7 @@ router.get('/purchase-history', async (req, res) => {
         },
         {
           model: OrderItem,
-          required: requiresProductFilter,
-          include: [productIncludeParams]
+          include: [{ model: Product, attributes: ['name'] }]
         }
       ],
       order: [['fecha_compra', 'DESC']],
@@ -399,7 +437,7 @@ router.get('/users', async (req, res) => {
 
     const users = await User.findAll({
       where: whereClause,
-      attributes: ['id', 'name', 'email', 'tipoUsuario', 'fechaReg'],
+      attributes: ['id', 'name', 'email', 'tipoUsuario', 'fechaReg', 'sexo', 'fechaNac', 'direccion', 'dni'],
       order: [['fechaReg', 'DESC']]
     });
     res.json(users);
@@ -412,17 +450,25 @@ router.get('/users', async (req, res) => {
 // Create user manual
 router.post('/users', async (req, res) => {
   try {
-    const { name, email, password, tipoUsuario } = req.body;
+    const { name, email, password, tipoUsuario, sexo, fechaNac, direccion, dni, fechaReg } = req.body;
     const existingUser = await User.findOne({ where: { email } });
     if (existingUser) return res.status(400).json({ error: 'El email ya está registrado' });
 
     const hashedPassword = await bcrypt.hash(password, 10);
-    const newUser = await User.create({
+    const newUserData = {
       name,
       email,
       password: hashedPassword,
       tipoUsuario: tipoUsuario || 'cliente'
-    });
+    };
+    
+    if (sexo) newUserData.sexo = sexo;
+    if (fechaNac) newUserData.fechaNac = fechaNac;
+    if (direccion) newUserData.direccion = direccion;
+    if (dni) newUserData.dni = dni;
+    if (fechaReg) newUserData.fechaReg = fechaReg;
+
+    const newUser = await User.create(newUserData);
 
     // Notification for new user
     await Notification.create({
@@ -444,7 +490,7 @@ router.post('/users', async (req, res) => {
 router.put('/users/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    const { name, email, tipoUsuario } = req.body;
+    const { name, email, tipoUsuario, sexo, fechaNac, direccion, dni, fechaReg } = req.body;
     const user = await User.findByPk(id);
     if (!user) return res.status(404).json({ error: 'Usuario no encontrado' });
 
@@ -453,6 +499,11 @@ router.put('/users/:id', async (req, res) => {
     if (name) user.name = name;
     if (email) user.email = email;
     if (tipoUsuario) user.tipoUsuario = tipoUsuario;
+    if (sexo !== undefined) user.sexo = sexo;
+    if (fechaNac !== undefined) user.fechaNac = fechaNac;
+    if (direccion !== undefined) user.direccion = direccion;
+    if (dni !== undefined) user.dni = dni;
+    if (fechaReg !== undefined) user.fechaReg = fechaReg;
 
     await user.save();
 

@@ -73,7 +73,7 @@ export default function Recommendations({ context = 'HOME', onOpenModal }) {
         </h4>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
            <span style={{ fontSize: '1.2rem', fontWeight: 700, color: 'var(--foreground)' }}>
-             ${Number(product.price).toLocaleString()}
+             ${Number(product.price).toLocaleString('es-AR')}
            </span>
         </div>
         <button 

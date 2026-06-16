@@ -12,5 +12,8 @@ export const fixImageUrl = (url) => {
   if (url.startsWith('http://')) {
     return url.replace('http://', 'https://');
   }
+  if (!url.startsWith('http') && !url.startsWith('/')) {
+    return 'https://' + url;
+  }
   return url;
 };
