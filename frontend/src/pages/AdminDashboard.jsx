@@ -476,7 +476,7 @@ export default function AdminDashboard() {
               <h4 style={{ margin: 0, fontWeight: 800 }}>STOCK AGOTADO</h4>
               <p style={{ margin: 0, fontSize: '0.85rem' }}>Hay {rankings.outOfStockProducts.length} productos sin unidades.</p>
             </div>
-            <button className="btn" onClick={() => navigate('/admin/productos')} style={{ backgroundColor: '#ef4444', color: 'white', border: 'none', padding: '6px 12px', fontSize: '0.8rem' }}>Ver</button>
+            <button className="btn" onClick={() => navigate('/admin/productos', { state: { filterOutOfStock: true } })} style={{ backgroundColor: '#ef4444', color: 'white', border: 'none', padding: '6px 12px', fontSize: '0.8rem' }}>Ver</button>
           </div>
         )}
         {rankings?.lowStockProducts?.length > 0 && (
@@ -486,7 +486,7 @@ export default function AdminDashboard() {
               <h4 style={{ margin: 0, fontWeight: 800 }}>STOCK BAJO</h4>
               <p style={{ margin: 0, fontSize: '0.85rem' }}>{rankings.lowStockProducts.length} productos en alerta de reposición.</p>
             </div>
-            <button className="btn" onClick={() => navigate('/admin/productos')} style={{ backgroundColor: '#f59e0b', color: 'white', border: 'none', padding: '6px 12px', fontSize: '0.8rem' }}>Revisar</button>
+            <button className="btn" onClick={() => navigate('/admin/productos', { state: { filterLowStock: true } })} style={{ backgroundColor: '#f59e0b', color: 'white', border: 'none', padding: '6px 12px', fontSize: '0.8rem' }}>Revisar</button>
           </div>
         )}
       </div>
