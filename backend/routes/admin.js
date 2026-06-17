@@ -103,13 +103,13 @@ router.get('/dashboard-data', async (req, res) => {
 
     // 4. Rankings y Datos Estáticos
     const lowStockProducts = await Product.findAll({
-      where: { stock: { [Op.gt]: 0, [Op.lt]: 5 } },
+      where: { stock: { [Op.gt]: 0, [Op.lt]: 5 }, isActive: true },
       order: [['stock', 'ASC']],
       limit: 10
     });
 
     const outOfStockProducts = await Product.findAll({
-      where: { stock: 0 },
+      where: { stock: 0, isActive: true },
       limit: 10
     });
 
@@ -498,7 +498,7 @@ router.post('/users', async (req, res) => {
     };
     
     if (sexo) newUserData.sexo = sexo;
-    if (fechaNac) newUserData.fechaNac = fechaNac;
+    if (fechaNac) newUserData.fechaNac = fechaNac.includes('T') ? fechaNac : `${fechaNac}T12:00:00.000Z`;
     if (direccion) newUserData.direccion = direccion;
     if (dni) newUserData.dni = dni;
     if (fechaReg) newUserData.fechaReg = fechaReg;
@@ -535,7 +535,7 @@ router.put('/users/:id', async (req, res) => {
     if (email) user.email = email;
     if (tipoUsuario) user.tipoUsuario = tipoUsuario;
     if (sexo !== undefined) user.sexo = sexo;
-    if (fechaNac !== undefined) user.fechaNac = fechaNac;
+    if (fechaNac !== undefined) user.fechaNac = fechaNac && !fechaNac.includes('T') ? `${fechaNac}T12:00:00.000Z` : fechaNac;
     if (direccion !== undefined) user.direccion = direccion;
     if (dni !== undefined) user.dni = dni;
     if (fechaReg !== undefined) user.fechaReg = fechaReg;

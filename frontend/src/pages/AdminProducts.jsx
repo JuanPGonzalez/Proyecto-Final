@@ -109,8 +109,8 @@ export default function AdminProducts() {
     return 0;
   });
 
-  const lowStockProducts = products.filter(p => p.stock > 0 && p.stock < 5);
-  const outOfStockProducts = products.filter(p => p.stock === 0);
+  const lowStockProducts = products.filter(p => p.stock > 0 && p.stock < 5 && p.isActive);
+  const outOfStockProducts = products.filter(p => p.stock === 0 && p.isActive);
 
   const handleEdit = (product) => {
     setEditingProduct(product);
@@ -288,7 +288,7 @@ export default function AdminProducts() {
               <h4 style={{ margin: 0, fontWeight: 800 }}>STOCK AGOTADO</h4>
               <p style={{ margin: 0, fontSize: '0.85rem' }}>Hay {outOfStockProducts.length} productos sin unidades.</p>
             </div>
-            <button className="btn" onClick={() => { setStockStatus('out_of_stock'); setCurrentPage(1); }} style={{ backgroundColor: '#ef4444', color: 'white', border: 'none', padding: '6px 12px', fontSize: '0.8rem' }}>Filtrar</button>
+            <button className="btn" onClick={() => { setStockStatus('out_of_stock'); setActiveStatus('active'); setCurrentPage(1); }} style={{ backgroundColor: '#ef4444', color: 'white', border: 'none', padding: '6px 12px', fontSize: '0.8rem' }}>Filtrar</button>
           </div>
         )}
 
@@ -299,7 +299,7 @@ export default function AdminProducts() {
               <h4 style={{ margin: 0, fontWeight: 800 }}>STOCK BAJO</h4>
               <p style={{ margin: 0, fontSize: '0.85rem' }}>{lowStockProducts.length} productos en alerta de reposición.</p>
             </div>
-            <button className="btn" onClick={() => { setStockStatus('low_stock'); setCurrentPage(1); }} style={{ backgroundColor: '#f59e0b', color: 'white', border: 'none', padding: '6px 12px', fontSize: '0.8rem' }}>Filtrar</button>
+            <button className="btn" onClick={() => { setStockStatus('low_stock'); setActiveStatus('active'); setCurrentPage(1); }} style={{ backgroundColor: '#f59e0b', color: 'white', border: 'none', padding: '6px 12px', fontSize: '0.8rem' }}>Filtrar</button>
           </div>
         )}
       </div>

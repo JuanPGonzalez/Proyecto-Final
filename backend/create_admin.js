@@ -1,5 +1,5 @@
 const { User } = require('./models');
-const bcrypt = require('bcrypt');
+const bcrypt = require('bcryptjs');
 
 async function createAdmin() {
   const password = 'admin';
@@ -8,7 +8,7 @@ async function createAdmin() {
   try {
     const user = await User.create({
       name: 'Super',
-      email: 'Super@hardwarehaven.com',
+      email: 'admin@hardwarehaven.com',
       password: hashedPassword,
       tipoUsuario: 'Administrador',
       sexo: 'Masculino',

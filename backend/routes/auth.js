@@ -15,6 +15,9 @@ router.post('/register', async (req, res) => {
     if (!name || !email || !password || !dni || !direccion || !fechaNac || !sexo) {
       return res.status(400).json({ error: 'Todos los datos personales son obligatorios' });
     }
+    
+    // Add T12:00:00 to avoid timezone shifting issues on birth dates
+    const fixedFechaNac = fechaNac.includes('T') ? fechaNac : `${fechaNac}T12:00:00.000Z`;
 
     const existing = await User.findOne({ where: { email } });
     if (existing) return res.status(400).json({ error: 'Email ya en uso' });
@@ -28,7 +31,7 @@ router.post('/register', async (req, res) => {
       fechaReg: new Date(),
       dni: Number(dni),
       direccion,
-      fechaNac,
+      fechaNac: fixedFechaNac,
       sexo
     });
 
@@ -134,7 +137,7 @@ router.put('/profile', authMiddleware, async (req, res) => {
     if (name) user.name = name;
     if (sexo) user.sexo = sexo;
     if (direccion) user.direccion = direccion;
-    if (fechaNac) user.fechaNac = fechaNac;
+    if (fechaNac) user.fechaNac = fechaNac.includes('T') ? fechaNac : `${fechaNac}T12:00:00.000Z`;
     
     if (dni !== undefined && dni !== '' && dni !== null) {
       const numericDni = Number(dni);
