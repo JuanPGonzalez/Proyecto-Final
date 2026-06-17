@@ -182,6 +182,41 @@ router.put('/profile', authMiddleware, async (req, res) => {
   }
 });
 
+// Profile - Eliminar Cuenta
+router.delete('/profile', authMiddleware, async (req, res) => {
+  try {
+    const user = await User.findByPk(req.user.id);
+    if (!user) return res.status(404).json({ error: 'Usuario no encontrado' });
+
+    if (user.tipoUsuario === ROLES.ADMIN) {
+      const adminCount = await User.count({ where: { tipoUsuario: ROLES.ADMIN } });
+      if (adminCount <= 1) {
+        return res.status(400).json({ error: 'No puedes eliminar la única cuenta de administrador del sistema.' });
+      }
+    }
+
+    const { Order, OrderItem, SupportTicket, UserView, Notification } = require('../models');
+    
+    // Manually delete dependencies to avoid FK constraint errors if CASCADE is not set
+    await Notification.destroy({ where: { user_id: user.id } });
+    await UserView.destroy({ where: { user_id: user.id } });
+    await SupportTicket.destroy({ where: { user_id: user.id } });
+    
+    // Delete orders and order items
+    const userOrders = await Order.findAll({ where: { user_id: user.id } });
+    for (const order of userOrders) {
+        await OrderItem.destroy({ where: { compra_id: order.id } });
+        await order.destroy();
+    }
+
+    await user.destroy();
+    res.json({ message: 'Cuenta eliminada exitosamente' });
+  } catch (error) {
+    console.error('Error al eliminar cuenta:', error);
+    res.status(500).json({ error: 'Error al eliminar la cuenta' });
+  }
+});
+
 // ==========================================
 // FORGOT PASSWORD
 // ==========================================

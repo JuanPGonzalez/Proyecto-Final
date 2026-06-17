@@ -123,6 +123,29 @@ export default function Profile() {
     }
   };
 
+  const handleDeleteAccount = async () => {
+    const result = await showConfirm(
+      '¿Estás seguro?', 
+      'Esta acción eliminará tu cuenta y todo tu historial de forma permanente. No se puede deshacer.',
+      'Sí, eliminar cuenta'
+    );
+    if (result.isConfirmed) {
+      try {
+        const token = localStorage.getItem('token');
+        await axios.delete('http://localhost:5000/api/auth/profile', {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+        window.dispatchEvent(new Event('auth-change'));
+        navigate('/');
+        showToast('Cuenta eliminada', 'success');
+      } catch (error) {
+        showAlert('Error', error.response?.data?.error || 'Error al eliminar la cuenta', 'error');
+      }
+    }
+  };
+
   const logout = () => {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
@@ -199,7 +222,12 @@ export default function Profile() {
                   />
                 </div>
               </div>
-              <button type="submit" className="btn" style={{ marginTop: '10px' }}>Actualizar Perfil</button>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '10px' }}>
+                <button type="submit" className="btn">Actualizar Perfil</button>
+                <button type="button" className="btn btn-outline" style={{ borderColor: 'var(--destructive)', color: 'var(--destructive)' }} onClick={handleDeleteAccount}>
+                  Eliminar Cuenta
+                </button>
+              </div>
             </form>
           </div>
         </div>

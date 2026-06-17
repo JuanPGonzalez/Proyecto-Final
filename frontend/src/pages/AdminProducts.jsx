@@ -204,7 +204,24 @@ export default function AdminProducts() {
       const { updated, created, errors } = res.data;
       if (errors && errors.length > 0) {
         console.error("Errores de Excel:", errors);
-        showAlert('Importación Parcial', `Actualizados: ${updated}. Creados: ${created}. Fallaron: ${errors.length}. Revisa la consola para más detalles, o verifica que las IDs de Categoría sean válidas.`, 'warning');
+        const errorDetails = errors.slice(0, 3).map(e => `<li><strong>${e.row.name || e.row.id || 'Fila desconocida'}</strong>: ${e.error}</li>`).join('');
+        const moreErrors = errors.length > 3 ? `<p style="margin-top: 5px; font-size: 0.9em; color: var(--muted-foreground);">...y ${errors.length - 3} errores más.</p>` : '';
+        
+        showAlert(
+          'Importación con Errores', 
+          `<div>
+            <p style="margin-bottom: 10px;">Se procesaron algunas filas pero otras fallaron:</p>
+            <ul style="margin-bottom: 15px; text-align: left; display: inline-block;">
+              <li><strong>Actualizados:</strong> ${updated}</li>
+              <li><strong>Creados:</strong> ${created}</li>
+              <li><strong>Fallaron:</strong> ${errors.length}</li>
+            </ul>
+            <p style="margin-bottom: 5px; text-align: left;"><strong>Detalles de errores:</strong></p>
+            <ul style="text-align: left; background: var(--muted); padding: 10px 10px 10px 25px; border-radius: 8px; font-size: 0.9em;">${errorDetails}</ul>
+            ${moreErrors}
+          </div>`,
+          'warning'
+        );
       } else {
         showAlert('¡Éxito!', `Proceso completado. Actualizados: ${updated} | Creados: ${created}`, 'success');
       }
