@@ -409,12 +409,19 @@ export default function AdminDashboard() {
     }]
   };
 
+  const currSupportRange = generateDateRange(startDate, endDate);
+  const supportLabels = currSupportRange.length > 0
+    ? currSupportRange.map(d => new Date(d + 'T00:00:00').toLocaleDateString('es-AR'))
+    : (supportData?.charts?.ticketsTrend?.map(t => t.date ? new Date(t.date + 'T00:00:00').toLocaleDateString('es-AR') : '') || []);
+
   const supportTrendData = {
-    labels: supportData?.charts?.ticketsTrend?.map(t => new Date(t.date).toLocaleDateString('es-AR')) || [],
+    labels: supportLabels,
     datasets: [
       {
         label: 'Tickets Creados',
-        data: supportData?.charts?.ticketsTrend?.map(t => t.count) || [],
+        data: currSupportRange.length > 0
+          ? mapDataToRange(supportData?.charts?.ticketsTrend, currSupportRange, 'count')
+          : (supportData?.charts?.ticketsTrend?.map(t => t.count) || []),
         borderColor: '#f97316',
         backgroundColor: 'rgba(249, 115, 22, 0.2)',
         borderWidth: 3,
@@ -423,7 +430,9 @@ export default function AdminDashboard() {
       },
       {
         label: 'Tickets Resueltos',
-        data: supportData?.charts?.ticketsTrend?.map(t => t.resolvedCount || 0) || [],
+        data: currSupportRange.length > 0
+          ? mapDataToRange(supportData?.charts?.ticketsTrend, currSupportRange, 'resolvedCount')
+          : (supportData?.charts?.ticketsTrend?.map(t => t.resolvedCount || 0) || []),
         borderColor: '#10b981',
         backgroundColor: 'rgba(16, 185, 129, 0.2)',
         borderWidth: 2,
