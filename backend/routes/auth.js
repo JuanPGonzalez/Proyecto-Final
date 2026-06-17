@@ -22,6 +22,9 @@ router.post('/register', async (req, res) => {
     const existing = await User.findOne({ where: { email } });
     if (existing) return res.status(400).json({ error: 'Email ya en uso' });
 
+    const existingName = await User.findOne({ where: { name } });
+    if (existingName) return res.status(400).json({ error: 'El nombre de usuario ya está en uso' });
+
     const hashedPassword = await bcrypt.hash(password, 10);
     const user = await User.create({
       name,
@@ -134,7 +137,11 @@ router.put('/profile', authMiddleware, async (req, res) => {
     const user = await User.findByPk(req.user.id);
     if (!user) return res.status(404).json({ error: 'Usuario no encontrado' });
 
-    if (name) user.name = name;
+    if (name && name !== user.name) {
+      const existingName = await User.findOne({ where: { name, id: { [Op.ne]: req.user.id } } });
+      if (existingName) return res.status(400).json({ error: 'Este nombre de usuario ya está en uso' });
+      user.name = name;
+    }
     if (sexo) user.sexo = sexo;
     if (direccion) user.direccion = direccion;
     if (fechaNac) user.fechaNac = fechaNac.includes('T') ? fechaNac : `${fechaNac}T12:00:00.000Z`;

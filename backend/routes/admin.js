@@ -489,6 +489,9 @@ router.post('/users', async (req, res) => {
     const existingUser = await User.findOne({ where: { email } });
     if (existingUser) return res.status(400).json({ error: 'El email ya está registrado' });
 
+    const existingName = await User.findOne({ where: { name } });
+    if (existingName) return res.status(400).json({ error: 'El nombre de usuario ya está registrado' });
+
     const hashedPassword = await bcrypt.hash(password, 10);
     const newUserData = {
       name,
@@ -531,7 +534,11 @@ router.put('/users/:id', async (req, res) => {
 
     const roleChanged = user.tipoUsuario !== tipoUsuario && tipoUsuario;
 
-    if (name) user.name = name;
+    if (name && name !== user.name) {
+      const existingName = await User.findOne({ where: { name, id: { [Op.ne]: id } } });
+      if (existingName) return res.status(400).json({ error: 'El nombre de usuario ya está registrado por otra persona' });
+      user.name = name;
+    }
     if (email) user.email = email;
     if (tipoUsuario) user.tipoUsuario = tipoUsuario;
     if (sexo !== undefined) user.sexo = sexo;

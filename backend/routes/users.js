@@ -29,6 +29,9 @@ router.post('/admin', authMiddleware, adminMiddleware, async (req, res) => {
     const existing = await User.findOne({ where: { email } });
     if (existing) return res.status(400).json({ error: 'Email ya en uso' });
 
+    const existingName = await User.findOne({ where: { name } });
+    if (existingName) return res.status(400).json({ error: 'Nombre de usuario ya en uso' });
+
     const normalizedRole = isAdminRole(tipoUsuario) ? ROLES.ADMIN : ROLES.CLIENT;
     const hashedPassword = await bcrypt.hash(password, 10);
     const user = await User.create({ name, email, password: hashedPassword, tipoUsuario: normalizedRole });

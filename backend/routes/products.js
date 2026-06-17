@@ -107,6 +107,20 @@ router.post('/import', adminMiddleware, upload.single('file'), async (req, res) 
             newData.imgURL = null;
           }
           
+          const pBaseCreate = newData.price;
+          const pMinCreate = newData.precio_min || null;
+          const pMaxCreate = newData.precio_max || null;
+
+          if (pMinCreate !== null && pBaseCreate < pMinCreate) {
+             throw new Error(`El precio actual (${pBaseCreate}) no puede ser menor al mínimo (${pMinCreate})`);
+          }
+          if (pMaxCreate !== null && pBaseCreate > pMaxCreate) {
+             throw new Error(`El precio actual (${pBaseCreate}) no puede ser mayor al máximo (${pMaxCreate})`);
+          }
+          if (pMinCreate !== null && pMaxCreate !== null && pMinCreate > pMaxCreate) {
+             throw new Error(`El precio mínimo (${pMinCreate}) no puede ser mayor al máximo (${pMaxCreate})`);
+          }
+
           await Product.create(newData);
           created++;
           return;
@@ -157,6 +171,20 @@ router.post('/import', adminMiddleware, upload.single('file'), async (req, res) 
         if (Object.keys(updateData).length === 0) {
           skipped++;
           return;
+        }
+
+        const finalPrice = updateData.price !== undefined ? updateData.price : Number(product.price);
+        const finalMin = updateData.precio_min !== undefined ? updateData.precio_min : (product.precio_min !== null ? Number(product.precio_min) : null);
+        const finalMax = updateData.precio_max !== undefined ? updateData.precio_max : (product.precio_max !== null ? Number(product.precio_max) : null);
+
+        if (finalMin !== null && finalPrice < finalMin) {
+          throw new Error(`El precio actual (${finalPrice}) no puede ser menor al mínimo (${finalMin})`);
+        }
+        if (finalMax !== null && finalPrice > finalMax) {
+          throw new Error(`El precio actual (${finalPrice}) no puede ser mayor al máximo (${finalMax})`);
+        }
+        if (finalMin !== null && finalMax !== null && finalMin > finalMax) {
+          throw new Error(`El precio mínimo (${finalMin}) no puede ser mayor al máximo (${finalMax})`);
         }
 
         const oldPrice = Number(product.price);
